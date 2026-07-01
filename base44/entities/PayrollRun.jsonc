@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "month": {
+      "type": "number"
+    },
+    "year": {
+      "type": "number"
+    },
+    "totalSalaries": {
+      "type": "number",
+      "default": 0
+    },
+    "totalAllowances": {
+      "type": "number",
+      "default": 0
+    },
+    "totalDeductions": {
+      "type": "number",
+      "default": 0
+    },
+    "netAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "APPROVED",
+        "PAID"
+      ],
+      "default": "DRAFT"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "month",
+    "year",
+    "status"
+  ],
+  "name": "PayrollRun"
+}

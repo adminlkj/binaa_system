@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "nameAr": {
+      "type": "string"
+    },
+    "position": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "nationalId": {
+      "type": "string"
+    },
+    "nationality": {
+      "type": "string"
+    },
+    "hireDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "salary": {
+      "type": "number",
+      "default": 0
+    },
+    "allowances": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "ON_LEAVE",
+        "TERMINATED"
+      ],
+      "default": "ACTIVE"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "name"
+  ],
+  "name": "Employee"
+}

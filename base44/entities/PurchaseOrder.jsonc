@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "properties": {
+    "orderNo": {
+      "type": "string"
+    },
+    "supplierId": {
+      "type": "string"
+    },
+    "supplierName": {
+      "type": "string"
+    },
+    "projectId": {
+      "type": "string"
+    },
+    "projectName": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "expectedDelivery": {
+      "type": "string",
+      "format": "date"
+    },
+    "totalAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "vatAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "APPROVED",
+        "ORDERED",
+        "RECEIVED",
+        "CANCELLED"
+      ],
+      "default": "DRAFT"
+    },
+    "description": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "orderNo",
+    "supplierId",
+    "date",
+    "status"
+  ],
+  "name": "PurchaseOrder"
+}

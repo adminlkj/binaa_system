@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "properties": {
+    "invoiceNo": {
+      "type": "string"
+    },
+    "invoiceType": {
+      "type": "string",
+      "enum": [
+        "CONSTRUCTION",
+        "SERVICE",
+        "RENTAL"
+      ],
+      "default": "CONSTRUCTION"
+    },
+    "projectId": {
+      "type": "string"
+    },
+    "projectName": {
+      "type": "string"
+    },
+    "clientId": {
+      "type": "string"
+    },
+    "clientName": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "dueDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "subtotal": {
+      "type": "number",
+      "default": 0
+    },
+    "vatRate": {
+      "type": "number",
+      "default": 0.15
+    },
+    "vatAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "totalAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "paidAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "SENT",
+        "PARTIALLY_PAID",
+        "PAID",
+        "OVERDUE",
+        "CANCELLED"
+      ],
+      "default": "DRAFT"
+    },
+    "description": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "invoiceNo",
+    "clientId",
+    "date",
+    "status"
+  ],
+  "name": "SalesInvoice"
+}

@@ -1,0 +1,75 @@
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "nameAr": {
+      "type": "string"
+    },
+    "clientId": {
+      "type": "string"
+    },
+    "clientName": {
+      "type": "string"
+    },
+    "branchId": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "endDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PLANNING",
+        "ACTIVE",
+        "ON_HOLD",
+        "COMPLETED",
+        "CANCELLED"
+      ],
+      "default": "PLANNING"
+    },
+    "projectType": {
+      "type": "string",
+      "enum": [
+        "CONSTRUCTION",
+        "RENTAL",
+        "BOTH"
+      ],
+      "default": "CONSTRUCTION"
+    },
+    "contractValue": {
+      "type": "number",
+      "default": 0
+    },
+    "description": {
+      "type": "string"
+    },
+    "totalCosts": {
+      "type": "number",
+      "default": 0
+    },
+    "totalRevenue": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "code",
+    "name",
+    "status"
+  ],
+  "name": "Project"
+}

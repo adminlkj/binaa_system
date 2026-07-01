@@ -1,0 +1,61 @@
+{
+  "type": "object",
+  "properties": {
+    "entryNo": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "description": {
+      "type": "string"
+    },
+    "totalDebit": {
+      "type": "number",
+      "default": 0
+    },
+    "totalCredit": {
+      "type": "number",
+      "default": 0
+    },
+    "isPosted": {
+      "type": "boolean",
+      "default": false
+    },
+    "sourceType": {
+      "type": "string"
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "accountCode": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "number",
+            "default": 0
+          },
+          "credit": {
+            "type": "number",
+            "default": 0
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "entryNo",
+    "date",
+    "description"
+  ],
+  "name": "JournalEntry"
+}

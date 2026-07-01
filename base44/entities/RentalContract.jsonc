@@ -1,0 +1,74 @@
+{
+  "type": "object",
+  "properties": {
+    "contractNo": {
+      "type": "string"
+    },
+    "equipmentId": {
+      "type": "string"
+    },
+    "equipmentName": {
+      "type": "string"
+    },
+    "clientId": {
+      "type": "string"
+    },
+    "clientName": {
+      "type": "string"
+    },
+    "startDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "endDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "rateType": {
+      "type": "string",
+      "enum": [
+        "DAILY",
+        "WEEKLY",
+        "MONTHLY",
+        "HOURLY"
+      ],
+      "default": "DAILY"
+    },
+    "rate": {
+      "type": "number",
+      "default": 0
+    },
+    "deliveryFees": {
+      "type": "number",
+      "default": 0
+    },
+    "totalAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "vatAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "CANCELLED"
+      ],
+      "default": "DRAFT"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "contractNo",
+    "equipmentId",
+    "clientId",
+    "status"
+  ],
+  "name": "RentalContract"
+}

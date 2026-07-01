@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "RENT",
+        "MAINTENANCE",
+        "TRANSPORT",
+        "DELIVERY",
+        "CONSUMABLES",
+        "SERVICES",
+        "INSURANCE",
+        "FUEL",
+        "PERMITS",
+        "OFFICE",
+        "HOSPITALITY",
+        "OTHER",
+        "SALARIES",
+        "ELECTRICITY",
+        "WATER"
+      ],
+      "default": "OTHER"
+    },
+    "description": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "number",
+      "default": 0
+    },
+    "vatAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "totalAmount": {
+      "type": "number",
+      "default": 0
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "projectId": {
+      "type": "string"
+    },
+    "projectName": {
+      "type": "string"
+    },
+    "reference": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "category",
+    "description",
+    "amount",
+    "date"
+  ],
+  "name": "Expense"
+}

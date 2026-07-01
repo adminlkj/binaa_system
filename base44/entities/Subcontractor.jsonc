@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "specialty": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "taxNumber": {
+      "type": "string"
+    },
+    "contactPerson": {
+      "type": "string"
+    },
+    "totalContracts": {
+      "type": "number",
+      "default": 0
+    },
+    "totalPaid": {
+      "type": "number",
+      "default": 0
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "name"
+  ],
+  "name": "Subcontractor"
+}

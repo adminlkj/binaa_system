@@ -8,8 +8,6 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import { StoreProvider, useStore } from '@/lib/store';
 import AppShell from '@/components/layout/AppShell';
-import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 import { canAccess } from '@/lib/permissions';
 import { ShieldAlert } from 'lucide-react';
 
@@ -54,12 +52,8 @@ function AccessDenied() {
 // Page map for sidebar navigation
 function MainApp() {
   const { activeItem } = useStore();
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userLoaded, setUserLoaded] = useState(false);
-
-  useEffect(() => {
-    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {}).finally(() => setUserLoaded(true));
-  }, []);
+  const { user: currentUser } = useAuth();
+  const userLoaded = true;
 
   const pageMap = {
     dashboard: <Dashboard />,

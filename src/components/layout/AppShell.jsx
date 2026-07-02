@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Menu, LogOut, User, ChevronDown } from 'lucide-react';
 import Sidebar from './Sidebar';
 import ContextBar from '@/components/shared/ContextBar';
 import { useStore } from '@/lib/store';
+import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { t } from '@/lib/utils-binaa';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function AppShell({ children }) {
   const { sidebarOpen, setSidebarOpen, lang, setActiveItem } = useStore();
-  const [user, setUser] = useState(null);
-  const [userLoaded, setUserLoaded] = useState(false);
-
-  useEffect(() => {
-    base44.auth.me().then(u => setUser(u)).catch(() => {}).finally(() => setUserLoaded(true));
-  }, []);
+  // Reuse the already-resolved user from AuthContext (MainApp only renders after
+  // auth finished loading), avoiding a second me() call and its race condition.
+  const { user } = useAuth();
+  const userLoaded = true;
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()

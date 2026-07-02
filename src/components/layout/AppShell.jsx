@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, Bell, LogOut, User, ChevronDown } from 'lucide-react';
 import Sidebar from './Sidebar';
+import ContextBar from '@/components/shared/ContextBar';
 import { useStore } from '@/lib/store';
 import { base44 } from '@/api/base44Client';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -80,6 +81,7 @@ export default function AppShell({ children }) {
           </DropdownMenu>
         </header>
 
+        <ContextBar />
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-muted/30">
           {children}

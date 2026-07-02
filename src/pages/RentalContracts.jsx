@@ -35,7 +35,7 @@ const empty = {
 };
 
 export default function RentalContracts() {
-  const { lang } = useStore();
+  const { lang, activeClientId, activeClientName } = useStore();
   const [items, setItems]         = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [clients, setClients]     = useState([]);
@@ -68,7 +68,13 @@ export default function RentalContracts() {
     return match && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew  = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const buildDefaultForm = () => ({
+    ...empty,
+    clientId:   activeClientId   || '',
+    clientName: activeClientName || '',
+  });
+
+  const openNew  = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 

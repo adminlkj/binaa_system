@@ -119,16 +119,32 @@ export const CYCLES = [
     ],
   },
   {
+    key: 'partners-cycle',
+    label: { ar: 'العملاء والموردون', en: 'Clients & Suppliers' },
+    Icon: UsersRound,
+    color: { text: 'text-rose-600', border: 'border-rose-500', light: 'bg-rose-50', bg: 'bg-rose-600' },
+    tabs: [
+      { key: 'clients',   ar: 'العملاء',        en: 'Clients',   Icon: UsersRound },
+      { key: 'suppliers', ar: 'الموردون',       en: 'Suppliers', Icon: Package },
+    ],
+  },
+  {
+    key: 'users-cycle',
+    label: { ar: 'المستخدمون والصلاحيات', en: 'Users & Permissions' },
+    Icon: ShieldCheck,
+    color: { text: 'text-fuchsia-600', border: 'border-fuchsia-500', light: 'bg-fuchsia-50', bg: 'bg-fuchsia-600' },
+    tabs: [
+      { key: 'users', ar: 'المستخدمون والصلاحيات', en: 'Users & Permissions', Icon: ShieldCheck },
+    ],
+  },
+  {
     key: 'settings-cycle',
     label: { ar: 'الإعدادات والبيانات', en: 'Settings & Master Data' },
     Icon: Settings,
     color: { text: 'text-slate-600', border: 'border-slate-500', light: 'bg-slate-50', bg: 'bg-slate-600' },
     tabs: [
-      { key: 'clients',   ar: 'العملاء',              en: 'Clients',             Icon: UsersRound },
-      { key: 'suppliers', ar: 'الموردون',             en: 'Suppliers',           Icon: Package },
-      { key: 'inventory', ar: 'المخزون والأصول',      en: 'Inventory',           Icon: Warehouse },
-      { key: 'users',     ar: 'المستخدمون والصلاحيات', en: 'Users & Permissions', Icon: ShieldCheck },
-      { key: 'settings',  ar: 'إعدادات النظام',       en: 'System Settings',     Icon: Settings },
+      { key: 'inventory', ar: 'المخزون والأصول', en: 'Inventory',       Icon: Warehouse },
+      { key: 'settings',  ar: 'إعدادات النظام',  en: 'System Settings', Icon: Settings },
     ],
   },
 ];

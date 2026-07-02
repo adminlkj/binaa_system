@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, FileText, ReceiptText, ShoppingCart, DollarSign, Building2 } from 'lucide-react';
+import { LayoutGrid, FileText, ReceiptText, ShoppingCart, DollarSign, Building2, ListChecks, ClipboardCheck, GitPullRequestArrow, FolderOpen, BookOpen } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa';
@@ -8,6 +8,11 @@ import WorkspaceHeader from '@/components/workspace/WorkspaceHeader';
 import WorkspaceTabs from '@/components/workspace/WorkspaceTabs';
 import ProjectOverview from '@/components/workspace/ProjectOverview';
 import RelatedList from '@/components/workspace/RelatedList';
+import BoqTab from '@/components/workspace/tabs/BoqTab';
+import ProgressBillingTab from '@/components/workspace/tabs/ProgressBillingTab';
+import ChangeOrdersTab from '@/components/workspace/tabs/ChangeOrdersTab';
+import DocumentsTab from '@/components/workspace/tabs/DocumentsTab';
+import StatementTab from '@/components/workspace/tabs/StatementTab';
 
 export default function ProjectWorkspace() {
   const { lang, activeProjectId, activeProjectName, setActiveItem } = useStore();
@@ -77,9 +82,14 @@ export default function ProjectWorkspace() {
   const tabs = [
     { key: 'overview', ar: 'نظرة عامة', en: 'Overview', Icon: LayoutGrid },
     { key: 'contracts', ar: 'العقود', en: 'Contracts', Icon: FileText },
+    { key: 'change-orders', ar: 'الملاحق وأوامر التغيير', en: 'Change Orders', Icon: GitPullRequestArrow },
+    { key: 'boq', ar: 'جدول الكميات', en: 'BOQ', Icon: ListChecks },
+    { key: 'billing', ar: 'المستخلصات', en: 'Progress Billing', Icon: ClipboardCheck },
     { key: 'sales', ar: 'المبيعات', en: 'Sales', Icon: ReceiptText },
     { key: 'purchases', ar: 'المشتريات', en: 'Purchases', Icon: ShoppingCart },
     { key: 'expenses', ar: 'المصروفات', en: 'Expenses', Icon: DollarSign },
+    { key: 'statement', ar: 'كشف الحساب', en: 'Statement', Icon: BookOpen },
+    { key: 'documents', ar: 'المستندات', en: 'Documents', Icon: FolderOpen },
   ];
 
   return (
@@ -150,6 +160,12 @@ export default function ProjectWorkspace() {
           rows={expenses}
         />
       )}
+
+      {tab === 'change-orders' && <ChangeOrdersTab projectId={activeProjectId} />}
+      {tab === 'boq' && <BoqTab projectId={activeProjectId} />}
+      {tab === 'billing' && <ProgressBillingTab projectId={activeProjectId} />}
+      {tab === 'statement' && <StatementTab invoices={invoices} purchases={purchases} expenses={expenses} />}
+      {tab === 'documents' && <DocumentsTab projectId={activeProjectId} />}
     </div>
   );
 }

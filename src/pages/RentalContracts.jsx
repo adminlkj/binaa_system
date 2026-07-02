@@ -92,7 +92,7 @@ export default function RentalContracts() {
     setSaving(true);
     try {
       if (editing) {
-        await OperationEngine.updateRentalContract(editing.id, form, equipment, clients);
+        await OperationEngine.updateRentalContract(editing.id, form, equipment, clients, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
         await OperationEngine.createRentalContract(form, equipment, clients);

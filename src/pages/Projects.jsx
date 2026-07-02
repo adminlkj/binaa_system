@@ -14,6 +14,7 @@ import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { validate } from '@/lib/validationEngine';
+import { canTransition } from '@/lib/workflowEngine';
 import { toast } from 'sonner';
 
 const emptyForm = { code: '', name: '', nameAr: '', clientId: '', clientName: '', location: '', startDate: '', endDate: '', status: 'PLANNING', projectType: 'CONSTRUCTION', contractValue: '', description: '' };
@@ -55,6 +56,8 @@ export default function Projects() {
   const save = async () => {
     const { valid, errors } = validate('PROJECT', form);
     if (!valid) return toast.error(errors[0]);
+    if (editing && !canTransition('PROJECT', editing.status, form.status))
+      return toast.error(t(`لا يمكن الانتقال من الحالة الحالية إلى المحددة`, 'This status change is not allowed by the workflow', lang));
     setSaving(true);
     try {
       const cl = clients.find(c => c.id === form.clientId);

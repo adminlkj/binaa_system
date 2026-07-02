@@ -8,6 +8,7 @@
 import { base44 } from '@/api/base44Client';
 import { buildJEFromTemplate } from '@/lib/postingEngine';
 import { assertValid } from '@/lib/validationEngine';
+import { assertTransition } from '@/lib/workflowEngine';
 
 /**
  * يبني القيد من قالب الترحيل الدلالي إن وُجد (المحاسب يتحكم بالحسابات)،
@@ -262,8 +263,9 @@ export const OperationEngine = {
     return invoice;
   },
 
-  async updateSalesInvoice(id, data, projects, clients) {
+  async updateSalesInvoice(id, data, projects, clients, prevStatus) {
     assertValid('SALES_INVOICE', data);
+    assertTransition('SALES_INVOICE', prevStatus, data.status);
     const proj = projects.find(p => p.id === data.projectId);
     const cl   = clients.find(c => c.id === data.clientId);
     const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, parseFloat(data.vatRate) || VAT_RATE);
@@ -306,8 +308,9 @@ export const OperationEngine = {
     return po;
   },
 
-  async updatePurchaseOrder(id, data, suppliers, projects) {
+  async updatePurchaseOrder(id, data, suppliers, projects, prevStatus) {
     assertValid('PURCHASE_ORDER', data);
+    assertTransition('PURCHASE_ORDER', prevStatus, data.status);
     const s = suppliers.find(s => s.id === data.supplierId);
     const p = projects.find(p => p.id === data.projectId);
     const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
@@ -403,8 +406,9 @@ export const OperationEngine = {
     return contract;
   },
 
-  async updateRentalContract(id, data, equipment, clients) {
+  async updateRentalContract(id, data, equipment, clients, prevStatus) {
     assertValid('RENTAL_CONTRACT', data);
+    assertTransition('RENTAL_CONTRACT', prevStatus, data.status);
     const eq = equipment.find(e => e.id === data.equipmentId);
     const cl = clients.find(c => c.id === data.clientId);
     const rate = parseFloat(data.rate) || 0;
@@ -448,8 +452,9 @@ export const OperationEngine = {
     return payroll;
   },
 
-  async updatePayrollRun(id, data) {
+  async updatePayrollRun(id, data, prevStatus) {
     assertValid('PAYROLL', data);
+    assertTransition('PAYROLL', prevStatus, data.status);
     const payroll = await base44.entities.PayrollRun.update(id, data);
     if (data.status === 'PAID') {
       const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];

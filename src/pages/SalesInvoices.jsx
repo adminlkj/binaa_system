@@ -86,7 +86,7 @@ export default function SalesInvoices() {
     setSaving(true);
     try {
       if (editing) {
-        await OperationEngine.updateSalesInvoice(editing.id, form, projects, clients);
+        await OperationEngine.updateSalesInvoice(editing.id, form, projects, clients, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
         await OperationEngine.createSalesInvoice(form, projects, clients);

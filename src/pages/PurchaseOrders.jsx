@@ -81,7 +81,7 @@ export default function PurchaseOrders() {
     setSaving(true);
     try {
       if (editing) {
-        await OperationEngine.updatePurchaseOrder(editing.id, form, suppliers, projects);
+        await OperationEngine.updatePurchaseOrder(editing.id, form, suppliers, projects, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
         await OperationEngine.createPurchaseOrder(form, suppliers, projects);

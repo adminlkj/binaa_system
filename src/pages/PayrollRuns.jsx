@@ -68,7 +68,7 @@ export default function PayrollRuns() {
     try {
       const data = { ...form, month: parseInt(form.month), year: parseInt(form.year), totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
       if (editing) {
-        await OperationEngine.updatePayrollRun(editing.id, data);
+        await OperationEngine.updatePayrollRun(editing.id, data, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
         await OperationEngine.createPayrollRun(data);

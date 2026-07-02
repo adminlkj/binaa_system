@@ -27,6 +27,7 @@ import PurchaseOrders from '@/pages/PurchaseOrders';
 import Expenses from '@/pages/Expenses';
 import Subcontractors from '@/pages/Subcontractors';
 import JournalEntries from '@/pages/JournalEntries';
+import ChartAccounts from '@/pages/ChartAccounts';
 import PayrollRuns from '@/pages/PayrollRuns';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
@@ -94,6 +95,7 @@ function MainApp() {
     'payroll-runs': <PayrollRuns />,
     advances: <ComingSoon title="السلف" titleEn="Employee Advances" />,
     // Accounting
+    'chart-accounts': <ChartAccounts />,
     accounting: <JournalEntries />,
     vat: <Reports />,
     reports: <Reports />,

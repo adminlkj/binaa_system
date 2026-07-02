@@ -5,7 +5,7 @@ import {
   FileText, CreditCard, ShoppingCart,
   UsersRound, Wallet, ReceiptText, HardHat,
   DollarSign, Warehouse, Fuel, CalendarDays, HandCoins,
-  ClipboardList, BookOpen, BarChart3, Shield, ShieldCheck, CalendarRange,
+  ClipboardList, BookOpen, BarChart3, Shield, ShieldCheck, CalendarRange, Network,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { canAccess } from '@/lib/permissions';
@@ -19,7 +19,7 @@ const READY_KEYS = new Set([
   'equipment', 'rental-contracts', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors',
   'employees', 'payroll-runs',
-  'accounting', 'vat', 'reports', 'fiscal-years',
+  'chart-accounts', 'accounting', 'vat', 'reports', 'fiscal-years',
   'clients', 'suppliers', 'users', 'settings',
 ]);
 
@@ -90,6 +90,7 @@ const navGroups = [
     Icon: Calculator,
     color: { text: 'text-teal-600', border: 'border-teal-500', light: 'bg-teal-50', bg: 'bg-teal-600' },
     items: [
+      { key: 'chart-accounts', ar: 'الدليل المحاسبي',   en: 'Chart of Accounts', Icon: Network,    desc: { ar: 'شجرة الحسابات وأدوارها', en: 'Accounts tree & roles' } },
       { key: 'accounting', ar: 'دفتر اليومية',          en: 'Journal Entries',   Icon: BookOpen,   desc: { ar: 'القيود المحاسبية اليدوية', en: 'Manual journal entries' } },
       { key: 'vat',        ar: 'ضريبة القيمة المضافة',  en: 'VAT',               Icon: Shield,     desc: { ar: 'تقرير الضريبة للهيئة', en: 'VAT report for authority' } },
       { key: 'reports',    ar: 'التقارير المالية',       en: 'Financial Reports', Icon: BarChart3,  desc: { ar: 'أرباح، تدفقات، ميزانية', en: 'P&L, cash flow, balance' } },

@@ -32,6 +32,7 @@ export const MODULES = [
   { key: 'attendance', ar: 'الحضور', en: 'Attendance', group: 'hr' },
   { key: 'advances', ar: 'السلف', en: 'Advances', group: 'hr' },
   // Accounting
+  { key: 'chart-accounts', ar: 'الدليل المحاسبي', en: 'Chart of Accounts', group: 'accounting' },
   { key: 'accounting', ar: 'دفتر اليومية', en: 'Journal', group: 'accounting' },
   { key: 'vat', ar: 'ضريبة القيمة المضافة', en: 'VAT', group: 'accounting' },
   { key: 'reports', ar: 'التقارير المالية', en: 'Reports', group: 'accounting' },
@@ -56,7 +57,7 @@ export const APP_ROLES = {
     ar: 'محاسب', en: 'Accountant',
     color: 'bg-teal-100 text-teal-700 border border-teal-200',
     modules: ['sales', 'client-payments', 'purchase-orders', 'expenses', 'supplier-invoices',
-      'supplier-payments', 'accounting', 'vat', 'reports', 'fiscal-years', 'payroll-runs',
+      'supplier-payments', 'chart-accounts', 'accounting', 'vat', 'reports', 'fiscal-years', 'payroll-runs',
       'clients', 'suppliers'],
   },
   PROJECT_MANAGER: {

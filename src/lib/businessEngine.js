@@ -6,6 +6,19 @@
  */
 
 import { base44 } from '@/api/base44Client';
+import { buildJEFromTemplate } from '@/lib/postingEngine';
+
+/**
+ * يبني القيد من قالب الترحيل الدلالي إن وُجد (المحاسب يتحكم بالحسابات)،
+ * وإلا يتراجع لباني القيد الثابت (fallbackBuilder) لضمان عدم انكسار النظام.
+ */
+async function buildJE(operationType, meta, amounts, fallbackBuilder) {
+  const fromTemplate = await buildJEFromTemplate(operationType, {
+    entryNo: meta.entryNo, date: meta.date, description: meta.description,
+    sourceType: meta.sourceType, amounts,
+  });
+  return fromTemplate || fallbackBuilder();
+}
 
 // ─── ثوابت الأعمال ────────────────────────────────────────────────────────────
 export const VAT_RATE = 0.15;
@@ -236,8 +249,14 @@ export const OperationEngine = {
       clientName:  cl?.name  || data.clientName,
     };
     const invoice = await base44.entities.SalesInvoice.create(payload);
-    // Auto-post JE
-    await autoPostJE(buildSalesInvoiceJE({ ...payload, invoiceNo: payload.invoiceNo }));
+    // Auto-post JE (semantic template first, fallback to fixed builder)
+    const je = await buildJE(
+      'SALES_INVOICE',
+      { entryNo: `JE-SINV-${payload.invoiceNo}`, date: payload.date, description: `فاتورة مبيعات ${payload.invoiceNo} — ${payload.clientName}`, sourceType: 'SalesInvoice' },
+      { base: subtotal, vat: vatAmount, total: totalAmount },
+      () => buildSalesInvoiceJE({ ...payload, invoiceNo: payload.invoiceNo }),
+    );
+    await autoPostJE(je);
     return invoice;
   },
 
@@ -272,7 +291,13 @@ export const OperationEngine = {
     const po = await base44.entities.PurchaseOrder.create(payload);
     // Auto-post JE only if RECEIVED
     if (payload.status === 'RECEIVED') {
-      await autoPostJE(buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }));
+      const je = await buildJE(
+        'PURCHASE_ORDER',
+        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
+        { base: baseAmount, vat: vatAmount, total: grandTotal },
+        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
+      );
+      await autoPostJE(je);
     }
     return po;
   },
@@ -290,7 +315,13 @@ export const OperationEngine = {
     };
     const po = await base44.entities.PurchaseOrder.update(id, payload);
     if (payload.status === 'RECEIVED') {
-      await autoPostJE(buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }));
+      const je = await buildJE(
+        'PURCHASE_ORDER',
+        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
+        { base: baseAmount, vat: vatAmount, total: grandTotal },
+        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
+      );
+      await autoPostJE(je);
     }
     return po;
   },
@@ -310,7 +341,14 @@ export const OperationEngine = {
     };
     delete payload._vatEnabled;
     const expense = await base44.entities.Expense.create(payload);
-    await autoPostJE(buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: `EXP-${Date.now()}` }));
+    const ref = `EXP-${Date.now()}`;
+    const je = await buildJE(
+      'EXPENSE',
+      { entryNo: `JE-EXP-${ref}`, date: payload.date, description: `مصروف: ${payload.description}`, sourceType: 'Expense' },
+      { base: amt, vat: vatAmount, total: totalAmount },
+      () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref }),
+    );
+    await autoPostJE(je);
     return expense;
   },
 
@@ -347,7 +385,13 @@ export const OperationEngine = {
       await base44.entities.Equipment.update(eq.id, { status: 'RENTED' });
     }
     // Auto-post JE
-    await autoPostJE(buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientName: payload.clientName, base, vatAmount, totalAmount }));
+    const je = await buildJE(
+      'RENTAL_CONTRACT',
+      { entryNo: `JE-RC-${payload.contractNo}`, date: payload.startDate || new Date().toISOString().slice(0, 10), description: `عقد تأجير ${payload.contractNo} — ${payload.clientName}`, sourceType: 'RentalContract' },
+      { base, vat: vatAmount, total: totalAmount },
+      () => buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientName: payload.clientName, base, vatAmount, totalAmount }),
+    );
+    await autoPostJE(je);
     return contract;
   },
 
@@ -381,7 +425,15 @@ export const OperationEngine = {
   async createPayrollRun(data) {
     const payroll = await base44.entities.PayrollRun.create(data);
     if (data.status === 'PAID') {
-      await autoPostJE(buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }));
+      const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+      const payDate = `${data.year}-${String(data.month).padStart(2,'0')}-01`;
+      const je = await buildJE(
+        'PAYROLL',
+        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
+        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
+        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }),
+      );
+      await autoPostJE(je);
     }
     return payroll;
   },
@@ -389,7 +441,15 @@ export const OperationEngine = {
   async updatePayrollRun(id, data) {
     const payroll = await base44.entities.PayrollRun.update(id, data);
     if (data.status === 'PAID') {
-      await autoPostJE(buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }));
+      const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+      const payDate = `${data.year}-${String(data.month).padStart(2,'0')}-01`;
+      const je = await buildJE(
+        'PAYROLL',
+        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
+        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
+        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }),
+      );
+      await autoPostJE(je);
     }
     return payroll;
   },

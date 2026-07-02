@@ -6,7 +6,8 @@ import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa
 import { PROJECT_STATUS } from '@/lib/utils-binaa';
 import WorkspaceHeader from '@/components/workspace/WorkspaceHeader';
 import WorkspaceTabs from '@/components/workspace/WorkspaceTabs';
-import ProjectOverview from '@/components/workspace/ProjectOverview';
+import ProjectBasicInfo from '@/components/workspace/tabs/ProjectBasicInfo';
+import ProjectContractsTab from '@/components/workspace/tabs/ProjectContractsTab';
 import RelatedList from '@/components/workspace/RelatedList';
 import BoqTab from '@/components/workspace/tabs/BoqTab';
 import ProgressBillingTab from '@/components/workspace/tabs/ProgressBillingTab';
@@ -102,20 +103,9 @@ export default function ProjectWorkspace() {
       />
       <WorkspaceTabs tabs={tabs} active={tab} onChange={setTab} />
 
-      {tab === 'overview' && <ProjectOverview project={project} revenue={revenue} costs={costs} />}
+      {tab === 'overview' && <ProjectBasicInfo project={project} revenue={revenue} costs={costs} onUpdated={(p) => setProject(p)} />}
 
-      {tab === 'contracts' && (
-        <RelatedList
-          emptyText={t('لا توجد عقود لهذا المشروع', 'No contracts for this project', lang)}
-          columns={[
-            { header: { ar: 'رقم العقد', en: 'Contract No' }, cell: r => <span className="font-mono text-xs">{r.contractNo}</span> },
-            { header: { ar: 'القيمة', en: 'Value' }, cell: r => formatCurrency(r.totalValue, lang) },
-            { header: { ar: 'البداية', en: 'Start' }, cell: r => <span className="text-xs text-muted-foreground">{formatDate(r.startDate, lang)}</span> },
-            { header: { ar: 'الحالة', en: 'Status' }, cell: r => <span className="text-xs">{r.status}</span> },
-          ]}
-          rows={contracts}
-        />
-      )}
+      {tab === 'contracts' && <ProjectContractsTab project={project} />}
 
       {tab === 'sales' && (
         <RelatedList

@@ -25,9 +25,11 @@ export default function AppShell({ children }) {
     : 'U';
 
   const handleLogout = () => {
-    // Clear the session token without provider redirect, then hard-navigate to
-    // the in-app login page so the auth flow re-initializes cleanly.
-    base44.auth.logout();
+    // Clear the SDK session, then explicitly remove the stored token keys so the
+    // reloaded app sees no token and shows the login page (instead of the dashboard).
+    try { base44.auth.logout(); } catch (e) { /* ignore */ }
+    localStorage.removeItem('base44_access_token');
+    localStorage.removeItem('token');
     window.location.href = '/login';
   };
 

@@ -1,8 +1,11 @@
 // Inspired by react-hot-toast library
 import { useState, useEffect } from "react";
 
-const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_LIMIT = 3;
+// Time a toast stays on screen before auto-dismissing (ms).
+const TOAST_DURATION = 4000;
+// Delay between dismissal and DOM removal, to let the exit animation play.
+const TOAST_REMOVE_DELAY = 400;
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -128,6 +131,7 @@ function toast({ ...props }) {
       ...props,
       id,
       open: true,
+      duration: props.duration ?? TOAST_DURATION,
       onOpenChange: (open) => {
         if (!open) dismiss();
       },
@@ -161,4 +165,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast }; 
+export { useToast, toast };

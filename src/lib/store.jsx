@@ -1,5 +1,5 @@
 // Simple global state using React context + localStorage
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 
 const StoreContext = createContext(null);
 

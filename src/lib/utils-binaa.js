@@ -64,9 +64,20 @@ export const CONTRACT_STATUS = {
   CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700 border border-rose-200' },
 };
 
-export const EXPENSE_CATEGORIES = {
-  RENT: 'إيجار', MAINTENANCE: 'صيانة', TRANSPORT: 'نقل', DELIVERY: 'توصيل',
-  CONSUMABLES: 'مستهلكات', SERVICES: 'خدمات', INSURANCE: 'تأمين', FUEL: 'وقود',
-  PERMITS: 'تراخيص', OFFICE: 'مكتبية', HOSPITALITY: 'ضيافة', OTHER: 'أخرى',
-  SALARIES: 'رواتب', ELECTRICITY: 'كهرباء', WATER: 'مياه',
-};
+export const EXPENSE_CATEGORIES = [
+  { key: 'RENT', ar: 'إيجار', en: 'Rent' },
+  { key: 'MAINTENANCE', ar: 'صيانة', en: 'Maintenance' },
+  { key: 'TRANSPORT', ar: 'نقل', en: 'Transport' },
+  { key: 'DELIVERY', ar: 'توصيل', en: 'Delivery' },
+  { key: 'CONSUMABLES', ar: 'مستهلكات', en: 'Consumables' },
+  { key: 'SERVICES', ar: 'خدمات', en: 'Services' },
+  { key: 'INSURANCE', ar: 'تأمين', en: 'Insurance' },
+  { key: 'FUEL', ar: 'وقود', en: 'Fuel' },
+  { key: 'PERMITS', ar: 'تراخيص', en: 'Permits' },
+  { key: 'OFFICE', ar: 'مكتبية', en: 'Office' },
+  { key: 'HOSPITALITY', ar: 'ضيافة', en: 'Hospitality' },
+  { key: 'SALARIES', ar: 'رواتب', en: 'Salaries' },
+  { key: 'ELECTRICITY', ar: 'كهرباء', en: 'Electricity' },
+  { key: 'WATER', ar: 'مياه', en: 'Water' },
+  { key: 'OTHER', ar: 'أخرى', en: 'Other' },
+];

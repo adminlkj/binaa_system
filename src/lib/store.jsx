@@ -17,6 +17,13 @@ export function StoreProvider({ children }) {
   const [activeEquipmentName, setActiveEquipmentName] = useState(null);
   const [activeEmployeeId, setActiveEmployeeId] = useState(null);
   const [activeEmployeeName, setActiveEmployeeName] = useState(null);
+  const [activeSubcontractorId, setActiveSubcontractorId] = useState(null);
+  const [activeSubcontractorName, setActiveSubcontractorName] = useState(null);
+
+  const setSubcontractorContext = (id, name) => {
+    setActiveSubcontractorId(id);
+    setActiveSubcontractorName(name);
+  };
 
   const setEquipmentContext = (id, name) => {
     setActiveEquipmentId(id);
@@ -63,6 +70,7 @@ export function StoreProvider({ children }) {
       activeClientId, activeClientName,
       activeEquipmentId, activeEquipmentName, setEquipmentContext,
       activeEmployeeId, activeEmployeeName, setEmployeeContext,
+      activeSubcontractorId, activeSubcontractorName, setSubcontractorContext,
       setProjectContext, setClientContext, clearContext,
       // convenience aliases used by some pages
       setActiveProjectId, setActiveProjectName,

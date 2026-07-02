@@ -6,6 +6,7 @@ import {
   FileText, CreditCard, ReceiptText, ClipboardList,
   Wrench, Fuel, CalendarDays, DollarSign, HardHat, Wallet, HandCoins,
   UsersRound, Package, Warehouse, ShieldCheck, Network, BookOpen, Shield, BarChart3, CalendarRange, Scale,
+  GitPullRequestArrow, AlertTriangle, TrendingUp, PieChart, Landmark, Waves,
 } from 'lucide-react';
 
 // Keys that have a real screen wired in App.jsx. Others render a ComingSoon placeholder.
@@ -16,6 +17,10 @@ export const READY_TABS = new Set([
   'employees', 'payroll-runs', 'attendance', 'advances',
   'chart-accounts', 'accounting', 'trial-balance', 'vat', 'reports', 'fiscal-years',
   'clients', 'suppliers', 'inventory', 'users', 'settings',
+  // Reports cycle
+  'report-income', 'report-trial', 'report-vat', 'report-cashflow', 'report-projects',
+  // Subcontractors cycle
+  'sub-registry', 'sub-contracts', 'sub-invoices', 'sub-payments', 'sub-penalties',
 ]);
 
 export const CYCLES = [
@@ -82,6 +87,32 @@ export const CYCLES = [
       { key: 'vat',            ar: 'ضريبة القيمة المضافة', en: 'VAT',            Icon: Shield },
       { key: 'reports',        ar: 'التقارير المالية',   en: 'Financial Reports', Icon: BarChart3 },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },
+    ],
+  },
+  {
+    key: 'subcontractors-cycle',
+    label: { ar: 'مقاولو الباطن', en: 'Subcontractors' },
+    Icon: HardHat,
+    color: { text: 'text-orange-600', border: 'border-orange-500', light: 'bg-orange-50', bg: 'bg-orange-600' },
+    tabs: [
+      { key: 'sub-registry',  ar: 'سجل المقاولين',       en: 'Registry',       Icon: HardHat },
+      { key: 'sub-contracts', ar: 'عقود الباطن',         en: 'Contracts',      Icon: FileText },
+      { key: 'sub-invoices',  ar: 'المستخلصات والفواتير', en: 'Invoices',       Icon: ReceiptText },
+      { key: 'sub-payments',  ar: 'السداد',              en: 'Payments',       Icon: Wallet },
+      { key: 'sub-penalties', ar: 'الغرامات',            en: 'Penalties',      Icon: AlertTriangle },
+    ],
+  },
+  {
+    key: 'reports-cycle',
+    label: { ar: 'التقارير', en: 'Reports' },
+    Icon: BarChart3,
+    color: { text: 'text-indigo-600', border: 'border-indigo-500', light: 'bg-indigo-50', bg: 'bg-indigo-600' },
+    tabs: [
+      { key: 'report-income',   ar: 'قائمة الدخل',            en: 'Income Statement', Icon: TrendingUp },
+      { key: 'report-trial',    ar: 'ميزان المراجعة',         en: 'Trial Balance',    Icon: Scale },
+      { key: 'report-vat',      ar: 'ضريبة القيمة المضافة',   en: 'VAT Report',       Icon: Shield },
+      { key: 'report-cashflow', ar: 'التدفق النقدي',          en: 'Cash Flow',        Icon: Waves },
+      { key: 'report-projects', ar: 'تقارير المشاريع',        en: 'Project Reports',  Icon: PieChart },
     ],
   },
   {

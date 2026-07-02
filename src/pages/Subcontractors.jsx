@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, FolderOpen } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 const empty = { code: '', name: '', specialty: '', phone: '', email: '', taxNumber: '', contactPerson: '', totalContracts: '', totalPaid: '', notes: '' };
 
 export default function Subcontractors() {
-  const { lang } = useStore();
+  const { lang, setSubcontractorContext, setActiveItem } = useStore();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -41,6 +41,7 @@ export default function Subcontractors() {
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+  const openWorkspace = (item) => { setSubcontractorContext(item.id, item.name); setActiveItem('subcontractor-workspace'); };
 
   const save = async () => {
     if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name required', lang));
@@ -102,6 +103,7 @@ export default function Subcontractors() {
                     <TableCell className="font-medium">{formatCurrency(item.totalPaid, lang)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="size-8 text-orange-600 hover:text-orange-700" title={t('فتح مركز العمل', 'Open workspace', lang)} onClick={() => openWorkspace(item)}><FolderOpen className="size-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                       </div>

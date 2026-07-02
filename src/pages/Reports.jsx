@@ -9,10 +9,12 @@ import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-export default function Reports() {
+export default function Reports({ initialReport = 'income', hideSelector = false }) {
   const { lang } = useStore();
   const [loading, setLoading] = useState(true);
-  const [activeReport, setActiveReport] = useState('income');
+  const [activeReport, setActiveReport] = useState(initialReport);
+
+  useEffect(() => { setActiveReport(initialReport); }, [initialReport]);
   const [invoices, setInvoices] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [journal, setJournal] = useState([]);
@@ -82,7 +84,7 @@ export default function Reports() {
       actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
     >
       {/* Report Selector */}
-      <div className="flex gap-2 flex-wrap">
+      <div className={`flex gap-2 flex-wrap ${hideSelector ? 'hidden' : ''}`}>
         {reports.map(r => (
           <button key={r.key} onClick={() => setActiveReport(r.key)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeReport === r.key ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}>

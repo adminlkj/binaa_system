@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { validate } from '@/lib/validationEngine';
 import { canTransition } from '@/lib/workflowEngine';
 import { toast } from 'sonner';
@@ -82,14 +83,27 @@ export default function Projects() {
     } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'اسم المشروع', en: 'Project Name' }, value: (r) => r.name },
+    { header: { ar: 'العميل', en: 'Client' }, value: (r) => r.clientName },
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => (PROJECT_TYPES[r.projectType] ? (lang === 'ar' ? PROJECT_TYPES[r.projectType].ar : PROJECT_TYPES[r.projectType].en) : r.projectType) },
+    { header: { ar: 'قيمة العقد', en: 'Contract Value' }, value: (r) => r.contractValue || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => (PROJECT_STATUS[r.status] ? (lang === 'ar' ? PROJECT_STATUS[r.status].ar : PROJECT_STATUS[r.status].en) : r.status) },
+    { header: { ar: 'تاريخ البدء', en: 'Start Date' }, value: (r) => r.startDate },
+  ];
+
   return (
     <ModuleLayout
       title={t('المشاريع', 'Projects', lang)}
       subtitle={t('إدارة مشاريع المقاولات والتنفيذ', 'Manage construction and execution projects', lang)}
       actions={
-        <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-          <Plus className="size-4" /> {t('مشروع جديد', 'New Project', lang)}
-        </Button>
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'المشاريع', en: 'Projects' }} />
+          <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+            <Plus className="size-4" /> {t('مشروع جديد', 'New Project', lang)}
+          </Button>
+        </div>
       }
     >
       <div className="flex flex-col sm:flex-row gap-3">

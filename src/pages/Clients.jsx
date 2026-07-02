@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', nameAr: '', phone: '', email: '', address: '', taxNumber: '', contactPerson: '', notes: '' };
@@ -64,11 +65,25 @@ export default function Clients() {
     ['taxNumber', t('الرقم الضريبي', 'Tax Number', lang)], ['contactPerson', t('شخص التواصل', 'Contact Person', lang)],
   ];
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الاسم', en: 'Name' }, value: (r) => r.name },
+    { header: { ar: 'الهاتف', en: 'Phone' }, value: (r) => r.phone },
+    { header: { ar: 'البريد الإلكتروني', en: 'Email' }, value: (r) => r.email },
+    { header: { ar: 'الرقم الضريبي', en: 'Tax Number' }, value: (r) => r.taxNumber },
+    { header: { ar: 'شخص التواصل', en: 'Contact' }, value: (r) => r.contactPerson },
+  ];
+
   return (
     <ModuleLayout
       title={t('العملاء', 'Clients', lang)}
       subtitle={t('إدارة بيانات العملاء', 'Manage client records', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('عميل جديد', 'New Client', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'العملاء', en: 'Clients' }} />
+          <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('عميل جديد', 'New Client', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex gap-3">
         <div className="relative flex-1">

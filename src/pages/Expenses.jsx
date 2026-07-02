@@ -12,6 +12,7 @@ import { OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import ExpenseDialog from '@/components/expenses/ExpenseDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const empty = {
@@ -106,11 +107,27 @@ export default function Expenses() {
 
   const totalExpenses = filtered.reduce((s, i) => s + (i.totalAmount || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => { const ty = getExpenseType(r.expenseType || 'COMPANY'); return lang === 'ar' ? ty.ar : ty.en; } },
+    { header: { ar: 'الفئة', en: 'Category' }, value: (r) => { const c = EXPENSE_CATEGORIES.find(x => x.key === r.category); return c ? (lang === 'ar' ? c.ar : c.en) : r.category; } },
+    { header: { ar: 'الوصف', en: 'Description' }, value: (r) => r.description },
+    { header: { ar: 'مرتبط بـ', en: 'Linked to' }, value: (r) => r.projectName || r.equipmentName || r.employeeName || r.subcontractorName || r.govEntity || '' },
+    { header: { ar: 'المبلغ', en: 'Amount' }, value: (r) => r.amount || 0 },
+    { header: { ar: 'الضريبة', en: 'VAT' }, value: (r) => r.vatAmount || 0 },
+    { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.totalAmount || 0 },
+  ];
+
   return (
     <ModuleLayout
       title={t('المصروفات العامة', 'General Expenses', lang)}
       subtitle={t('تسجيل ومتابعة المصروفات التشغيلية', 'Track operational expenses', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-rose-600 hover:bg-rose-700"><Plus className="size-4" />{t('مصروف جديد', 'New Expense', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'المصروفات العامة', en: 'General Expenses' }} />
+          <Button onClick={openNew} className="gap-2 bg-rose-600 hover:bg-rose-700"><Plus className="size-4" />{t('مصروف جديد', 'New Expense', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

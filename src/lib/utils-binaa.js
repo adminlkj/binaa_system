@@ -9,9 +9,14 @@ export function formatNumber(num, decimals = 2) {
   return Number(num).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+// Unicode codepoint for the official Saudi Riyal symbol (U+20C1),
+// rendered via the "saudi_riyal" webfont loaded globally in index.css.
+export const RIYAL_SYMBOL = '\u20C1';
+
 export function formatCurrency(num, lang = 'ar') {
   const n = formatNumber(num);
-  return lang === 'ar' ? `${n} ر.س` : `SAR ${n}`;
+  // The Riyal symbol goes after the amount in both languages.
+  return `${n}\u00A0${RIYAL_SYMBOL}`;
 }
 
 export function formatDate(dateStr, lang = 'ar') {

@@ -36,6 +36,9 @@ export const MODULES = [
   // Accounting
   { key: 'chart-accounts', ar: 'الدليل المحاسبي', en: 'Chart of Accounts', group: 'accounting' },
   { key: 'accounting', ar: 'دفتر اليومية', en: 'Journal', group: 'accounting' },
+  { key: 'general-ledger', ar: 'الأستاذ العام', en: 'General Ledger', group: 'accounting' },
+  { key: 'trial-balance', ar: 'ميزان المراجعة', en: 'Trial Balance', group: 'accounting' },
+  { key: 'cost-centers', ar: 'مراكز التكلفة', en: 'Cost Centers', group: 'accounting' },
   { key: 'vat', ar: 'ضريبة القيمة المضافة', en: 'VAT', group: 'accounting' },
   { key: 'reports', ar: 'التقارير المالية', en: 'Reports', group: 'accounting' },
   { key: 'fiscal-years', ar: 'السنوات المالية', en: 'Fiscal Years', group: 'accounting' },
@@ -59,8 +62,8 @@ export const APP_ROLES = {
     ar: 'محاسب', en: 'Accountant',
     color: 'bg-teal-100 text-teal-700 border border-teal-200',
     modules: ['sales', 'client-payments', 'purchase-orders', 'expenses', 'supplier-invoices',
-      'supplier-payments', 'chart-accounts', 'accounting', 'vat', 'reports', 'fiscal-years', 'payroll-runs',
-      'clients', 'suppliers'],
+      'supplier-payments', 'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers',
+      'vat', 'reports', 'fiscal-years', 'payroll-runs', 'clients', 'suppliers'],
   },
   PROJECT_MANAGER: {
     ar: 'مدير مشاريع', en: 'Project Manager',

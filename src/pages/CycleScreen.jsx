@@ -25,6 +25,8 @@ import Advances from '@/pages/Advances';
 import ChartAccounts from '@/pages/ChartAccounts';
 import JournalEntries from '@/pages/JournalEntries';
 import TrialBalance from '@/pages/TrialBalance';
+import GeneralLedger from '@/pages/GeneralLedger';
+import CostCenters from '@/pages/CostCenters';
 import FiscalYears from '@/pages/FiscalYears';
 import Inventory from '@/pages/Inventory';
 import Reports from '@/pages/Reports';
@@ -62,7 +64,9 @@ const TAB_CONTENT = {
   advances: <Advances />,
   'chart-accounts': <ChartAccounts />,
   accounting: <JournalEntries />,
+  'general-ledger': <GeneralLedger />,
   'trial-balance': <TrialBalance />,
+  'cost-centers': <CostCenters />,
   vat: <Reports />,
   reports: <Reports />,
   'fiscal-years': <FiscalYears />,

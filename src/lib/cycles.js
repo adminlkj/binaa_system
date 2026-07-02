@@ -15,7 +15,7 @@ export const READY_TABS = new Set([
   'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
   'employees', 'payroll-runs', 'attendance', 'advances',
-  'chart-accounts', 'accounting', 'trial-balance', 'vat', 'reports', 'fiscal-years', 'audit',
+  'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'audit',
   'clients', 'suppliers', 'inventory', 'users', 'settings',
   // Reports cycle
   'report-income', 'report-trial', 'report-vat', 'report-cashflow', 'report-projects',
@@ -83,7 +83,9 @@ export const CYCLES = [
     tabs: [
       { key: 'chart-accounts', ar: 'الدليل المحاسبي',   en: 'Chart of Accounts', Icon: Network },
       { key: 'accounting',     ar: 'دفتر اليومية',      en: 'Journal Entries',   Icon: BookOpen },
+      { key: 'general-ledger', ar: 'الأستاذ العام',     en: 'General Ledger',    Icon: Landmark },
       { key: 'trial-balance',  ar: 'ميزان المراجعة',    en: 'Trial Balance',     Icon: Scale },
+      { key: 'cost-centers',   ar: 'مراكز التكلفة',     en: 'Cost Centers',      Icon: PieChart },
       { key: 'vat',            ar: 'ضريبة القيمة المضافة', en: 'VAT',            Icon: Shield },
       { key: 'reports',        ar: 'التقارير المالية',   en: 'Financial Reports', Icon: BarChart3 },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },

@@ -101,3 +101,96 @@ export function buildAccountLedger(entries, accountCode, period = {}) {
   const totalCredit = +rows.reduce((s, r) => s + r.credit, 0).toFixed(2);
   return { movements, totalDebit, totalCredit, closingBalance: +running.toFixed(2) };
 }
+
+/**
+ * تحليل مراكز التكلفة: يجمّع الإيرادات والتكاليف لكل مركز تكلفة (مشروع).
+ *
+ * التكاليف = المصروفات المرتبطة بالمشروع + فواتير مقاولي الباطن للمشروع.
+ * الإيرادات = مستخلصات/فواتير العملاء للمشروع (بالمبلغ قبل الضريبة).
+ * الهامش = الإيراد − التكلفة، ونسبة الهامش منسوبة إلى الإيراد.
+ *
+ * period اختياري { from, to } لتصفية حسب تاريخ المستند.
+ */
+export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoices = [], salesInvoices = [] }, period = {}) {
+  const inPeriod = (d) => (!period.from || (d && d >= period.from)) && (!period.to || (d && d <= period.to));
+
+  // مركز لكل مشروع + مركز "غير مخصّص" للمصروفات بلا مشروع.
+  const centers = {};
+  const ensure = (projectId, name, code) => {
+    const key = projectId || '__unassigned__';
+    if (!centers[key]) {
+      centers[key] = {
+        projectId: projectId || null,
+        code: code || (projectId ? '' : '—'),
+        name: name || '',
+        cost: 0,
+        revenue: 0,
+        expenseCost: 0,
+        subCost: 0,
+      };
+    }
+    return centers[key];
+  };
+
+  // تهيئة مراكز من قائمة المشاريع (تظهر حتى لو بلا حركة).
+  for (const p of projects) {
+    ensure(p.id, p.nameAr || p.name, p.costCenter || p.code);
+  }
+
+  for (const e of expenses) {
+    if (!inPeriod(e.date)) continue;
+    const c = ensure(e.projectId, e.projectName || (e.projectId ? '' : 'غير مخصّص'));
+    const amt = Number(e.amount) || 0;
+    c.cost += amt; c.expenseCost += amt;
+  }
+
+  for (const si of subInvoices) {
+    if (!inPeriod(si.date)) continue;
+    if (!si.projectId) continue;
+    const c = ensure(si.projectId, si.projectName);
+    const amt = Number(si.baseAmount) || 0;
+    c.cost += amt; c.subCost += amt;
+  }
+
+  for (const inv of salesInvoices) {
+    if (!inPeriod(inv.date)) continue;
+    if (!inv.projectId) continue;
+    const c = ensure(inv.projectId, inv.projectName);
+    c.revenue += Number(inv.subtotal) || 0;
+  }
+
+  const rows = Object.values(centers)
+    .map((c) => {
+      const margin = c.revenue - c.cost;
+      return {
+        ...c,
+        cost: +c.cost.toFixed(2),
+        revenue: +c.revenue.toFixed(2),
+        expenseCost: +c.expenseCost.toFixed(2),
+        subCost: +c.subCost.toFixed(2),
+        margin: +margin.toFixed(2),
+        marginPercent: c.revenue > 0 ? +((margin / c.revenue) * 100).toFixed(1) : 0,
+      };
+    })
+    // إخفاء المراكز الفارغة تماماً (لا تكلفة ولا إيراد)
+    .filter((c) => c.cost !== 0 || c.revenue !== 0)
+    .sort((a, b) => b.cost - a.cost);
+
+  const totals = rows.reduce(
+    (s, r) => ({
+      cost: s.cost + r.cost,
+      revenue: s.revenue + r.revenue,
+      margin: s.margin + r.margin,
+    }),
+    { cost: 0, revenue: 0, margin: 0 }
+  );
+
+  return {
+    rows,
+    totals: {
+      cost: +totals.cost.toFixed(2),
+      revenue: +totals.revenue.toFixed(2),
+      margin: +totals.margin.toFixed(2),
+    },
+  };
+}

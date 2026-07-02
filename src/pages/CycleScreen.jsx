@@ -28,6 +28,12 @@ import TrialBalance from '@/pages/TrialBalance';
 import FiscalYears from '@/pages/FiscalYears';
 import Inventory from '@/pages/Inventory';
 import Reports from '@/pages/Reports';
+import ProjectReports from '@/pages/ProjectReports';
+import AuditSuite from '@/pages/AuditSuite';
+import SubContractsAll from '@/pages/SubContractsAll';
+import SubcontractorInvoicesAll from '@/pages/SubcontractorInvoicesAll';
+import SubPaymentsAll from '@/pages/SubPaymentsAll';
+import SubPenaltiesAll from '@/pages/SubPenaltiesAll';
 import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
 import Users from '@/pages/Users';
@@ -60,6 +66,19 @@ const TAB_CONTENT = {
   vat: <Reports />,
   reports: <Reports />,
   'fiscal-years': <FiscalYears />,
+  audit: <AuditSuite />,
+  // Reports cycle
+  'report-income': <Reports initialReport="income" hideSelector />,
+  'report-trial': <TrialBalance />,
+  'report-vat': <Reports initialReport="vat" hideSelector />,
+  'report-cashflow': <Reports initialReport="cashflow" hideSelector />,
+  'report-projects': <ProjectReports />,
+  // Subcontractors cycle
+  'sub-registry': <Subcontractors />,
+  'sub-contracts': <SubContractsAll />,
+  'sub-invoices': <SubcontractorInvoicesAll />,
+  'sub-payments': <SubPaymentsAll />,
+  'sub-penalties': <SubPenaltiesAll />,
   clients: <Clients />,
   suppliers: <Suppliers />,
   inventory: <Inventory />,

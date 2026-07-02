@@ -6,7 +6,7 @@ import {
   FileText, CreditCard, ReceiptText, ClipboardList,
   Wrench, Fuel, CalendarDays, DollarSign, HardHat, Wallet, HandCoins,
   UsersRound, Package, Warehouse, ShieldCheck, Network, BookOpen, Shield, BarChart3, CalendarRange, Scale,
-  GitPullRequestArrow, AlertTriangle, TrendingUp, PieChart, Landmark, Waves,
+  GitPullRequestArrow, AlertTriangle, TrendingUp, PieChart, Landmark, Waves, ShieldQuestion,
 } from 'lucide-react';
 
 // Keys that have a real screen wired in App.jsx. Others render a ComingSoon placeholder.
@@ -15,7 +15,7 @@ export const READY_TABS = new Set([
   'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
   'employees', 'payroll-runs', 'attendance', 'advances',
-  'chart-accounts', 'accounting', 'trial-balance', 'vat', 'reports', 'fiscal-years',
+  'chart-accounts', 'accounting', 'trial-balance', 'vat', 'reports', 'fiscal-years', 'audit',
   'clients', 'suppliers', 'inventory', 'users', 'settings',
   // Reports cycle
   'report-income', 'report-trial', 'report-vat', 'report-cashflow', 'report-projects',
@@ -87,6 +87,7 @@ export const CYCLES = [
       { key: 'vat',            ar: 'ضريبة القيمة المضافة', en: 'VAT',            Icon: Shield },
       { key: 'reports',        ar: 'التقارير المالية',   en: 'Financial Reports', Icon: BarChart3 },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },
+      { key: 'audit',          ar: 'التحقق المحاسبي',    en: 'Accounting Audit',  Icon: ShieldQuestion },
     ],
   },
   {

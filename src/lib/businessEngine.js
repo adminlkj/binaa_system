@@ -44,6 +44,21 @@ export const ACCOUNTS = {
   EXPENSE_GENERAL:       { code: '5100', name: 'المصروفات العمومية', nameEn: 'General Expenses' },
   EXPENSE_SALARIES:      { code: '5200', name: 'مصروف الرواتب والأجور', nameEn: 'Salaries Expense' },
   EXPENSE_PURCHASE:      { code: '5300', name: 'مشتريات ومواد', nameEn: 'Purchases & Materials' },
+  EXPENSE_PROJECT:       { code: '5400', name: 'مصروفات المشاريع', nameEn: 'Project Expenses' },
+  EXPENSE_EQUIPMENT:     { code: '5500', name: 'مصروفات المعدات', nameEn: 'Equipment Expenses' },
+  EXPENSE_EMPLOYEE:      { code: '5600', name: 'مصروفات الموظفين', nameEn: 'Employee Expenses' },
+  EXPENSE_GOVERNMENT:    { code: '5700', name: 'رسوم ومصروفات حكومية', nameEn: 'Government Expenses' },
+  EXPENSE_ADMIN:         { code: '5800', name: 'مصروفات إدارية', nameEn: 'Administrative Expenses' },
+};
+
+// خريطة الدور المحاسبي لكل نوع مصروف → الحساب المدين
+const EXPENSE_TYPE_ACCOUNTS = {
+  EXPENSE_PROJECT:    ACCOUNTS.EXPENSE_PROJECT,
+  EXPENSE_EQUIPMENT:  ACCOUNTS.EXPENSE_EQUIPMENT,
+  EXPENSE_EMPLOYEE:   ACCOUNTS.EXPENSE_EMPLOYEE,
+  EXPENSE_GOVERNMENT: ACCOUNTS.EXPENSE_GOVERNMENT,
+  EXPENSE_ADMIN:      ACCOUNTS.EXPENSE_ADMIN,
+  EXPENSE_GENERAL:    ACCOUNTS.EXPENSE_GENERAL,
 };
 
 // ─── حسابات الضريبة (Single Source of Truth) ─────────────────────────────────
@@ -155,7 +170,8 @@ export function buildPurchaseOrderJE({ orderNo, date, supplierName, baseAmount, 
  * ح/ ضريبة مدفوعة مدين بالضريبة (اختياري)
  *   ح/ البنك        دائن بالإجمالي
  */
-export function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, reference }) {
+export function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, reference, accountRole }) {
+  const expAccount = EXPENSE_TYPE_ACCOUNTS[accountRole] || ACCOUNTS.EXPENSE_GENERAL;
   return {
     entryNo:     `JE-EXP-${reference || Date.now()}`,
     date,
@@ -165,7 +181,7 @@ export function buildExpenseJE({ date, description, amount, vatAmount, totalAmou
     totalDebit:  totalAmount,
     totalCredit: totalAmount,
     lines: [
-      { accountCode: ACCOUNTS.EXPENSE_GENERAL.code, accountName: ACCOUNTS.EXPENSE_GENERAL.name, debit: amount,    credit: 0,           description },
+      { accountCode: expAccount.code, accountName: expAccount.name, debit: amount,    credit: 0,           description },
       ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_RECEIVABLE.code, accountName: ACCOUNTS.VAT_RECEIVABLE.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
       { accountCode: ACCOUNTS.BANK.code,             accountName: ACCOUNTS.BANK.name,             debit: 0,         credit: totalAmount, description: 'سداد المصروف' },
     ],
@@ -334,42 +350,58 @@ export const OperationEngine = {
     return po;
   },
 
-  async createExpense(data, projects) {
-    assertValid('EXPENSE', data);
-    const p = projects.find(p => p.id === data.projectId);
+  // يبني حمولة المصروف: يحسب الضريبة ويحل أسماء الكيانات المرتبطة حسب النوع
+  _buildExpensePayload(data, refs = {}) {
+    const { projects = [], equipment = [], employees = [], subcontractors = [] } = refs;
+    const p  = projects.find(x => x.id === data.projectId);
+    const eq = equipment.find(x => x.id === data.equipmentId);
+    const em = employees.find(x => x.id === data.employeeId);
+    const sc = subcontractors.find(x => x.id === data.subcontractorId);
     const amt = parseFloat(data.amount) || 0;
-    const vatEnabled = data._vatEnabled;
-    const vatAmount = vatEnabled ? +(amt * VAT_RATE).toFixed(2) : 0;
+    const vatAmount = data._vatEnabled ? +(amt * VAT_RATE).toFixed(2) : 0;
     const totalAmount = +(amt + vatAmount).toFixed(2);
     const payload = {
       ...data,
       amount: amt,
       vatAmount,
       totalAmount,
-      projectName: p?.name || data.projectName,
+      projectName:       p?.name  || data.projectName || '',
+      equipmentName:     eq?.name || data.equipmentName || '',
+      employeeName:      em?.name || data.employeeName || '',
+      subcontractorName: sc?.name || data.subcontractorName || '',
     };
     delete payload._vatEnabled;
+    return { payload, amt, vatAmount, totalAmount };
+  },
+
+  // يحدد الدور المحاسبي للمصروف حسب نوعه
+  _expenseAccountRole(expenseType) {
+    const map = {
+      PROJECT: 'EXPENSE_PROJECT', EQUIPMENT: 'EXPENSE_EQUIPMENT', EMPLOYEE: 'EXPENSE_EMPLOYEE',
+      GOVERNMENT: 'EXPENSE_GOVERNMENT', ADMIN: 'EXPENSE_ADMIN', COMPANY: 'EXPENSE_GENERAL',
+    };
+    return map[expenseType] || 'EXPENSE_GENERAL';
+  },
+
+  async createExpense(data, refs = {}) {
+    assertValid('EXPENSE', data);
+    const { payload, amt, vatAmount, totalAmount } = this._buildExpensePayload(data, refs);
+    const accountRole = this._expenseAccountRole(payload.expenseType);
     const expense = await base44.entities.Expense.create(payload);
     const ref = `EXP-${Date.now()}`;
     const je = await buildJE(
       'EXPENSE',
       { entryNo: `JE-EXP-${ref}`, date: payload.date, description: `مصروف: ${payload.description}`, sourceType: 'Expense' },
       { base: amt, vat: vatAmount, total: totalAmount },
-      () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref }),
+      () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole }),
     );
     await autoPostJE(je);
     return expense;
   },
 
-  async updateExpense(id, data, projects) {
+  async updateExpense(id, data, refs = {}) {
     assertValid('EXPENSE', data);
-    const p = projects.find(p => p.id === data.projectId);
-    const amt = parseFloat(data.amount) || 0;
-    const vatEnabled = data._vatEnabled;
-    const vatAmount = vatEnabled ? +(amt * VAT_RATE).toFixed(2) : 0;
-    const totalAmount = +(amt + vatAmount).toFixed(2);
-    const payload = { ...data, amount: amt, vatAmount, totalAmount, projectName: p?.name || data.projectName };
-    delete payload._vatEnabled;
+    const { payload } = this._buildExpensePayload(data, refs);
     return await base44.entities.Expense.update(id, payload);
   },
 

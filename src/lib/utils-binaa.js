@@ -79,5 +79,82 @@ export const EXPENSE_CATEGORIES = [
   { key: 'SALARIES', ar: 'رواتب', en: 'Salaries' },
   { key: 'ELECTRICITY', ar: 'كهرباء', en: 'Electricity' },
   { key: 'WATER', ar: 'مياه', en: 'Water' },
+  { key: 'GOV_FEES', ar: 'رسوم حكومية', en: 'Government Fees' },
+  { key: 'TRAVEL', ar: 'سفر', en: 'Travel' },
+  { key: 'SUBCONTRACTOR', ar: 'مقاول باطن', en: 'Subcontractor' },
   { key: 'OTHER', ar: 'أخرى', en: 'Other' },
 ];
+
+/**
+ * تعريف أنواع المصروفات — كل نوع يحدد:
+ * - الحقول المطلوب إظهارها في النموذج الديناميكي (fields)
+ * - الفئات المتاحة (categories)
+ * - الدور المحاسبي للمصروف (accountRole) الذي يستخدمه المحرك لاختيار الحساب
+ * - اللون والأيقونة للعرض
+ */
+export const EXPENSE_TYPES = [
+  {
+    key: 'PROJECT',
+    ar: 'مصروف مشروع',
+    en: 'Project Expense',
+    icon: 'Building2',
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    accountRole: 'EXPENSE_PROJECT',
+    fields: ['project'],
+    categories: ['CONSUMABLES', 'SERVICES', 'TRANSPORT', 'DELIVERY', 'PERMITS', 'SUBCONTRACTOR', 'OTHER'],
+  },
+  {
+    key: 'EQUIPMENT',
+    ar: 'مصروف معدة',
+    en: 'Equipment Expense',
+    icon: 'Truck',
+    color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    accountRole: 'EXPENSE_EQUIPMENT',
+    fields: ['equipment'],
+    categories: ['FUEL', 'MAINTENANCE', 'INSURANCE', 'TRANSPORT', 'CONSUMABLES', 'OTHER'],
+  },
+  {
+    key: 'EMPLOYEE',
+    ar: 'مصروف موظف',
+    en: 'Employee Expense',
+    icon: 'User',
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    accountRole: 'EXPENSE_EMPLOYEE',
+    fields: ['employee'],
+    categories: ['TRAVEL', 'HOSPITALITY', 'TRANSPORT', 'SERVICES', 'OTHER'],
+  },
+  {
+    key: 'GOVERNMENT',
+    ar: 'مصروف حكومي',
+    en: 'Government Expense',
+    icon: 'Landmark',
+    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    accountRole: 'EXPENSE_GOVERNMENT',
+    fields: ['govEntity'],
+    categories: ['GOV_FEES', 'PERMITS', 'INSURANCE', 'OTHER'],
+  },
+  {
+    key: 'ADMIN',
+    ar: 'مصروف إداري',
+    en: 'Administrative Expense',
+    icon: 'Briefcase',
+    color: 'bg-violet-50 text-violet-700 border-violet-200',
+    accountRole: 'EXPENSE_ADMIN',
+    fields: [],
+    categories: ['OFFICE', 'HOSPITALITY', 'SERVICES', 'TRAVEL', 'OTHER'],
+  },
+  {
+    key: 'COMPANY',
+    ar: 'مصروف شركة',
+    en: 'Company Expense',
+    icon: 'Home',
+    color: 'bg-slate-50 text-slate-700 border-slate-200',
+    accountRole: 'EXPENSE_GENERAL',
+    fields: [],
+    categories: ['RENT', 'ELECTRICITY', 'WATER', 'INSURANCE', 'SERVICES', 'MAINTENANCE', 'OTHER'],
+  },
+];
+
+export function getExpenseType(key) {
+  return EXPENSE_TYPES.find(t => t.key === key) || EXPENSE_TYPES.find(t => t.key === 'COMPANY');
+}

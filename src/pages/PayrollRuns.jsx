@@ -64,9 +64,13 @@ export default function PayrollRuns() {
 
   const save = async () => {
     if (!form.code || !form.month || !form.year) return toast.error(t('الكود والشهر والسنة مطلوبة', 'Code, month and year required', lang));
+    const m = parseInt(form.month), y = parseInt(form.year);
+    // منع تكرار مسيّر لنفس الشهر والسنة
+    const dup = items.find(i => i.month === m && i.year === y && i.id !== editing?.id);
+    if (dup) return toast.error(t(`يوجد مسيّر لهذا الشهر بالفعل (${dup.code})`, `A payroll run already exists for this month (${dup.code})`, lang));
     setSaving(true);
     try {
-      const data = { ...form, month: parseInt(form.month), year: parseInt(form.year), totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
+      const data = { ...form, month: m, year: y, totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
       if (editing) {
         await OperationEngine.updatePayrollRun(editing.id, data, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));

@@ -168,6 +168,22 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
               <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.certificateNo}</td>
             </tr>
           )}
+          {(invoice.deliveryOrderNo || invoice.billingMonth) && (
+            <tr>
+              {invoice.deliveryOrderNo ? (
+                <>
+                  <td style={{ color: labelColor, padding: '5px 8px' }}>{t('رقم أمر التوصيل', 'Delivery Order No', lang)}</td>
+                  <td style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.deliveryOrderNo}</td>
+                </>
+              ) : <td colSpan={2} />}
+              {invoice.billingMonth ? (
+                <>
+                  <td style={{ color: labelColor, padding: '5px 8px' }}>{t('شهر العمل', 'Billing Month', lang)}</td>
+                  <td style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.billingMonth}</td>
+                </>
+              ) : <td colSpan={2} />}
+            </tr>
+          )}
           {(invoice.periodFrom || invoice.periodTo) && (
             <tr>
               <td style={{ color: labelColor, padding: '5px 8px' }}>{t('فترة الإيجار', 'Rental Period', lang)}</td>

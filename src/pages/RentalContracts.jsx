@@ -31,7 +31,7 @@ const RATE_TYPES = {
 const empty = {
   contractNo: '', equipmentId: '', equipmentName: '', clientId: '', clientName: '',
   startDate: '', endDate: '', rateType: 'DAILY', rate: '', deliveryFees: '',
-  status: 'DRAFT', notes: '',
+  paymentTermDays: 30, status: 'DRAFT', notes: '',
 };
 
 export default function RentalContracts() {
@@ -217,6 +217,15 @@ export default function RentalContracts() {
             <div className="space-y-1.5"><Label>{t('رسوم التوصيل', 'Delivery Fees', lang)}</Label><Input type="number" value={form.deliveryFees} onChange={e => setForm(f => ({ ...f, deliveryFees: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('مبلغ الضريبة 15%', 'VAT 15%', lang)}</Label><Input readOnly value={vatAmt.toFixed(2)} className="bg-muted" /></div>
             <div className="space-y-1.5"><Label>{t('الإجمالي شامل الضريبة', 'Total incl. VAT', lang)}</Label><Input readOnly value={totalAmt.toFixed(2)} className="bg-muted font-bold" /></div>
+            <div className="space-y-1.5">
+              <Label>{t('شروط الدفع (يوم)', 'Payment Terms (days)', lang)}</Label>
+              <Select value={String(form.paymentTermDays || 30)} onValueChange={v => setForm(f => ({ ...f, paymentTermDays: Number(v) }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[30, 45, 60, 90].map(d => <SelectItem key={d} value={String(d)}>{t(`${d} يوم`, `${d} days`, lang)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5"><Label>{t('تاريخ البدء', 'Start Date', lang)}</Label><Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
             <div className="space-y-1.5">

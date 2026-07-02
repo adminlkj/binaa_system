@@ -25,7 +25,7 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog';
  *  - onChanged: () => void  — optional callback after any mutation
  */
 export default function CrudTab({
-  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions,
+  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions, beforeSave,
 }) {
   const { lang } = useStore();
   const { toast } = useToast();
@@ -73,6 +73,14 @@ export default function CrudTab({
     }
     setSaving(true);
     try {
+      if (beforeSave) {
+        const blockMsg = await beforeSave(form, editingId);
+        if (blockMsg) {
+          toast({ title: t('غير مسموح', 'Not allowed', lang), description: blockMsg, variant: 'destructive' });
+          setSaving(false);
+          return;
+        }
+      }
       const payload = buildPayload(form);
       if (editingId) {
         await base44.entities[entityName].update(editingId, payload);

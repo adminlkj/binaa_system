@@ -11,62 +11,85 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
-const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, APPROVED: { ar: 'موافق عليه', en: 'Approved', color: 'bg-blue-100 text-blue-700' }, ORDERED: { ar: 'مطلوب', en: 'Ordered', color: 'bg-amber-100 text-amber-700' }, RECEIVED: { ar: 'مستلم', en: 'Received', color: 'bg-emerald-100 text-emerald-700' }, CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700' } };
-const VAT_RATE = 0.15;
-const empty = { orderNo: '', supplierId: '', supplierName: '', projectId: '', projectName: '', date: '', expectedDelivery: '', totalAmount: '', vatAmount: '', status: 'DRAFT', description: '', notes: '' };
+const STATUSES = {
+  DRAFT:     { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' },
+  APPROVED:  { ar: 'موافق عليه', en: 'Approved', color: 'bg-blue-100 text-blue-700' },
+  ORDERED:   { ar: 'مطلوب', en: 'Ordered', color: 'bg-amber-100 text-amber-700' },
+  RECEIVED:  { ar: 'مستلم', en: 'Received', color: 'bg-emerald-100 text-emerald-700' },
+  CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700' },
+};
+const empty = {
+  orderNo: '', supplierId: '', supplierName: '', projectId: '', projectName: '',
+  date: '', expectedDelivery: '', totalAmount: '', status: 'DRAFT', description: '', notes: '',
+};
 
 export default function PurchaseOrders() {
-  const { lang } = useStore();
-  const [items, setItems] = useState([]);
+  const { lang, activeProjectId, activeProjectName } = useStore();
+  const [items, setItems]         = useState([]);
   const [suppliers, setSuppliers] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [projects, setProjects]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(empty);
-  const [saving, setSaving] = useState(false);
+  const [dialogOpen, setDialogOpen]     = useState(false);
+  const [confirmOpen, setConfirmOpen]   = useState(false);
+  const [deleteId, setDeleteId]         = useState(null);
+  const [editing, setEditing]           = useState(null);
+  const [form, setForm]                 = useState(empty);
+  const [saving, setSaving]             = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [o, s, p] = await Promise.all([base44.entities.PurchaseOrder.list('-created_date', 200), base44.entities.Supplier.list(), base44.entities.Project.list()]);
+      const [o, s, p] = await Promise.all([
+        base44.entities.PurchaseOrder.list('-created_date', 200),
+        base44.entities.Supplier.list(),
+        base44.entities.Project.list(),
+      ]);
       setItems(o); setSuppliers(s); setProjects(p);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
+  const buildDefaultForm = () => ({
+    ...empty,
+    projectId:   activeProjectId   || '',
+    projectName: activeProjectName || '',
+  });
+
   const filtered = items.filter(i => {
     const match = !search || i.orderNo?.toLowerCase().includes(search.toLowerCase()) || i.supplierName?.toLowerCase().includes(search.toLowerCase());
     return match && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const openNew   = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
+  const openEdit  = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
-  // Auto-calculate VAT
-  const baseAmount = parseFloat(form.totalAmount) || 0;
-  const vatAmt = +(baseAmount * VAT_RATE).toFixed(2);
-  const grandTotal = +(baseAmount + vatAmt).toFixed(2);
+  // SSOT: الحسابات من Business Engine
+  const { base: baseAmount, vat: vatAmt, total: grandTotal } = calcVAT(form.totalAmount);
 
   const save = async () => {
-    if (!form.orderNo || !form.supplierId) return toast.error(t('رقم الأمر والمورد مطلوبان', 'Order No. and supplier required', lang));
+    if (!form.orderNo || !form.supplierId)
+      return toast.error(t('رقم الأمر والمورد مطلوبان', 'Order No. and supplier required', lang));
     setSaving(true);
     try {
-      const s = suppliers.find(s => s.id === form.supplierId);
-      const p = projects.find(p => p.id === form.projectId);
-      const data = { ...form, totalAmount: baseAmount, vatAmount: vatAmt, supplierName: s?.name || form.supplierName, projectName: p?.name || form.projectName };
-      if (editing) { await base44.entities.PurchaseOrder.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.PurchaseOrder.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      if (editing) {
+        await OperationEngine.updatePurchaseOrder(editing.id, form, suppliers, projects);
+        toast.success(t('تم التحديث', 'Updated', lang));
+      } else {
+        await OperationEngine.createPurchaseOrder(form, suppliers, projects);
+        const msg = form.status === 'RECEIVED'
+          ? t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang)
+          : t('تمت الإضافة', 'Added', lang);
+        toast.success(msg);
+      }
       setDialogOpen(false); load();
     } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
@@ -85,6 +108,13 @@ export default function PurchaseOrders() {
       subtitle={t('إدارة أوامر الشراء من الموردين', 'Manage purchase orders from suppliers', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('أمر شراء جديد', 'New Order', lang)}</Button>}
     >
+      {activeProjectName && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+          <span className="font-semibold">{t('السياق النشط:', 'Active Context:', lang)}</span>
+          <span>{activeProjectName}</span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -117,31 +147,32 @@ export default function PurchaseOrders() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا توجد أوامر شراء', 'No purchase orders', lang)}</TableCell></TableRow>
-                : filtered.map(item => {
-                  const st = STATUSES[item.status] || STATUSES.DRAFT;
-                  const computed_vat = (item.vatAmount !== undefined && item.vatAmount !== null) ? item.vatAmount : +(( item.totalAmount || 0) * VAT_RATE).toFixed(2);
-                  const computed_total = (item.totalAmount || 0) + computed_vat;
-                  return (
-                    <TableRow key={item.id} className="hover:bg-muted/30">
-                      <TableCell className="font-mono text-xs font-medium">{item.orderNo}</TableCell>
-                      <TableCell className="font-medium">{item.supplierName || '—'}</TableCell>
-                      <TableCell className="text-sm">{item.projectName || '—'}</TableCell>
-                      <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
-                      <TableCell>{formatCurrency(item.totalAmount, lang)}</TableCell>
-                      <TableCell className="text-amber-600">{formatCurrency(computed_vat, lang)}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(computed_total, lang)}</TableCell>
-                      <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+              {loading
+                ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0
+                  ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا توجد أوامر شراء', 'No purchase orders', lang)}</TableCell></TableRow>
+                  : filtered.map(item => {
+                    const st = STATUSES[item.status] || STATUSES.DRAFT;
+                    // SSOT: القيم المخزنة هي المصدر الوحيد — لا إعادة حساب هنا
+                    return (
+                      <TableRow key={item.id} className="hover:bg-muted/30">
+                        <TableCell className="font-mono text-xs font-medium">{item.orderNo}</TableCell>
+                        <TableCell className="font-medium">{item.supplierName || '—'}</TableCell>
+                        <TableCell className="text-sm">{item.projectName || '—'}</TableCell>
+                        <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
+                        <TableCell>{formatCurrency(item.totalAmount, lang)}</TableCell>
+                        <TableCell className="text-amber-600">{formatCurrency(item.vatAmount, lang)}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency((item.totalAmount || 0) + (item.vatAmount || 0), lang)}</TableCell>
+                        <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
             </TableBody>
           </Table>
         </div>
@@ -170,7 +201,7 @@ export default function PurchaseOrders() {
             <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ التسليم المتوقع', 'Expected Delivery', lang)}</Label><Input type="date" value={form.expectedDelivery} min={form.date || undefined} onChange={e => setForm(f => ({ ...f, expectedDelivery: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ قبل الضريبة', 'Amount (before VAT)', lang)}</Label><Input type="number" value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('ضريبة القيمة المضافة 15%', 'VAT 15% (auto)', lang)}</Label><Input readOnly value={vatAmt.toFixed(2)} className="bg-muted" /></div>
+            <div className="space-y-1.5"><Label>{t('ضريبة 15% (محسوبة)', 'VAT 15% (auto)', lang)}</Label><Input readOnly value={vatAmt.toFixed(2)} className="bg-muted" /></div>
             <div className="space-y-1.5"><Label>{t('الإجمالي شامل الضريبة', 'Grand Total incl. VAT', lang)}</Label><Input readOnly value={grandTotal.toFixed(2)} className="bg-muted font-bold" /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
@@ -179,11 +210,18 @@ export default function PurchaseOrders() {
                 <SelectContent>{Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {form.status === 'RECEIVED' && (
+              <div className="col-span-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+                ✓ {t('عند الحفظ سيتم إنشاء قيد محاسبي تلقائياً', 'Saving will auto-create a Journal Entry', lang)}
+              </div>
+            )}
             <div className="col-span-2 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-            <Button onClick={save} disabled={saving} className="bg-amber-600 hover:bg-amber-700">{saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}</Button>
+            <Button onClick={save} disabled={saving} className="bg-amber-600 hover:bg-amber-700">
+              {saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

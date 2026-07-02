@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
+import { OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
@@ -66,8 +67,16 @@ export default function PayrollRuns() {
     setSaving(true);
     try {
       const data = { ...form, month: parseInt(form.month), year: parseInt(form.year), totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
-      if (editing) { await base44.entities.PayrollRun.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.PayrollRun.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      if (editing) {
+        await OperationEngine.updatePayrollRun(editing.id, data);
+        toast.success(t('تم التحديث', 'Updated', lang));
+      } else {
+        await OperationEngine.createPayrollRun(data);
+        const msg = data.status === 'PAID'
+          ? t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang)
+          : t('تمت الإضافة', 'Added', lang);
+        toast.success(msg);
+      }
       setDialogOpen(false); load();
     } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);

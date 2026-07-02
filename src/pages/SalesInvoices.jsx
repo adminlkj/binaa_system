@@ -11,64 +11,87 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa';
+import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
-const TYPES = { CONSTRUCTION: { ar: 'تنفيذي', en: 'Construction' }, SERVICE: { ar: 'خدمات', en: 'Service' }, RENTAL: { ar: 'تأجير', en: 'Rental' } };
-const empty = { invoiceNo: '', invoiceType: 'CONSTRUCTION', projectId: '', projectName: '', clientId: '', clientName: '', date: '', dueDate: '', subtotal: '', vatRate: '0.15', vatAmount: '', totalAmount: '', paidAmount: '', status: 'DRAFT', description: '', notes: '' };
+const TYPES = {
+  CONSTRUCTION: { ar: 'تنفيذي', en: 'Construction' },
+  SERVICE:      { ar: 'خدمات', en: 'Service' },
+  RENTAL:       { ar: 'تأجير', en: 'Rental' },
+};
+const empty = {
+  invoiceNo: '', invoiceType: 'CONSTRUCTION',
+  projectId: '', projectName: '', clientId: '', clientName: '',
+  date: '', dueDate: '', subtotal: '', vatRate: '0.15',
+  paidAmount: '', status: 'DRAFT', description: '', notes: '',
+};
 
 export default function SalesInvoices() {
-  const { lang } = useStore();
-  const [items, setItems] = useState([]);
+  const { lang, activeProjectId, activeProjectName, activeClientId, activeClientName } = useStore();
+  const [items, setItems]       = useState([]);
   const [projects, setProjects] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [clients, setClients]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(empty);
-  const [saving, setSaving] = useState(false);
+  const [dialogOpen, setDialogOpen]     = useState(false);
+  const [confirmOpen, setConfirmOpen]   = useState(false);
+  const [deleteId, setDeleteId]         = useState(null);
+  const [editing, setEditing]           = useState(null);
+  const [form, setForm]                 = useState(empty);
+  const [saving, setSaving]             = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, p, c] = await Promise.all([base44.entities.SalesInvoice.list('-created_date', 200), base44.entities.Project.list(), base44.entities.Client.list()]);
+      const [inv, p, c] = await Promise.all([
+        base44.entities.SalesInvoice.list('-created_date', 200),
+        base44.entities.Project.list(),
+        base44.entities.Client.list(),
+      ]);
       setItems(inv); setProjects(p); setClients(c);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
+  // تطبيق سياق المشروع/العميل تلقائياً عند فتح نموذج جديد
+  const buildDefaultForm = () => ({
+    ...empty,
+    projectId:   activeProjectId   || '',
+    projectName: activeProjectName || '',
+    clientId:    activeClientId    || '',
+    clientName:  activeClientName  || '',
+  });
+
   const filtered = items.filter(i => {
     const match = !search || i.invoiceNo?.toLowerCase().includes(search.toLowerCase()) || i.clientName?.toLowerCase().includes(search.toLowerCase());
     return match && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew  = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
-  // Auto-calculate VAT and total
-  const sub = parseFloat(form.subtotal) || 0;
-  const rate = parseFloat(form.vatRate) || 0;
-  const vatAmount = +(sub * rate).toFixed(2);
-  const totalAmount = +(sub + vatAmount).toFixed(2);
+  // الحسابات تأتي من Business Engine — SSOT
+  const { base: sub, vat: vatAmount, total: totalAmount } = calcVAT(form.subtotal, parseFloat(form.vatRate) || 0.15);
 
   const save = async () => {
-    if (!form.invoiceNo || !form.clientId) return toast.error(t('رقم الفاتورة والعميل مطلوبان', 'Invoice No. and client required', lang));
+    if (!form.invoiceNo || !form.clientId)
+      return toast.error(t('رقم الفاتورة والعميل مطلوبان', 'Invoice No. and client required', lang));
     if (form.date && form.dueDate && form.dueDate < form.date)
       return toast.error(t('تاريخ الاستحقاق يجب أن يكون بعد تاريخ الفاتورة', 'Due date must be after invoice date', lang));
     setSaving(true);
     try {
-      const proj = projects.find(p => p.id === form.projectId);
-      const cl = clients.find(c => c.id === form.clientId);
-      const data = { ...form, subtotal: sub, vatRate: rate, vatAmount, totalAmount, paidAmount: parseFloat(form.paidAmount) || 0, projectName: proj?.name || form.projectName, clientName: cl?.name || form.clientName };
-      if (editing) { await base44.entities.SalesInvoice.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.SalesInvoice.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      if (editing) {
+        await OperationEngine.updateSalesInvoice(editing.id, form, projects, clients);
+        toast.success(t('تم التحديث', 'Updated', lang));
+      } else {
+        await OperationEngine.createSalesInvoice(form, projects, clients);
+        toast.success(t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang));
+      }
       setDialogOpen(false); load();
     } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
@@ -80,7 +103,7 @@ export default function SalesInvoices() {
   };
 
   const totalRevenue = filtered.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0);
-  const totalPending = filtered.filter(i => ['SENT', 'PARTIALLY_PAID', 'OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
+  const totalPending = filtered.filter(i => ['SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
 
   return (
     <ModuleLayout
@@ -88,6 +111,14 @@ export default function SalesInvoices() {
       subtitle={t('إدارة فواتير المشاريع والخدمات', 'Manage project invoices', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('فاتورة جديدة', 'New Invoice', lang)}</Button>}
     >
+      {/* Context Banner */}
+      {activeProjectName && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+          <span className="font-semibold">{t('السياق النشط:', 'Active Context:', lang)}</span>
+          <span>{activeProjectName}</span>
+        </div>
+      )}
+
       {/* Status cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {Object.entries(INVOICE_STATUS).map(([s, cfg]) => (
@@ -130,29 +161,30 @@ export default function SalesInvoices() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد فواتير', 'No invoices', lang)}</TableCell></TableRow>
-                : filtered.map(item => {
-                  const st = INVOICE_STATUS[item.status] || INVOICE_STATUS.DRAFT;
-                  const tp = TYPES[item.invoiceType] || { ar: item.invoiceType, en: item.invoiceType };
-                  return (
-                    <TableRow key={item.id} className="hover:bg-muted/30">
-                      <TableCell className="font-mono text-xs font-medium">{item.invoiceNo}</TableCell>
-                      <TableCell className="font-medium">{item.clientName || '—'}</TableCell>
-                      <TableCell className="text-sm">{item.projectName || '—'}</TableCell>
-                      <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
-                      <TableCell className="text-sm">{formatCurrency(item.paidAmount, lang)}</TableCell>
-                      <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+              {loading
+                ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0
+                  ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد فواتير', 'No invoices', lang)}</TableCell></TableRow>
+                  : filtered.map(item => {
+                    const st = INVOICE_STATUS[item.status] || INVOICE_STATUS.DRAFT;
+                    return (
+                      <TableRow key={item.id} className="hover:bg-muted/30">
+                        <TableCell className="font-mono text-xs font-medium">{item.invoiceNo}</TableCell>
+                        <TableCell className="font-medium">{item.clientName || '—'}</TableCell>
+                        <TableCell className="text-sm">{item.projectName || '—'}</TableCell>
+                        <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
+                        <TableCell className="text-sm">{formatCurrency(item.paidAmount, lang)}</TableCell>
+                        <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
             </TableBody>
           </Table>
         </div>
@@ -192,7 +224,8 @@ export default function SalesInvoices() {
             <div className="space-y-1.5"><Label>{t('تاريخ الفاتورة', 'Invoice Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ الاستحقاق', 'Due Date', lang)}</Label><Input type="date" value={form.dueDate} min={form.date || undefined} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ قبل الضريبة', 'Subtotal', lang)}</Label><Input type="number" value={form.subtotal} onChange={e => setForm(f => ({ ...f, subtotal: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('نسبة الضريبة', 'VAT Rate', lang)}</Label>
+            <div className="space-y-1.5">
+              <Label>{t('نسبة الضريبة', 'VAT Rate', lang)}</Label>
               <Select value={String(form.vatRate)} onValueChange={v => setForm(f => ({ ...f, vatRate: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -216,7 +249,9 @@ export default function SalesInvoices() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-            <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">{saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}</Button>
+            <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+              {saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ + قيد محاسبي', 'Save + Post JE', lang)}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

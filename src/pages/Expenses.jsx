@@ -11,60 +11,80 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, EXPENSE_CATEGORIES } from '@/lib/utils-binaa';
+import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
-const VAT_RATE = 0.15;
-const empty = { category: 'OTHER', description: '', amount: '', vatAmount: '', totalAmount: '', date: '', projectId: '', projectName: '', reference: '', notes: '' };
+const empty = {
+  category: 'OTHER', description: '', amount: '',
+  date: '', projectId: '', projectName: '', reference: '', notes: '',
+  _vatEnabled: false,
+};
 
 export default function Expenses() {
-  const { lang } = useStore();
-  const [items, setItems] = useState([]);
+  const { lang, activeProjectId, activeProjectName } = useStore();
+  const [items, setItems]       = useState([]);
   const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
   const [filterCat, setFilterCat] = useState('ALL');
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen]   = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(empty);
-  const [vatEnabled, setVatEnabled] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId]       = useState(null);
+  const [editing, setEditing]         = useState(null);
+  const [form, setForm]               = useState(empty);
+  const [saving, setSaving]           = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [e, p] = await Promise.all([base44.entities.Expense.list('-created_date', 200), base44.entities.Project.list()]);
+      const [e, p] = await Promise.all([
+        base44.entities.Expense.list('-created_date', 200),
+        base44.entities.Project.list(),
+      ]);
       setItems(e); setProjects(p);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
+  const buildDefaultForm = () => ({
+    ...empty,
+    projectId:   activeProjectId   || '',
+    projectName: activeProjectName || '',
+  });
+
   const filtered = items.filter(i => {
     const match = !search || i.description?.toLowerCase().includes(search.toLowerCase());
     return match && (filterCat === 'ALL' || i.category === filterCat);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setVatEnabled(false); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setVatEnabled((item.vatAmount || 0) > 0); setDialogOpen(true); };
+  const openNew  = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
+  const openEdit = (item) => {
+    setEditing(item);
+    setForm({ ...empty, ...item, _vatEnabled: (item.vatAmount || 0) > 0 });
+    setDialogOpen(true);
+  };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
-  // Auto-calculate amounts
+  // SSOT: حساب الضريبة من Business Engine فقط
   const amt = parseFloat(form.amount) || 0;
-  const vatAmt = vatEnabled ? +(amt * VAT_RATE).toFixed(2) : 0;
-  const totalAmt = +(amt + vatAmt).toFixed(2);
+  const { vat: vatAmt, total: totalAmt } = form._vatEnabled ? calcVAT(amt) : { vat: 0, total: amt };
 
   const save = async () => {
-    if (!form.description || !form.amount) return toast.error(t('الوصف والمبلغ مطلوبان', 'Description and amount required', lang));
+    if (!form.description || !form.amount)
+      return toast.error(t('الوصف والمبلغ مطلوبان', 'Description and amount required', lang));
     setSaving(true);
     try {
-      const p = projects.find(p => p.id === form.projectId);
-      const data = { ...form, amount: amt, vatAmount: vatAmt, totalAmount: totalAmt, projectName: p?.name || form.projectName };
-      if (editing) { await base44.entities.Expense.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.Expense.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      const data = { ...form, _vatEnabled: form._vatEnabled };
+      if (editing) {
+        await OperationEngine.updateExpense(editing.id, data, projects);
+        toast.success(t('تم التحديث', 'Updated', lang));
+      } else {
+        await OperationEngine.createExpense(data, projects);
+        toast.success(t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang));
+      }
       setDialogOpen(false); load();
     } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
@@ -83,6 +103,13 @@ export default function Expenses() {
       subtitle={t('تسجيل ومتابعة المصروفات التشغيلية', 'Track operational expenses', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-rose-600 hover:bg-rose-700"><Plus className="size-4" />{t('مصروف جديد', 'New Expense', lang)}</Button>}
     >
+      {activeProjectName && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700">
+          <span className="font-semibold">{t('السياق النشط:', 'Active Context:', lang)}</span>
+          <span>{activeProjectName}</span>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -114,28 +141,30 @@ export default function Expenses() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد مصروفات', 'No expenses', lang)}</TableCell></TableRow>
-                : filtered.map(item => {
-                  const cat = EXPENSE_CATEGORIES.find(c => c.key === item.category);
-                  return (
-                    <TableRow key={item.id} className="hover:bg-muted/30">
-                      <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
-                      <TableCell><span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">{cat ? (lang === 'ar' ? cat.ar : cat.en) : item.category}</span></TableCell>
-                      <TableCell className="font-medium">{item.description}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{item.projectName || '—'}</TableCell>
-                      <TableCell>{formatCurrency(item.amount, lang)}</TableCell>
-                      <TableCell className="text-sm">{item.vatAmount ? formatCurrency(item.vatAmount, lang) : '—'}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+              {loading
+                ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0
+                  ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد مصروفات', 'No expenses', lang)}</TableCell></TableRow>
+                  : filtered.map(item => {
+                    const cat = EXPENSE_CATEGORIES.find(c => c.key === item.category);
+                    return (
+                      <TableRow key={item.id} className="hover:bg-muted/30">
+                        <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
+                        <TableCell><span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">{cat ? (lang === 'ar' ? cat.ar : cat.en) : item.category}</span></TableCell>
+                        <TableCell className="font-medium">{item.description}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{item.projectName || '—'}</TableCell>
+                        <TableCell>{formatCurrency(item.amount, lang)}</TableCell>
+                        <TableCell className="text-sm">{item.vatAmount ? formatCurrency(item.vatAmount, lang) : '—'}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
             </TableBody>
           </Table>
         </div>
@@ -166,10 +195,10 @@ export default function Expenses() {
             <div className="space-y-1.5"><Label>{t('المبلغ', 'Amount', lang)} *</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
             <div className="space-y-1.5 flex flex-col justify-end">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={vatEnabled} onChange={e => setVatEnabled(e.target.checked)} className="rounded" />
+                <input type="checkbox" checked={form._vatEnabled} onChange={e => setForm(f => ({ ...f, _vatEnabled: e.target.checked }))} className="rounded" />
                 {t('إضافة ضريبة 15%', 'Add VAT 15%', lang)}
               </label>
-              {vatEnabled && <Input readOnly value={vatAmt.toFixed(2)} className="bg-muted mt-1" />}
+              {form._vatEnabled && <Input readOnly value={vatAmt.toFixed(2)} className="bg-muted mt-1" />}
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>{t('الإجمالي (محسوب)', 'Total (auto)', lang)}</Label>
@@ -179,7 +208,9 @@ export default function Expenses() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-            <Button onClick={save} disabled={saving} className="bg-rose-600 hover:bg-rose-700">{saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}</Button>
+            <Button onClick={save} disabled={saving} className="bg-rose-600 hover:bg-rose-700">
+              {saving ? t('جاري الحفظ...', 'Saving...', lang) : editing ? t('حفظ', 'Save', lang) : t('حفظ + قيد محاسبي', 'Save + Post JE', lang)}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

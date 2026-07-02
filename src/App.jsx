@@ -8,118 +8,44 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import { StoreProvider, useStore } from '@/lib/store';
 import AppShell from '@/components/layout/AppShell';
-import { canAccess } from '@/lib/permissions';
-import { ShieldAlert } from 'lucide-react';
+import { CYCLE_BY_KEY, cycleForTab } from '@/lib/cycles';
 
 // Pages
 import Dashboard from '@/pages/Dashboard';
-import Projects from '@/pages/Projects';
+import CycleScreen from '@/pages/CycleScreen';
 import ProjectWorkspace from '@/pages/ProjectWorkspace';
-import Equipment from '@/pages/Equipment';
 import EquipmentWorkspace from '@/pages/EquipmentWorkspace';
-import Clients from '@/pages/Clients';
-import Suppliers from '@/pages/Suppliers';
-import Employees from '@/pages/Employees';
 import EmployeeWorkspace from '@/pages/EmployeeWorkspace';
-import Contracts from '@/pages/Contracts';
-import RentalContracts from '@/pages/RentalContracts';
-import SalesInvoices from '@/pages/SalesInvoices';
-import PurchaseOrders from '@/pages/PurchaseOrders';
-import Expenses from '@/pages/Expenses';
-import Subcontractors from '@/pages/Subcontractors';
-import JournalEntries from '@/pages/JournalEntries';
-import ChartAccounts from '@/pages/ChartAccounts';
-import PayrollRuns from '@/pages/PayrollRuns';
-import Reports from '@/pages/Reports';
-import Settings from '@/pages/Settings';
-import Users from '@/pages/Users';
 import Profile from '@/pages/Profile';
-import ComingSoon from '@/pages/ComingSoon';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import { Navigate } from 'react-router-dom';
 
-// Access-denied fallback for unauthorized modules
-function AccessDenied() {
-  const { lang } = useStore();
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-      <ShieldAlert className="size-14 text-amber-500 mb-4" />
-      <h2 className="text-lg font-bold">{lang === 'ar' ? 'لا تملك صلاحية الوصول' : 'Access Denied'}</h2>
-      <p className="text-sm text-muted-foreground mt-1 max-w-md">
-        {lang === 'ar' ? 'ليس لديك صلاحية للوصول إلى هذه الوحدة. تواصل مع مدير النظام.' : 'You don\'t have permission to access this module. Contact your administrator.'}
-      </p>
-    </div>
-  );
-}
+// Standalone screens that are opened from within a cycle (not a cycle themselves).
+const STANDALONE = {
+  dashboard: <Dashboard />,
+  profile: <Profile />,
+  'project-workspace': <ProjectWorkspace />,
+  'equipment-workspace': <EquipmentWorkspace />,
+  'employee-workspace': <EmployeeWorkspace />,
+};
 
-// Page map for sidebar navigation
+// Resolve the active screen: a cycle key -> CycleScreen; a tab key -> its cycle;
+// a standalone key -> its page; otherwise the dashboard.
 function MainApp() {
   const { activeItem } = useStore();
-  const { user: currentUser } = useAuth();
-  // Only enforce per-module permissions once we have a resolved user. Before that
-  // (preview/anonymous session), allow content so the app isn't blocked.
-  const userLoaded = !!currentUser;
 
-  const pageMap = {
-    dashboard: <Dashboard />,
-    // Projects cycle
-    projects: <Projects />,
-    'project-workspace': <ProjectWorkspace />,
-    contracts: <Contracts />,
-    boq: <ComingSoon title="جدول الكميات BOQ" titleEn="Bill of Quantities (BOQ)" />,
-    sales: <SalesInvoices />,
-    'client-payments': <ComingSoon title="التحصيلات" titleEn="Client Collections" />,
-    // Rental cycle
-    equipment: <Equipment />,
-    'equipment-workspace': <EquipmentWorkspace />,
-    'rental-contracts': <RentalContracts />,
-    'delivery-orders': <ComingSoon title="أوامر التوصيل" titleEn="Delivery Orders" />,
-    timesheets: <ComingSoon title="ساعات التشغيل" titleEn="Timesheets" />,
-    'rental-invoices': <ComingSoon title="فواتير التأجير" titleEn="Rental Invoices" />,
-    'rental-payments': <ComingSoon title="تحصيلات التأجير" titleEn="Rental Collections" />,
-    'equipment-maintenance': <ComingSoon title="الصيانة" titleEn="Maintenance" />,
-    fuel: <ComingSoon title="الوقود" titleEn="Fuel Log" />,
-    // Costs cycle
-    'purchase-requests': <ComingSoon title="طلبات الشراء" titleEn="Purchase Requests" />,
-    'purchase-orders': <PurchaseOrders />,
-    'supplier-invoices': <ComingSoon title="فواتير الموردين" titleEn="Supplier Invoices" />,
-    'supplier-payments': <ComingSoon title="سداد الموردين" titleEn="Supplier Payments" />,
-    timesheets: <ComingSoon title="ساعات التشغيل" titleEn="Timesheets" />,
-    advances: <ComingSoon title="السلف والاستقطاعات" titleEn="Employee Advances" />,
-    inventory: <ComingSoon title="المخزون والأصول" titleEn="Inventory & Assets" />,
-    boq: <ComingSoon title="جدول الكميات BOQ" titleEn="Bill of Quantities (BOQ)" />,
-    expenses: <Expenses />,
-    'petty-cash': <ComingSoon title="الصندوق النقدي" titleEn="Petty Cash" />,
-    // Subcontractors
-    subcontractors: <Subcontractors />,
-    // HR cycle
-    employees: <Employees />,
-    'employee-workspace': <EmployeeWorkspace />,
-    attendance: <ComingSoon title="الحضور والانصراف" titleEn="Attendance" />,
-    'payroll-runs': <PayrollRuns />,
-    advances: <ComingSoon title="السلف" titleEn="Employee Advances" />,
-    // Accounting
-    'chart-accounts': <ChartAccounts />,
-    accounting: <JournalEntries />,
-    vat: <Reports />,
-    reports: <Reports />,
-    // Settings
-    clients: <Clients />,
-    suppliers: <Suppliers />,
-    inventory: <ComingSoon title="المخزون" titleEn="Inventory" />,
-    users: <Users />,
-    profile: <Profile />,
-    settings: <Settings />,
-  };
-
-  const resolvedPage = pageMap[activeItem] || <Dashboard />;
-  // Always-allowed keys, plus permission check for the rest
-  const alwaysAllowed = activeItem === 'dashboard' || activeItem === 'profile';
-  const allowed = alwaysAllowed || !userLoaded || canAccess(currentUser, activeItem);
-  const currentPage = allowed ? resolvedPage : <AccessDenied />;
+  let currentPage;
+  if (CYCLE_BY_KEY[activeItem]) {
+    currentPage = <CycleScreen cycleKey={activeItem} />;
+  } else if (STANDALONE[activeItem]) {
+    currentPage = STANDALONE[activeItem];
+  } else {
+    const owningCycle = cycleForTab(activeItem);
+    currentPage = owningCycle ? <CycleScreen cycleKey={owningCycle.key} /> : <Dashboard />;
+  }
 
   return (
     <AppShell>

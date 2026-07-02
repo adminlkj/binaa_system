@@ -82,24 +82,18 @@ export default function Dashboard() {
 
   const load = async () => {
     setLoading(true);
-    // Load in small parallel batches with a short pause between them
-    // to stay under the API rate limit while keeping load times fast.
+    // Load entities one at a time with a short pause between each request
+    // to stay well under the API rate limit on initial page load.
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const step = async (fn) => { const r = await fn(); await sleep(250); return r; };
 
-    const [projects, equipment, employees] = await Promise.all([
-      base44.entities.Project.list('-created_date', 100),
-      base44.entities.Equipment.list('-created_date', 100),
-      base44.entities.Employee.filter({ isActive: true }),
-    ]);
-
-    await sleep(400);
-
-    const [invoices, expenses, purchaseOrders, rentalContracts] = await Promise.all([
-      base44.entities.SalesInvoice.list('-created_date', 100),
-      base44.entities.Expense.list('-created_date', 50),
-      base44.entities.PurchaseOrder.list('-created_date', 50),
-      base44.entities.RentalContract.list('-created_date', 50),
-    ]);
+    const projects        = await step(() => base44.entities.Project.list('-created_date', 100));
+    const equipment       = await step(() => base44.entities.Equipment.list('-created_date', 100));
+    const employees       = await step(() => base44.entities.Employee.filter({ isActive: true }));
+    const invoices        = await step(() => base44.entities.SalesInvoice.list('-created_date', 100));
+    const expenses        = await step(() => base44.entities.Expense.list('-created_date', 50));
+    const purchaseOrders  = await step(() => base44.entities.PurchaseOrder.list('-created_date', 50));
+    const rentalContracts = await base44.entities.RentalContract.list('-created_date', 50);
 
     setData({ projects, equipment, employees, invoices, expenses, purchaseOrders, rentalContracts });
     setLoading(false);

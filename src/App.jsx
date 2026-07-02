@@ -16,6 +16,7 @@ import { ShieldAlert } from 'lucide-react';
 // Pages
 import Dashboard from '@/pages/Dashboard';
 import Projects from '@/pages/Projects';
+import ProjectWorkspace from '@/pages/ProjectWorkspace';
 import Equipment from '@/pages/Equipment';
 import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
@@ -63,6 +64,7 @@ function MainApp() {
     dashboard: <Dashboard />,
     // Projects cycle
     projects: <Projects />,
+    'project-workspace': <ProjectWorkspace />,
     contracts: <Contracts />,
     boq: <ComingSoon title="جدول الكميات BOQ" titleEn="Bill of Quantities (BOQ)" />,
     sales: <SalesInvoices />,

@@ -127,9 +127,9 @@ export default function Projects() {
                       <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
                       <TableCell>
                         <button
-                          onClick={() => { setProjectContext(item.id, item.name); if (item.clientId) setClientContext(item.clientId, item.clientName); }}
+                          onClick={() => { setProjectContext(item.id, item.name); if (item.clientId) setClientContext(item.clientId, item.clientName); setActiveItem('project-workspace'); }}
                           className={`font-medium text-start hover:text-emerald-700 hover:underline transition-colors ${activeProjectId === item.id ? 'text-emerald-700' : ''}`}
-                          title={lang === 'ar' ? 'اضبط كسياق نشط' : 'Set as active context'}
+                          title={lang === 'ar' ? 'افتح مركز عمل المشروع' : 'Open project workspace'}
                         >
                           {activeProjectId === item.id && <span className="inline-block size-1.5 rounded-full bg-emerald-500 me-1.5 align-middle" />}
                           {item.name}

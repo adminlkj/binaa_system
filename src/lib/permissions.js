@@ -7,6 +7,7 @@
 export const MODULES = [
   // Projects
   { key: 'projects', ar: 'المشاريع', en: 'Projects', group: 'projects' },
+  { key: 'project-workspace', ar: 'مركز عمل المشروع', en: 'Project Workspace', group: 'projects' },
   { key: 'contracts', ar: 'عقود المشاريع', en: 'Project Contracts', group: 'projects' },
   { key: 'sales', ar: 'المستخلصات والفواتير', en: 'Invoices', group: 'projects' },
   { key: 'client-payments', ar: 'التحصيلات', en: 'Collections', group: 'projects' },
@@ -63,7 +64,7 @@ export const APP_ROLES = {
   PROJECT_MANAGER: {
     ar: 'مدير مشاريع', en: 'Project Manager',
     color: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-    modules: ['projects', 'contracts', 'sales', 'client-payments', 'boq', 'purchase-orders',
+    modules: ['projects', 'project-workspace', 'contracts', 'sales', 'client-payments', 'boq', 'purchase-orders',
       'expenses', 'subcontractors', 'reports', 'clients'],
   },
   PROCUREMENT: {

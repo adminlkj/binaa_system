@@ -140,7 +140,7 @@ const AuthRoutes = () => (
 );
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -157,6 +157,13 @@ const AuthenticatedApp = () => {
       // Show the in-app login page instead of redirecting to the hosted login.
       return <AuthRoutes />;
     }
+  }
+
+  // No token / not signed in (app runs with requiresAuth:false, so no authError
+  // is raised). Show the in-app auth pages instead of the dashboard — this is what
+  // makes logout land on the login screen instead of bouncing back to the dashboard.
+  if (!isAuthenticated) {
+    return <AuthRoutes />;
   }
 
   return (

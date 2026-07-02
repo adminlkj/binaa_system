@@ -6,52 +6,6 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { buildJEFromTemplate, isBalanced } from '@/lib/postingEngine';
-import { assertValid } from '@/lib/validationEngine';
-import { assertTransition } from '@/lib/workflowEngine';
-
-/**
- * حارس سلامة القيد قبل الترحيل — يرفض أي قيد معطوب بنيوياً.
- * يمنع كتابة قيود لا تحترم قاعدة القيد المزدوج في دفتر اليومية.
- */
-export function assertJEIntegrity(je) {
-  if (!je) throw new Error('قيد فارغ — لا يوجد قيد لترحيله');
-  if (!Array.isArray(je.lines) || je.lines.length < 2) {
-    throw new Error(`القيد ${je.entryNo || ''} يجب أن يحتوي سطرين على الأقل (مدين ودائن)`);
-  }
-  // كل سطر يشير لحساب حقيقي
-  const badLine = je.lines.find(l => !l.accountCode || l.accountCode === '????');
-  if (badLine) {
-    throw new Error(`القيد ${je.entryNo || ''} يحتوي سطراً بحساب غير معرّف`);
-  }
-  // مجموع سطور المدين والدائن يطابق إجمالي القيد
-  const sumDebit  = +je.lines.reduce((s, l) => s + (+l.debit || 0), 0).toFixed(2);
-  const sumCredit = +je.lines.reduce((s, l) => s + (+l.credit || 0), 0).toFixed(2);
-  if (Math.abs(sumDebit - sumCredit) >= 0.01) {
-    throw new Error(`القيد ${je.entryNo || ''} غير متوازن: مدين ${sumDebit} ≠ دائن ${sumCredit}`);
-  }
-  // إجماليات القيد المعلنة تطابق مجموع السطور الفعلي
-  if (Math.abs((je.totalDebit || 0) - sumDebit) >= 0.01 || Math.abs((je.totalCredit || 0) - sumCredit) >= 0.01) {
-    throw new Error(`القيد ${je.entryNo || ''} إجمالياته لا تطابق سطوره`);
-  }
-  // فحص التوازن على مستوى الإجماليات كطبقة أخيرة
-  if (!isBalanced(je)) {
-    throw new Error(`القيد ${je.entryNo || ''} غير متوازن على مستوى الإجماليات`);
-  }
-  return true;
-}
-
-/**
- * يبني القيد من قالب الترحيل الدلالي إن وُجد (المحاسب يتحكم بالحسابات)،
- * وإلا يتراجع لباني القيد الثابت (fallbackBuilder) لضمان عدم انكسار النظام.
- */
-async function buildJE(operationType, meta, amounts, fallbackBuilder) {
-  const fromTemplate = await buildJEFromTemplate(operationType, {
-    entryNo: meta.entryNo, date: meta.date, description: meta.description,
-    sourceType: meta.sourceType, amounts,
-  });
-  return fromTemplate || fallbackBuilder();
-}
 
 // ─── ثوابت الأعمال ────────────────────────────────────────────────────────────
 export const VAT_RATE = 0.15;
@@ -80,16 +34,6 @@ export const ACCOUNTS = {
   EXPENSE_EMPLOYEE:      { code: '5600', name: 'مصروفات الموظفين', nameEn: 'Employee Expenses' },
   EXPENSE_GOVERNMENT:    { code: '5700', name: 'رسوم ومصروفات حكومية', nameEn: 'Government Expenses' },
   EXPENSE_ADMIN:         { code: '5800', name: 'مصروفات إدارية', nameEn: 'Administrative Expenses' },
-};
-
-// خريطة الدور المحاسبي لكل نوع مصروف → الحساب المدين
-const EXPENSE_TYPE_ACCOUNTS = {
-  EXPENSE_PROJECT:    ACCOUNTS.EXPENSE_PROJECT,
-  EXPENSE_EQUIPMENT:  ACCOUNTS.EXPENSE_EQUIPMENT,
-  EXPENSE_EMPLOYEE:   ACCOUNTS.EXPENSE_EMPLOYEE,
-  EXPENSE_GOVERNMENT: ACCOUNTS.EXPENSE_GOVERNMENT,
-  EXPENSE_ADMIN:      ACCOUNTS.EXPENSE_ADMIN,
-  EXPENSE_GENERAL:    ACCOUNTS.EXPENSE_GENERAL,
 };
 
 // ─── حسابات الضريبة (Single Source of Truth) ─────────────────────────────────
@@ -121,432 +65,85 @@ export async function nextSerial(entity, field, prefix) {
   }
 }
 
-// ─── بناء قيود محاسبية تلقائية حسب نوع العملية ───────────────────────────────
+// ─── Pipeline كامل لكل عملية ──────────────────────────────────────────────────
+//
+// كل عملية مالية تُنفَّذ الآن داخل ترانسكشن ذرّي على الخادم عبر دالة الباكند
+// `postOperation`: إنشاء السجل + ترحيل القيد في نداء واحد غير قابل للانقسام،
+// مع تراجع كامل (rollback) عند أي فشل. هذه الطبقة رفيعة: تحضّر الحمولة
+// (تحل أسماء الكيانات المرتبطة) ثم تستدعي الخادم، فتبقى الشاشات دون تغيير.
 
-/**
- * قيد فاتورة مبيعات (السند المدين)
- * ح/ الذمم المدينة  مدين بالإجمالي
- *   ح/ الإيراد     دائن بالأساس
- *   ح/ ضريبة محصلة دائن بالضريبة
- */
-export function buildSalesInvoiceJE({ invoiceNo, date, clientName, subtotal, vatAmount, totalAmount, invoiceType }) {
-  const revenueAccount =
-    invoiceType === 'RENTAL'  ? ACCOUNTS.REVENUE_RENTAL :
-    invoiceType === 'SERVICE' ? ACCOUNTS.REVENUE_SERVICE :
-    ACCOUNTS.REVENUE_CONSTRUCTION;
-
-  return {
-    entryNo:     `JE-SINV-${invoiceNo}`,
-    date,
-    description: `فاتورة مبيعات ${invoiceNo} — ${clientName}`,
-    sourceType:  'SalesInvoice',
-    isPosted:    true,
-    totalDebit:  totalAmount,
-    totalCredit: totalAmount,
-    lines: [
-      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}` },
-      { accountCode: revenueAccount.code,        accountName: revenueAccount.name,       debit: 0, credit: subtotal,   description: 'الإيراد الأساسي' },
-      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
-    ],
-  };
-}
-
-/**
- * قيد تحصيل مبيعات (تسديد العميل)
- * ح/ البنك          مدين
- *   ح/ الذمم المدينة دائن
- */
-export function buildCollectionJE({ invoiceNo, date, clientName, amount }) {
-  return {
-    entryNo:     `JE-COL-${invoiceNo}`,
-    date,
-    description: `تحصيل فاتورة ${invoiceNo} — ${clientName}`,
-    sourceType:  'Collection',
-    isPosted:    true,
-    totalDebit:  amount,
-    totalCredit: amount,
-    lines: [
-      { accountCode: ACCOUNTS.BANK.code,        accountName: ACCOUNTS.BANK.name,        debit: amount, credit: 0,      description: 'تحصيل نقدي' },
-      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: 0,      credit: amount, description: `سداد فاتورة ${invoiceNo}` },
-    ],
-  };
-}
-
-/**
- * قيد أمر شراء / مستلم
- * ح/ المشتريات     مدين بالأساس
- * ح/ ضريبة مدفوعة مدين بالضريبة
- *   ح/ الذمم الدائنة دائن بالإجمالي
- */
-export function buildPurchaseOrderJE({ orderNo, date, supplierName, baseAmount, vatAmount, grandTotal }) {
-  return {
-    entryNo:     `JE-PO-${orderNo}`,
-    date,
-    description: `أمر شراء ${orderNo} — ${supplierName}`,
-    sourceType:  'PurchaseOrder',
-    isPosted:    true,
-    totalDebit:  grandTotal,
-    totalCredit: grandTotal,
-    lines: [
-      { accountCode: ACCOUNTS.EXPENSE_PURCHASE.code, accountName: ACCOUNTS.EXPENSE_PURCHASE.name, debit: baseAmount, credit: 0,          description: 'مواد وبضاعة' },
-      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_RECEIVABLE.code, accountName: ACCOUNTS.VAT_RECEIVABLE.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
-      { accountCode: ACCOUNTS.PAYABLES.code,          accountName: ACCOUNTS.PAYABLES.name,          debit: 0,          credit: grandTotal, description: `مستحقات ${supplierName}` },
-    ],
-  };
-}
-
-/**
- * قيد مصروف عام
- * ح/ المصروفات     مدين بالأساس
- * ح/ ضريبة مدفوعة مدين بالضريبة (اختياري)
- *   ح/ البنك        دائن بالإجمالي
- */
-export function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, reference, accountRole }) {
-  const expAccount = EXPENSE_TYPE_ACCOUNTS[accountRole] || ACCOUNTS.EXPENSE_GENERAL;
-  return {
-    entryNo:     `JE-EXP-${reference || Date.now()}`,
-    date,
-    description: `مصروف: ${description}`,
-    sourceType:  'Expense',
-    isPosted:    true,
-    totalDebit:  totalAmount,
-    totalCredit: totalAmount,
-    lines: [
-      { accountCode: expAccount.code, accountName: expAccount.name, debit: amount,    credit: 0,           description },
-      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_RECEIVABLE.code, accountName: ACCOUNTS.VAT_RECEIVABLE.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
-      { accountCode: ACCOUNTS.BANK.code,             accountName: ACCOUNTS.BANK.name,             debit: 0,         credit: totalAmount, description: 'سداد المصروف' },
-    ],
-  };
-}
-
-/**
- * قيد مسير رواتب
- * ح/ مصروف الرواتب   مدين
- *   ح/ رواتب مستحقة  دائن
- */
-export function buildPayrollJE({ code, month, year, netAmount }) {
-  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-  const monthName = monthNames[(month || 1) - 1];
-  const date = `${year}-${String(month).padStart(2,'0')}-01`;
-  return {
-    entryNo:     `JE-PAY-${code}`,
-    date,
-    description: `مسير رواتب ${monthName} ${year}`,
-    sourceType:  'PayrollRun',
-    isPosted:    true,
-    totalDebit:  netAmount,
-    totalCredit: netAmount,
-    lines: [
-      { accountCode: ACCOUNTS.EXPENSE_SALARIES.code,  accountName: ACCOUNTS.EXPENSE_SALARIES.name,  debit: netAmount, credit: 0,         description: `رواتب ${monthName}` },
-      { accountCode: ACCOUNTS.ACCRUED_SALARIES.code,  accountName: ACCOUNTS.ACCRUED_SALARIES.name,  debit: 0,         credit: netAmount, description: 'مستحقات مدفوعة' },
-    ],
-  };
-}
-
-/**
- * قيد عقد تأجير (إيراد)
- * ح/ الذمم المدينة مدين
- *   ح/ إيراد التأجير دائن بالأساس
- *   ح/ ضريبة محصلة  دائن بالضريبة
- */
-export function buildRentalJE({ contractNo, date, clientName, base, vatAmount, totalAmount }) {
-  return {
-    entryNo:     `JE-RC-${contractNo}`,
-    date: date || new Date().toISOString().slice(0, 10),
-    description: `عقد تأجير ${contractNo} — ${clientName}`,
-    sourceType:  'RentalContract',
-    isPosted:    true,
-    totalDebit:  totalAmount,
-    totalCredit: totalAmount,
-    lines: [
-      { accountCode: ACCOUNTS.RECEIVABLES.code,     accountName: ACCOUNTS.RECEIVABLES.name,     debit: totalAmount, credit: 0,          description: `عقد ${contractNo}` },
-      { accountCode: ACCOUNTS.REVENUE_RENTAL.code,  accountName: ACCOUNTS.REVENUE_RENTAL.name,  debit: 0,           credit: base,       description: 'إيراد التأجير' },
-      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
-    ],
-  };
-}
-
-// ─── دالة Auto-Post: تنشئ قيد محاسبي تلقائياً بعد التحقق من سلامته ───────────
-// لا تبتلع الأخطاء: القيد المعطوب يرفع استثناءً واضحاً بدل ترحيل قيد فاسد بصمت.
-export async function autoPostJE(jeData) {
-  // 1) حارس السلامة أولاً — قيد غير متوازن أو ناقص لا يُرحّل إطلاقاً.
-  assertJEIntegrity(jeData);
-  // 2) منع التكرار: نفس رقم القيد لا يُرحّل مرتين.
-  const existing = await base44.entities.JournalEntry.filter({ entryNo: jeData.entryNo });
-  if (existing && existing.length > 0) return existing[0];
-  // 3) الترحيل. أي فشل هنا (شبكة/صلاحية) يصعد للمستدعي بدل الابتلاع الصامت.
-  return await base44.entities.JournalEntry.create(jeData);
-}
-
-/**
- * ترحيل قيد مرتبط بسجل مصدر بشكل ذرّي.
- * إذا فشل ترحيل القيد، يُحذف السجل المصدر (rollback) كي لا تبقى معاملة مالية
- * بلا قيد محاسبي مقابل — يمنع اختلال المطابقة بين السجلات والدفتر.
- */
-async function postJEForRecord(entity, record, jeData) {
-  try {
-    await autoPostJE(jeData);
-  } catch (jeErr) {
-    // تراجع: احذف السجل المصدر ثم أعد رفع الخطأ ليظهر للمستخدم.
-    try { await entity.delete(record.id); } catch { /* السجل قد يكون حُذف */ }
-    const err = new Error(`فشل ترحيل القيد المحاسبي — تم التراجع عن العملية: ${jeErr.message}`);
-    err.cause = jeErr;
+// ينفّذ العملية على الخادم ويعيد السجل الناتج، أو يرمي رسالة الخطأ العربية.
+async function runOperation(payload) {
+  const res = await base44.functions.invoke('postOperation', payload);
+  const out = res?.data || {};
+  if (out.success === false) {
+    const err = new Error(out.error || 'فشل تنفيذ العملية');
     throw err;
   }
-  return record;
+  return out.record;
 }
 
-// ─── Pipeline كامل لكل عملية ──────────────────────────────────────────────────
+// يحل اسم كيان من قائمة مرجعية حسب المعرّف
+const nameOf = (list, id, current) => (list || []).find(x => x.id === id)?.name || current || '';
 
 export const OperationEngine = {
 
   async createSalesInvoice(data, projects, clients) {
-    assertValid('SALES_INVOICE', data);
-    const proj = projects.find(p => p.id === data.projectId);
-    const cl   = clients.find(c => c.id === data.clientId);
-    const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, parseFloat(data.vatRate) || VAT_RATE);
-    const payload = {
-      ...data,
-      subtotal,
-      vatRate:    parseFloat(data.vatRate) || VAT_RATE,
-      vatAmount,
-      totalAmount,
-      paidAmount: parseFloat(data.paidAmount) || 0,
-      projectName: proj?.name || data.projectName,
-      clientName:  cl?.name  || data.clientName,
-    };
-    const invoice = await base44.entities.SalesInvoice.create(payload);
-    // Auto-post JE (semantic template first, fallback to fixed builder)
-    const je = await buildJE(
-      'SALES_INVOICE',
-      { entryNo: `JE-SINV-${payload.invoiceNo}`, date: payload.date, description: `فاتورة مبيعات ${payload.invoiceNo} — ${payload.clientName}`, sourceType: 'SalesInvoice' },
-      { base: subtotal, vat: vatAmount, total: totalAmount },
-      () => buildSalesInvoiceJE({ ...payload, invoiceNo: payload.invoiceNo }),
-    );
-    await postJEForRecord(base44.entities.SalesInvoice, invoice, je);
-    return invoice;
+    const payload = { ...data, projectName: nameOf(projects, data.projectId, data.projectName), clientName: nameOf(clients, data.clientId, data.clientName) };
+    return await runOperation({ operation: 'SALES_INVOICE', mode: 'create', data: payload });
   },
 
   async updateSalesInvoice(id, data, projects, clients, prevStatus) {
-    assertValid('SALES_INVOICE', data);
-    assertTransition('SALES_INVOICE', prevStatus, data.status);
-    const proj = projects.find(p => p.id === data.projectId);
-    const cl   = clients.find(c => c.id === data.clientId);
-    const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, parseFloat(data.vatRate) || VAT_RATE);
-    const payload = {
-      ...data,
-      subtotal,
-      vatRate:    parseFloat(data.vatRate) || VAT_RATE,
-      vatAmount,
-      totalAmount,
-      paidAmount: parseFloat(data.paidAmount) || 0,
-      projectName: proj?.name || data.projectName,
-      clientName:  cl?.name  || data.clientName,
-    };
-    return await base44.entities.SalesInvoice.update(id, payload);
+    const payload = { ...data, projectName: nameOf(projects, data.projectId, data.projectName), clientName: nameOf(clients, data.clientId, data.clientName) };
+    return await runOperation({ operation: 'SALES_INVOICE', mode: 'update', id, data: payload, prevStatus });
   },
 
   async createPurchaseOrder(data, suppliers, projects) {
-    assertValid('PURCHASE_ORDER', data);
-    const s = suppliers.find(s => s.id === data.supplierId);
-    const p = projects.find(p => p.id === data.projectId);
-    const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
-    const payload = {
-      ...data,
-      totalAmount:  baseAmount,
-      vatAmount,
-      supplierName: s?.name || data.supplierName,
-      projectName:  p?.name || data.projectName,
-    };
-    const po = await base44.entities.PurchaseOrder.create(payload);
-    // Auto-post JE only if RECEIVED
-    if (payload.status === 'RECEIVED') {
-      const je = await buildJE(
-        'PURCHASE_ORDER',
-        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
-        { base: baseAmount, vat: vatAmount, total: grandTotal },
-        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
-      );
-      await postJEForRecord(base44.entities.PurchaseOrder, po, je);
-    }
-    return po;
+    const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName) };
+    return await runOperation({ operation: 'PURCHASE_ORDER', mode: 'create', data: payload });
   },
 
   async updatePurchaseOrder(id, data, suppliers, projects, prevStatus) {
-    assertValid('PURCHASE_ORDER', data);
-    assertTransition('PURCHASE_ORDER', prevStatus, data.status);
-    const s = suppliers.find(s => s.id === data.supplierId);
-    const p = projects.find(p => p.id === data.projectId);
-    const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
-    const payload = {
-      ...data,
-      totalAmount:  baseAmount,
-      vatAmount,
-      supplierName: s?.name || data.supplierName,
-      projectName:  p?.name || data.projectName,
-    };
-    const po = await base44.entities.PurchaseOrder.update(id, payload);
-    if (payload.status === 'RECEIVED') {
-      const je = await buildJE(
-        'PURCHASE_ORDER',
-        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
-        { base: baseAmount, vat: vatAmount, total: grandTotal },
-        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
-      );
-      await autoPostJE(je);
-    }
-    return po;
+    const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName) };
+    return await runOperation({ operation: 'PURCHASE_ORDER', mode: 'update', id, data: payload, prevStatus });
   },
 
-  // يبني حمولة المصروف: يحسب الضريبة ويحل أسماء الكيانات المرتبطة حسب النوع
+  // يحل أسماء الكيانات المرتبطة بالمصروف حسب نوعه
   _buildExpensePayload(data, refs = {}) {
     const { projects = [], equipment = [], employees = [], subcontractors = [] } = refs;
-    const p  = projects.find(x => x.id === data.projectId);
-    const eq = equipment.find(x => x.id === data.equipmentId);
-    const em = employees.find(x => x.id === data.employeeId);
-    const sc = subcontractors.find(x => x.id === data.subcontractorId);
-    const amt = parseFloat(data.amount) || 0;
-    const vatAmount = data._vatEnabled ? +(amt * VAT_RATE).toFixed(2) : 0;
-    const totalAmount = +(amt + vatAmount).toFixed(2);
-    const payload = {
+    return {
       ...data,
-      amount: amt,
-      vatAmount,
-      totalAmount,
-      projectName:       p?.name  || data.projectName || '',
-      equipmentName:     eq?.name || data.equipmentName || '',
-      employeeName:      em?.name || data.employeeName || '',
-      subcontractorName: sc?.name || data.subcontractorName || '',
+      projectName:       nameOf(projects, data.projectId, data.projectName),
+      equipmentName:     nameOf(equipment, data.equipmentId, data.equipmentName),
+      employeeName:      nameOf(employees, data.employeeId, data.employeeName),
+      subcontractorName: nameOf(subcontractors, data.subcontractorId, data.subcontractorName),
     };
-    delete payload._vatEnabled;
-    return { payload, amt, vatAmount, totalAmount };
-  },
-
-  // يحدد الدور المحاسبي للمصروف حسب نوعه
-  _expenseAccountRole(expenseType) {
-    const map = {
-      PROJECT: 'EXPENSE_PROJECT', EQUIPMENT: 'EXPENSE_EQUIPMENT', EMPLOYEE: 'EXPENSE_EMPLOYEE',
-      GOVERNMENT: 'EXPENSE_GOVERNMENT', ADMIN: 'EXPENSE_ADMIN', COMPANY: 'EXPENSE_GENERAL',
-    };
-    return map[expenseType] || 'EXPENSE_GENERAL';
   },
 
   async createExpense(data, refs = {}) {
-    assertValid('EXPENSE', data);
-    const { payload, amt, vatAmount, totalAmount } = this._buildExpensePayload(data, refs);
-    const accountRole = this._expenseAccountRole(payload.expenseType);
-    const expense = await base44.entities.Expense.create(payload);
-    const ref = `EXP-${Date.now()}`;
-    const je = await buildJE(
-      'EXPENSE',
-      { entryNo: `JE-EXP-${ref}`, date: payload.date, description: `مصروف: ${payload.description}`, sourceType: 'Expense' },
-      { base: amt, vat: vatAmount, total: totalAmount },
-      () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole }),
-    );
-    await postJEForRecord(base44.entities.Expense, expense, je);
-    return expense;
+    return await runOperation({ operation: 'EXPENSE', mode: 'create', data: this._buildExpensePayload(data, refs) });
   },
 
   async updateExpense(id, data, refs = {}) {
-    assertValid('EXPENSE', data);
-    const { payload } = this._buildExpensePayload(data, refs);
-    return await base44.entities.Expense.update(id, payload);
+    return await runOperation({ operation: 'EXPENSE', mode: 'update', id, data: this._buildExpensePayload(data, refs) });
   },
 
   async createRentalContract(data, equipment, clients) {
-    assertValid('RENTAL_CONTRACT', data);
-    const eq = equipment.find(e => e.id === data.equipmentId);
-    const cl = clients.find(c => c.id === data.clientId);
-    const rate = parseFloat(data.rate) || 0;
-    const delivery = parseFloat(data.deliveryFees) || 0;
-    const base = rate + delivery;
-    const { vat: vatAmount, total: totalAmount } = calcVAT(base);
-    const payload = {
-      ...data,
-      rate,
-      deliveryFees: delivery,
-      totalAmount,
-      vatAmount,
-      equipmentName: eq?.name || data.equipmentName,
-      clientName:    cl?.name || data.clientName,
-    };
-    const contract = await base44.entities.RentalContract.create(payload);
-    // Side effect: update equipment status
-    if (eq && payload.status === 'ACTIVE') {
-      await base44.entities.Equipment.update(eq.id, { status: 'RENTED' });
-    }
-    // Auto-post JE
-    const je = await buildJE(
-      'RENTAL_CONTRACT',
-      { entryNo: `JE-RC-${payload.contractNo}`, date: payload.startDate || new Date().toISOString().slice(0, 10), description: `عقد تأجير ${payload.contractNo} — ${payload.clientName}`, sourceType: 'RentalContract' },
-      { base, vat: vatAmount, total: totalAmount },
-      () => buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientName: payload.clientName, base, vatAmount, totalAmount }),
-    );
-    await postJEForRecord(base44.entities.RentalContract, contract, je);
-    return contract;
+    const payload = { ...data, equipmentName: nameOf(equipment, data.equipmentId, data.equipmentName), clientName: nameOf(clients, data.clientId, data.clientName) };
+    return await runOperation({ operation: 'RENTAL_CONTRACT', mode: 'create', data: payload });
   },
 
   async updateRentalContract(id, data, equipment, clients, prevStatus) {
-    assertValid('RENTAL_CONTRACT', data);
-    assertTransition('RENTAL_CONTRACT', prevStatus, data.status);
-    const eq = equipment.find(e => e.id === data.equipmentId);
-    const cl = clients.find(c => c.id === data.clientId);
-    const rate = parseFloat(data.rate) || 0;
-    const delivery = parseFloat(data.deliveryFees) || 0;
-    const base = rate + delivery;
-    const { vat: vatAmount, total: totalAmount } = calcVAT(base);
-    const payload = {
-      ...data,
-      rate,
-      deliveryFees: delivery,
-      totalAmount,
-      vatAmount,
-      equipmentName: eq?.name || data.equipmentName,
-      clientName:    cl?.name || data.clientName,
-    };
-    await base44.entities.RentalContract.update(id, payload);
-    // Side effect: sync equipment status
-    if (eq) {
-      const newStatus =
-        payload.status === 'ACTIVE'                                    ? 'RENTED' :
-        payload.status === 'COMPLETED' || payload.status === 'CANCELLED' ? 'AVAILABLE' :
-        eq.status;
-      if (newStatus !== eq.status) await base44.entities.Equipment.update(eq.id, { status: newStatus });
-    }
+    const eq = (equipment || []).find(e => e.id === data.equipmentId);
+    const payload = { ...data, equipmentName: eq?.name || data.equipmentName, clientName: nameOf(clients, data.clientId, data.clientName) };
+    return await runOperation({ operation: 'RENTAL_CONTRACT', mode: 'update', id, data: payload, prevStatus, prevEquipmentStatus: eq?.status });
   },
 
   async createPayrollRun(data) {
-    assertValid('PAYROLL', data);
-    const payroll = await base44.entities.PayrollRun.create(data);
-    if (data.status === 'PAID') {
-      const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-      const payDate = `${data.year}-${String(data.month).padStart(2,'0')}-01`;
-      const je = await buildJE(
-        'PAYROLL',
-        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
-        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
-        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }),
-      );
-      await postJEForRecord(base44.entities.PayrollRun, payroll, je);
-    }
-    return payroll;
+    return await runOperation({ operation: 'PAYROLL', mode: 'create', data });
   },
 
   async updatePayrollRun(id, data, prevStatus) {
-    assertValid('PAYROLL', data);
-    assertTransition('PAYROLL', prevStatus, data.status);
-    const payroll = await base44.entities.PayrollRun.update(id, data);
-    if (data.status === 'PAID') {
-      const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-      const payDate = `${data.year}-${String(data.month).padStart(2,'0')}-01`;
-      const je = await buildJE(
-        'PAYROLL',
-        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
-        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
-        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }),
-      );
-      await autoPostJE(je);
-    }
-    return payroll;
+    return await runOperation({ operation: 'PAYROLL', mode: 'update', id, data, prevStatus });
   },
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, FolderOpen, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,12 @@ const PROJECT_TYPES = { CONSTRUCTION: { ar: 'تنفيذي', en: 'Construction' }
 
 export default function Projects() {
   const { lang, setProjectContext, setClientContext, activeProjectId, setActiveItem } = useStore();
+  const OpenArrow = lang === 'ar' ? ArrowLeft : ArrowRight;
+  const openWorkspace = (item) => {
+    setProjectContext(item.id, item.name);
+    if (item.clientId) setClientContext(item.clientId, item.clientName);
+    setActiveItem('project-workspace');
+  };
   const [items, setItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +107,11 @@ export default function Projects() {
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+        <FolderOpen className="size-4 shrink-0" />
+        <span>{t('كل مشروع هو مركز عمل متكامل — اضغط "فتح" لعرض العقود والفواتير والمصروفات والمستندات الخاصة به.', 'Each project is a full workspace — click "Open" to view its contracts, invoices, expenses and documents.', lang)}</span>
+      </div>
+
       <Card>
         <div className="overflow-x-auto">
           <Table>
@@ -127,7 +138,7 @@ export default function Projects() {
                       <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
                       <TableCell>
                         <button
-                          onClick={() => { setProjectContext(item.id, item.name); if (item.clientId) setClientContext(item.clientId, item.clientName); setActiveItem('project-workspace'); }}
+                          onClick={() => openWorkspace(item)}
                           className={`font-medium text-start hover:text-emerald-700 hover:underline transition-colors ${activeProjectId === item.id ? 'text-emerald-700' : ''}`}
                           title={lang === 'ar' ? 'افتح مركز عمل المشروع' : 'Open project workspace'}
                         >
@@ -142,6 +153,16 @@ export default function Projects() {
                       <TableCell className="text-xs text-muted-foreground">{formatDate(item.startDate, lang)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            onClick={() => openWorkspace(item)}
+                            className="gap-1.5 h-8 bg-emerald-600 hover:bg-emerald-700"
+                            title={lang === 'ar' ? 'افتح مركز عمل المشروع' : 'Open project workspace'}
+                          >
+                            <FolderOpen className="size-3.5" />
+                            {t('فتح', 'Open', lang)}
+                            <OpenArrow className="size-3.5" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>

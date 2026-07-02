@@ -16,6 +16,7 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import { validate } from '@/lib/validationEngine';
 import { canTransition } from '@/lib/workflowEngine';
+import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 
 const emptyForm = { code: '', name: '', nameAr: '', clientId: '', clientName: '', location: '', startDate: '', endDate: '', status: 'PLANNING', projectType: 'CONSTRUCTION', contractValue: '', description: '' };
@@ -23,6 +24,7 @@ const PROJECT_TYPES = { CONSTRUCTION: { ar: 'تنفيذي', en: 'Construction' }
 
 export default function Projects() {
   const { lang, setProjectContext, setClientContext, activeProjectId, setActiveItem } = useStore();
+  const perm = usePermissions('projects');
   const OpenArrow = lang === 'ar' ? ArrowLeft : ArrowRight;
   const openWorkspace = (item) => {
     setProjectContext(item.id, item.name);
@@ -100,9 +102,11 @@ export default function Projects() {
       actions={
         <div className="flex items-center gap-2">
           <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'المشاريع', en: 'Projects' }} />
-          <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-            <Plus className="size-4" /> {t('مشروع جديد', 'New Project', lang)}
-          </Button>
+          {perm.canCreate && (
+            <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+              <Plus className="size-4" /> {t('مشروع جديد', 'New Project', lang)}
+            </Button>
+          )}
         </div>
       }
     >
@@ -177,8 +181,8 @@ export default function Projects() {
                             {t('فتح', 'Open', lang)}
                             <OpenArrow className="size-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          {perm.canEdit && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
+                          {perm.canDelete && <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>}
                         </div>
                       </TableCell>
                     </TableRow>

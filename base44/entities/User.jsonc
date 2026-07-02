@@ -43,6 +43,16 @@
         "type": "string"
       }
     },
+    "modulePermissions": {
+      "type": "object",
+      "description": "Per-module in-screen action grants, e.g. { \"projects\": [\"create\",\"edit\",\"delete\"] }. Only applies when allowedModules is set.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
     "isActive": {
       "type": "boolean",
       "default": true

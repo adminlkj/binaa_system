@@ -8,22 +8,15 @@ import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import { t } from '@/lib/utils-binaa';
-import { APP_ROLES, APP_ROLE_KEYS, MODULES, resolveUserModules } from '@/lib/permissions';
+import { APP_ROLES, APP_ROLE_KEYS, ACTION_KEYS, resolveUserModules, resolveModuleActions } from '@/lib/permissions';
+import PermissionMatrix from '@/components/users/PermissionMatrix';
 import { ShieldCheck } from 'lucide-react';
-
-const GROUP_LABELS = {
-  projects: { ar: 'المشاريع', en: 'Projects' },
-  rental: { ar: 'المعدات والتأجير', en: 'Equipment & Rental' },
-  costs: { ar: 'المشتريات والتكاليف', en: 'Procurement & Costs' },
-  hr: { ar: 'الموارد البشرية', en: 'HR' },
-  accounting: { ar: 'المالية والمحاسبة', en: 'Finance & Accounting' },
-  settings: { ar: 'الإعدادات والبيانات', en: 'Settings & Master Data' },
-};
 
 export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang }) {
   const { toast } = useToast();
   const [form, setForm] = useState({});
-  const [customModules, setCustomModules] = useState([]);
+  const [customModules, setCustomModules] = useState([]);      // string[] of visible module keys
+  const [moduleActions, setModuleActions] = useState({});       // { moduleKey: string[] }
   const [useCustom, setUseCustom] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -39,33 +32,67 @@ export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang
       });
       const hasCustom = Array.isArray(user.allowedModules) && user.allowedModules.length > 0;
       setUseCustom(hasCustom);
-      setCustomModules(hasCustom ? user.allowedModules : resolveUserModules(user));
+      const modules = hasCustom ? user.allowedModules : resolveUserModules(user);
+      setCustomModules(modules);
+      // Seed per-module actions from any saved override, defaulting to full actions.
+      const seeded = {};
+      modules.forEach(k => {
+        seeded[k] = resolveModuleActions(
+          { ...user, role: 'user', appRole: user.appRole, allowedModules: modules },
+          k
+        );
+      });
+      setModuleActions(user.modulePermissions && typeof user.modulePermissions === 'object'
+        ? { ...seeded, ...user.modulePermissions }
+        : seeded);
     }
   }, [user]);
 
   if (!user) return null;
 
+  const isOwner = form.appRole === 'OWNER';
   const roleDefaultModules = resolveUserModules({ ...user, allowedModules: [], role: form.role, appRole: form.appRole });
   const effectiveModules = useCustom ? customModules : roleDefaultModules;
+  const matrixDisabled = !useCustom || isOwner;
 
   const toggleModule = (key) => {
-    setCustomModules(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+    setCustomModules(prev => {
+      const has = prev.includes(key);
+      if (has) return prev.filter(k => k !== key);
+      // Newly visible module → grant full actions by default.
+      setModuleActions(m => ({ ...m, [key]: m[key] || [...ACTION_KEYS] }));
+      return [...prev, key];
+    });
+  };
+
+  const toggleAction = (key, action) => {
+    setModuleActions(prev => {
+      const current = prev[key] || [...ACTION_KEYS];
+      const next = current.includes(action) ? current.filter(a => a !== action) : [...current, action];
+      return { ...prev, [key]: next };
+    });
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Only persist action maps for modules that are actually visible.
+      const cleanedActions = {};
+      if (useCustom && !isOwner) {
+        customModules.forEach(k => { cleanedActions[k] = moduleActions[k] || [...ACTION_KEYS]; });
+      }
       const payload = {
         appRole: form.appRole,
-        role: form.appRole === 'OWNER' ? 'admin' : form.role,
+        role: isOwner ? 'admin' : form.role,
         jobTitle: form.jobTitle,
         department: form.department,
         phone: form.phone,
         isActive: form.isActive,
         allowedModules: useCustom ? customModules : [],
+        modulePermissions: useCustom && !isOwner ? cleanedActions : {},
       };
       await base44.entities.User.update(user.id, payload);
-      toast({ title: t('تم حفظ التغييرات', 'Changes saved', lang) });
+      toast({ title: t('تم حفظ التغييرات', 'Changes saved', lang), variant: 'success' });
       onOpenChange(false);
       onSaved?.();
     } catch (e) {
@@ -74,11 +101,6 @@ export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang
       setSaving(false);
     }
   };
-
-  const grouped = MODULES.reduce((acc, m) => {
-    (acc[m.group] = acc[m.group] || []).push(m);
-    return acc;
-  }, {});
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,40 +154,27 @@ export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">{t('صلاحيات مخصصة', 'Custom Permissions', lang)}</p>
-                <p className="text-xs text-muted-foreground">{t('تجاوز الصلاحيات الافتراضية للدور', 'Override the role\'s default access', lang)}</p>
+                <p className="text-xs text-muted-foreground">{t('حدّد الشاشات المرئية والصلاحيات داخل كل شاشة', 'Choose visible screens and the actions allowed within each', lang)}</p>
               </div>
-              <Switch checked={useCustom} onCheckedChange={setUseCustom} disabled={form.appRole === 'OWNER'} />
+              <Switch checked={useCustom} onCheckedChange={setUseCustom} disabled={isOwner} />
             </div>
 
-            {form.appRole === 'OWNER' && (
+            {isOwner && (
               <p className="text-xs text-violet-600">{t('المالك لديه صلاحية الوصول الكامل دائماً.', 'Owner always has full access.', lang)}</p>
             )}
 
-            <div className="space-y-3">
-              {Object.entries(grouped).map(([group, mods]) => (
-                <div key={group}>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">{lang === 'ar' ? GROUP_LABELS[group]?.ar : GROUP_LABELS[group]?.en}</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                    {mods.map(m => {
-                      const checked = effectiveModules.includes(m.key);
-                      return (
-                        <button
-                          key={m.key}
-                          type="button"
-                          disabled={!useCustom || form.appRole === 'OWNER'}
-                          onClick={() => toggleModule(m.key)}
-                          className={`text-xs rounded-md border px-2 py-1.5 text-start transition-colors
-                            ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-muted/40 border-transparent text-muted-foreground'}
-                            ${(!useCustom || form.appRole === 'OWNER') ? 'cursor-not-allowed opacity-70' : 'hover:border-emerald-300'}`}
-                        >
-                          {lang === 'ar' ? m.ar : m.en}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {!useCustom && !isOwner && (
+              <p className="text-xs text-amber-600">{t('يتم تطبيق صلاحيات الدور الافتراضية. فعّل الخيار أعلاه للتخصيص.', 'Default role permissions apply. Enable the switch above to customize.', lang)}</p>
+            )}
+
+            <PermissionMatrix
+              lang={lang}
+              disabled={matrixDisabled}
+              visibleModules={effectiveModules}
+              moduleActions={moduleActions}
+              onToggleModule={toggleModule}
+              onToggleAction={toggleAction}
+            />
           </div>
         </div>
 

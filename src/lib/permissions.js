@@ -51,6 +51,22 @@ export const MODULES = [
 
 export const ALL_MODULE_KEYS = MODULES.map(m => m.key);
 
+// ─────────────────────────────────────────────────────────────
+// In-screen actions. Every module a user can see also carries a set
+// of granted actions. "view" is implied by having screen access; the
+// other three gate the create / edit / delete controls inside a screen.
+// ─────────────────────────────────────────────────────────────
+export const ACTIONS = [
+  { key: 'create', ar: 'إضافة', en: 'Create' },
+  { key: 'edit', ar: 'تعديل', en: 'Edit' },
+  { key: 'delete', ar: 'حذف', en: 'Delete' },
+];
+export const ACTION_KEYS = ACTIONS.map(a => a.key);
+// Read-only screens where create/edit/delete don't apply — only "view".
+export const VIEW_ONLY_MODULES = new Set([
+  'general-ledger', 'trial-balance', 'vat', 'reports', 'project-workspace', 'equipment-workspace',
+]);
+
 // Business roles with default module access + labels
 export const APP_ROLES = {
   OWNER: {
@@ -119,6 +135,29 @@ export function canAccess(user, moduleKey) {
   // can access the registry can open a piece of equipment's workspace.
   if (moduleKey === 'equipment-workspace') return modules.includes('equipment') || modules.includes('equipment-workspace');
   return modules.includes(moduleKey);
+}
+
+// ─────────────────────────────────────────────────────────────
+// In-screen action resolution
+// ─────────────────────────────────────────────────────────────
+// Resolve the granted actions for a specific module for this user.
+// - admins / OWNER: all actions everywhere
+// - a per-module override on user.modulePermissions[moduleKey] wins
+// - otherwise: full actions on any module the user can access (legacy behaviour)
+export function resolveModuleActions(user, moduleKey) {
+  if (!user) return [];
+  if (!canAccess(user, moduleKey)) return [];
+  if (isAdmin(user)) return ACTION_KEYS;
+  const map = user.modulePermissions;
+  if (map && Array.isArray(map[moduleKey])) return map[moduleKey];
+  // No explicit override → user has access, grant full in-screen actions by default.
+  return ACTION_KEYS;
+}
+
+// Check a single action ('create' | 'edit' | 'delete') on a module.
+export function hasPermission(user, moduleKey, action) {
+  if (!action || action === 'view') return canAccess(user, moduleKey);
+  return resolveModuleActions(user, moduleKey).includes(action);
 }
 
 export function isAdmin(user) {

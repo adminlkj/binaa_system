@@ -95,6 +95,17 @@
 
 
 
+/* Slow Ken Burns zoom/pan for the login background */
+@keyframes kenburns {
+  0%   { transform: scale(1.08) translate(0, 0); }
+  50%  { transform: scale(1.18) translate(-2%, -1.5%); }
+  100% { transform: scale(1.08) translate(0, 0); }
+}
+.animate-kenburns {
+  animation: kenburns 28s ease-in-out infinite;
+  will-change: transform;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -17,6 +17,8 @@ import SupplierInvoices from '@/pages/SupplierInvoices';
 import SupplierPayments from '@/pages/SupplierPayments';
 import Employees from '@/pages/Employees';
 import PayrollRuns from '@/pages/PayrollRuns';
+import Attendance from '@/pages/Attendance';
+import Advances from '@/pages/Advances';
 import ChartAccounts from '@/pages/ChartAccounts';
 import JournalEntries from '@/pages/JournalEntries';
 import Reports from '@/pages/Reports';
@@ -44,8 +46,8 @@ const TAB_CONTENT = {
   'supplier-payments': <SupplierPayments />,
   employees: <Employees />,
   'payroll-runs': <PayrollRuns />,
-  attendance: <ComingSoon title="الحضور والإجازات" titleEn="Attendance" />,
-  advances: <ComingSoon title="السلف والاستقطاعات" titleEn="Employee Advances" />,
+  attendance: <Attendance />,
+  advances: <Advances />,
   'chart-accounts': <ChartAccounts />,
   accounting: <JournalEntries />,
   vat: <Reports />,

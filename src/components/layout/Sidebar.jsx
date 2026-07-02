@@ -121,13 +121,14 @@ function findCycleForItem(itemKey) {
   return null;
 }
 
-export default function Sidebar({ onClose, currentUser }) {
+export default function Sidebar({ onClose, currentUser, userLoaded = true }) {
   const { lang, toggleLang, activeItem, setActiveItem } = useStore();
   const [openGroups, setOpenGroups] = useState(new Set());
 
-  // Filter groups/items by the current user's permissions
+  // Until the current user is resolved, show all groups (the page-level guard
+  // still protects content). Once loaded, filter by the user's permissions.
   const visibleGroups = navGroups
-    .map(g => ({ ...g, items: g.items.filter(i => canAccess(currentUser, i.key)) }))
+    .map(g => ({ ...g, items: g.items.filter(i => !userLoaded || canAccess(currentUser, i.key)) }))
     .filter(g => g.items.length > 0);
 
   const activeCycle = findCycleForItem(activeItem);

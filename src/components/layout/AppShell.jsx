@@ -10,9 +10,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 export default function AppShell({ children }) {
   const { sidebarOpen, setSidebarOpen, lang, setActiveItem } = useStore();
   const [user, setUser] = useState(null);
+  const [userLoaded, setUserLoaded] = useState(false);
 
   useEffect(() => {
-    base44.auth.me().then(u => setUser(u)).catch(() => {});
+    base44.auth.me().then(u => setUser(u)).catch(() => {}).finally(() => setUserLoaded(true));
   }, []);
 
   const initials = user?.full_name
@@ -27,7 +28,7 @@ export default function AppShell({ children }) {
     <div className="flex h-screen bg-background overflow-hidden" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex flex-shrink-0">
-        <Sidebar currentUser={user} />
+        <Sidebar currentUser={user} userLoaded={userLoaded} />
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -38,7 +39,7 @@ export default function AppShell({ children }) {
             onClick={() => setSidebarOpen(false)}
           />
           <div className="fixed inset-y-0 start-0 z-50 lg:hidden">
-            <Sidebar onClose={() => setSidebarOpen(false)} currentUser={user} />
+            <Sidebar onClose={() => setSidebarOpen(false)} currentUser={user} userLoaded={userLoaded} />
           </div>
         </>
       )}

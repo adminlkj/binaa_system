@@ -35,6 +35,11 @@ import Settings from '@/pages/Settings';
 import Users from '@/pages/Users';
 import Profile from '@/pages/Profile';
 import ComingSoon from '@/pages/ComingSoon';
+import Login from '@/pages/Login';
+import Register from '@/pages/Register';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
+import { Navigate } from 'react-router-dom';
 
 // Access-denied fallback for unauthorized modules
 function AccessDenied() {
@@ -123,8 +128,19 @@ function MainApp() {
   );
 }
 
+// Auth routes are always available so the in-app login/register pages render.
+const AuthRoutes = () => (
+  <Routes>
+    <Route path="/login" element={<Login />} />
+    <Route path="/register" element={<Register />} />
+    <Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path="*" element={<Navigate to="/login" replace />} />
+  </Routes>
+);
+
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -138,13 +154,15 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      navigateToLogin();
-      return null;
+      // Show the in-app login page instead of redirecting to the hosted login.
+      return <AuthRoutes />;
     }
   }
 
   return (
     <Routes>
+      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/register" element={<Navigate to="/" replace />} />
       <Route path="/*" element={<MainApp />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
 import { toast } from 'sonner';
 
 const TYPES = {
@@ -24,6 +25,7 @@ const TYPES = {
 const empty = {
   invoiceNo: '', invoiceType: 'CONSTRUCTION',
   projectId: '', projectName: '', clientId: '', clientName: '',
+  progressBillingId: '', certificateNo: '',
   date: '', dueDate: '', subtotal: '', vatRate: '0.15',
   paidAmount: '', status: 'DRAFT', description: '', notes: '',
 };
@@ -33,6 +35,8 @@ export default function SalesInvoices() {
   const [items, setItems]       = useState([]);
   const [projects, setProjects] = useState([]);
   const [clients, setClients]   = useState([]);
+  const [certificates, setCertificates] = useState([]);
+  const [printInvoice, setPrintInvoice] = useState(null);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -46,12 +50,13 @@ export default function SalesInvoices() {
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, p, c] = await Promise.all([
+      const [inv, p, c, cert] = await Promise.all([
         base44.entities.SalesInvoice.list('-created_date', 200),
         base44.entities.Project.list(),
         base44.entities.Client.list(),
+        base44.entities.ProgressBilling.list('-date', 500),
       ]);
-      setItems(inv); setProjects(p); setClients(c);
+      setItems(inv); setProjects(p); setClients(c); setCertificates(cert);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -78,11 +83,23 @@ export default function SalesInvoices() {
   // الحسابات تأتي من Business Engine — SSOT
   const { base: sub, vat: vatAmount, total: totalAmount } = calcVAT(form.subtotal, parseFloat(form.vatRate) || 0.15);
 
+  // المستخلصات المعتمدة للمشروع المختار — الفاتورة التنفيذية لا تُنشأ إلا بناءً عليها
+  const approvedCerts = certificates.filter(c => c.projectId === form.projectId && c.status === 'APPROVED');
+
   const save = async () => {
     if (!form.invoiceNo || !form.clientId)
       return toast.error(t('رقم الفاتورة والعميل مطلوبان', 'Invoice No. and client required', lang));
     if (form.date && form.dueDate && form.dueDate < form.date)
       return toast.error(t('تاريخ الاستحقاق يجب أن يكون بعد تاريخ الفاتورة', 'Due date must be after invoice date', lang));
+    // ربط السلسلة: الفاتورة التنفيذية لا تُنشأ إلا بعد اعتماد مستخلص للمشروع
+    if (form.invoiceType === 'CONSTRUCTION') {
+      if (!form.projectId)
+        return toast.error(t('اختيار المشروع مطلوب للفاتورة التنفيذية', 'Project is required for a construction invoice', lang));
+      if (approvedCerts.length === 0)
+        return toast.error(t('لا يمكن إنشاء فاتورة تنفيذية قبل اعتماد مستخلص لهذا المشروع', 'Cannot create a construction invoice before an approved certificate exists for this project', lang));
+      if (!form.progressBillingId)
+        return toast.error(t('يجب ربط الفاتورة بمستخلص معتمد', 'The invoice must be linked to an approved certificate', lang));
+    }
     setSaving(true);
     try {
       if (editing) {
@@ -170,6 +187,7 @@ export default function SalesInvoices() {
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
                           <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => setPrintInvoice(item)}><Printer className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                           </div>
@@ -207,12 +225,28 @@ export default function SalesInvoices() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>{t('المشروع', 'Project', lang)}</Label>
-              <Select value={form.projectId} onValueChange={v => { const p = projects.find(p => p.id === v); setForm(f => ({ ...f, projectId: v, projectName: p?.name || '', clientId: p?.clientId || f.clientId, clientName: p?.clientName || f.clientName })); }}>
+              <Label>{t('المشروع', 'Project', lang)}{form.invoiceType === 'CONSTRUCTION' ? ' *' : ''}</Label>
+              <Select value={form.projectId} onValueChange={v => { const p = projects.find(p => p.id === v); setForm(f => ({ ...f, projectId: v, projectName: p?.name || '', clientId: p?.clientId || f.clientId, clientName: p?.clientName || f.clientName, progressBillingId: '', certificateNo: '' })); }}>
                 <SelectTrigger><SelectValue placeholder={t('اختر مشروع', 'Select project', lang)} /></SelectTrigger>
                 <SelectContent>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+
+            {form.invoiceType === 'CONSTRUCTION' && (
+              <div className="col-span-2 space-y-1.5">
+                <Label>{t('المستخلص المعتمد', 'Approved Certificate', lang)} *</Label>
+                {!form.projectId ? (
+                  <p className="text-xs text-muted-foreground">{t('اختر المشروع أولاً لعرض المستخلصات المعتمدة', 'Select a project first to see approved certificates', lang)}</p>
+                ) : approvedCerts.length === 0 ? (
+                  <p className="text-xs text-rose-600">{t('لا يوجد مستخلص معتمد لهذا المشروع — يجب اعتماد مستخلص أولاً', 'No approved certificate for this project — approve a certificate first', lang)}</p>
+                ) : (
+                  <Select value={form.progressBillingId} onValueChange={v => { const c = approvedCerts.find(c => c.id === v); setForm(f => ({ ...f, progressBillingId: v, certificateNo: c?.certificateNo || '', subtotal: f.subtotal || String(c?.netAmount || '') })); }}>
+                    <SelectTrigger><SelectValue placeholder={t('اختر مستخلصاً معتمداً', 'Select an approved certificate', lang)} /></SelectTrigger>
+                    <SelectContent>{approvedCerts.map(c => <SelectItem key={c.id} value={c.id}>{c.certificateNo} — {formatCurrency(c.netAmount, lang)}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
             <div className="space-y-1.5"><Label>{t('تاريخ الفاتورة', 'Invoice Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ الاستحقاق', 'Due Date', lang)}</Label><Input type="date" value={form.dueDate} min={form.date || undefined} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ قبل الضريبة', 'Subtotal', lang)}</Label><Input type="number" value={form.subtotal} onChange={e => setForm(f => ({ ...f, subtotal: e.target.value }))} /></div>
@@ -252,6 +286,8 @@ export default function SalesInvoices() {
         title={t('حذف الفاتورة', 'Delete Invoice', lang)}
         description={t('سيتم حذف الفاتورة نهائياً.', 'This invoice will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <InvoicePrintDialog open={!!printInvoice} onOpenChange={o => !o && setPrintInvoice(null)} invoice={printInvoice} />
     </ModuleLayout>
   );
 }

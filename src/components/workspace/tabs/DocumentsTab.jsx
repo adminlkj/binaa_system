@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, FileText, Download, Loader2 } from 'lucide-react';
+import { Plus, Trash2, FileText, Eye, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatDate } from '@/lib/utils-binaa';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
 
 const CATEGORIES = {
   CONTRACT: { ar: 'عقد', en: 'Contract', color: 'bg-blue-100 text-blue-700' },
@@ -29,6 +30,7 @@ export default function DocumentsTab({ projectId }) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -93,9 +95,9 @@ export default function DocumentsTab({ projectId }) {
                   </div>
                   <div className="flex items-center gap-1 mt-2">
                     {r.fileUrl && (
-                      <a href={r.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                        <Download className="size-3.5" /> {t('تحميل', 'Download', lang)}
-                      </a>
+                      <button onClick={() => setPreview({ url: r.fileUrl, name: r.name })} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                        <Eye className="size-3.5" /> {t('معاينة', 'Preview', lang)}
+                      </button>
                     )}
                     <Button variant="ghost" size="icon" className="size-7 text-rose-600 ms-auto" onClick={() => setDeleteId(r.id)}><Trash2 className="size-3.5" /></Button>
                   </div>
@@ -132,6 +134,8 @@ export default function DocumentsTab({ projectId }) {
       <ConfirmDialog open={!!deleteId} onOpenChange={o => !o && setDeleteId(null)} onConfirm={remove}
         title={t('حذف المستند', 'Delete Document', lang)}
         description={t('هل أنت متأكد من حذف هذا المستند؟', 'Are you sure?', lang)} />
+
+      <FilePreviewDialog open={!!preview} onOpenChange={o => !o && setPreview(null)} url={preview?.url} name={preview?.name} />
     </div>
   );
 }

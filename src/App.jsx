@@ -54,6 +54,10 @@ function MainApp() {
     'purchase-orders': <PurchaseOrders />,
     'supplier-invoices': <ComingSoon title="فواتير الموردين" titleEn="Supplier Invoices" />,
     'supplier-payments': <ComingSoon title="سداد الموردين" titleEn="Supplier Payments" />,
+    timesheets: <ComingSoon title="ساعات التشغيل" titleEn="Timesheets" />,
+    advances: <ComingSoon title="السلف والاستقطاعات" titleEn="Employee Advances" />,
+    inventory: <ComingSoon title="المخزون والأصول" titleEn="Inventory & Assets" />,
+    boq: <ComingSoon title="جدول الكميات BOQ" titleEn="Bill of Quantities (BOQ)" />,
     expenses: <Expenses />,
     'petty-cash': <ComingSoon title="الصندوق النقدي" titleEn="Petty Cash" />,
     // Subcontractors

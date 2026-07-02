@@ -64,7 +64,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
         equipmentName: '',
         clientName: '',
         date: new Date().toISOString().slice(0, 10),
-        dueDate: '',
+        dueDate: addDays(new Date().toISOString().slice(0, 10), 30),
         periodFrom: '',
         periodTo: '',
         totalHours: 0,
@@ -162,15 +162,14 @@ export default function RentalInvoicesTab({ equipmentId }) {
           if (form.date) set('dueDate', addDays(form.date, c?.paymentTermDays || 30));
         };
 
-        // عند اختيار شهر العمل: تحديد الفترة، جمع الساعات، وضبط تاريخ الفاتورة والاستحقاق.
+        // عند اختيار شهر العمل: تحديد فترة العمل وجمع ساعاتها فقط —
+        // تاريخ الإصدار يبقى تاريخ اليوم، والاستحقاق يُحسب منه.
         const onMonth = (v) => {
           set('billingMonth', v);
           const { from, to } = monthBounds(v);
           set('periodFrom', from);
           set('periodTo', to);
           set('totalHours', sumHoursForMonth(hoursRows, v));
-          set('date', to);
-          set('dueDate', addDays(to, form.paymentTermDays || 30));
         };
 
         const contractDeliveries = deliveryOrders; // كل أوامر التوصيل لهذه المعدة

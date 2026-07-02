@@ -30,6 +30,7 @@ import CostCenters from '@/pages/CostCenters';
 import FiscalYears from '@/pages/FiscalYears';
 import Inventory from '@/pages/Inventory';
 import Reports from '@/pages/Reports';
+import VATReport from '@/pages/VATReport';
 import ProjectReports from '@/pages/ProjectReports';
 import AuditSuite from '@/pages/AuditSuite';
 import SubContractsAll from '@/pages/SubContractsAll';
@@ -67,7 +68,7 @@ const TAB_CONTENT = {
   'general-ledger': <GeneralLedger />,
   'trial-balance': <TrialBalance />,
   'cost-centers': <CostCenters />,
-  vat: <Reports />,
+  vat: <VATReport />,
   reports: <Reports />,
   'fiscal-years': <FiscalYears />,
   audit: <AuditSuite />,

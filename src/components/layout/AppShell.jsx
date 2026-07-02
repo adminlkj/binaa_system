@@ -2,6 +2,8 @@ import React from 'react';
 import { Menu, LogOut, User, ChevronDown } from 'lucide-react';
 import Sidebar from './Sidebar';
 import ContextBar from '@/components/shared/ContextBar';
+import GlobalSearch from './GlobalSearch';
+import NotificationCenter from './NotificationCenter';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
@@ -56,7 +58,11 @@ export default function AppShell({ children }) {
           >
             <Menu className="size-5" />
           </button>
+
+          <GlobalSearch />
           <div className="flex-1" />
+
+          <NotificationCenter />
 
           {/* User Menu */}
           <DropdownMenu>

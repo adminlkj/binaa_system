@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, LayoutGrid } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,7 @@ const STATUSES = { ACTIVE: { ar: 'نشط', en: 'Active', color: 'bg-emerald-100 
 const empty = { code: '', name: '', nameAr: '', position: '', department: '', phone: '', email: '', nationalId: '', nationality: '', hireDate: '', salary: '', allowances: '', status: 'ACTIVE', notes: '' };
 
 export default function Employees() {
-  const { lang } = useStore();
+  const { lang, setEmployeeContext, setActiveItem } = useStore();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -135,6 +135,7 @@ export default function Employees() {
                       <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="size-8 text-violet-600" title={t('مركز العمل', 'Workspace', lang)} onClick={() => { setEmployeeContext(item.id, item.name); setActiveItem('employee-workspace'); }}><LayoutGrid className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>

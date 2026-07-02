@@ -20,6 +20,7 @@ import EquipmentWorkspace from '@/pages/EquipmentWorkspace';
 import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
 import Employees from '@/pages/Employees';
+import EmployeeWorkspace from '@/pages/EmployeeWorkspace';
 import Contracts from '@/pages/Contracts';
 import RentalContracts from '@/pages/RentalContracts';
 import SalesInvoices from '@/pages/SalesInvoices';
@@ -91,6 +92,7 @@ function MainApp() {
     subcontractors: <Subcontractors />,
     // HR cycle
     employees: <Employees />,
+    'employee-workspace': <EmployeeWorkspace />,
     attendance: <ComingSoon title="الحضور والانصراف" titleEn="Attendance" />,
     'payroll-runs': <PayrollRuns />,
     advances: <ComingSoon title="السلف" titleEn="Employee Advances" />,

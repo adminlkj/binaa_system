@@ -1,30 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2, Truck, Users, AlertTriangle, Clock,
-  TrendingUp, TrendingDown, DollarSign, CreditCard,
-  ArrowRight, ArrowLeft, FileText, Bell,
-  Package, RefreshCw, ChevronRight,
+  TrendingUp, TrendingDown, CreditCard,
+  FileText, Bell, Package, RefreshCw, ChevronRight, Wallet, Plus,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, PROJECT_STATUS, EQUIPMENT_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, PROJECT_STATUS } from '@/lib/utils-binaa';
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
 // eslint-disable-next-line react/prop-types
-function KPICard({ title, value, subtitle, icon: Icon, iconBg, onClick }) {
+function KPICard({ title, value, subtitle, icon: Icon, tint, onClick }) {
   return (
-    <Card className={`hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer' : ''}`} onClick={onClick}>
+    <Card
+      className={`group relative overflow-hidden border-border/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
+      <div className={`absolute -end-6 -top-6 size-20 rounded-full opacity-10 blur-2xl transition-opacity group-hover:opacity-20 ${tint.glow}`} />
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground font-medium truncate">{title}</p>
-            <p className="text-xl font-bold mt-1 text-foreground">{value}</p>
-            {subtitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>}
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold truncate">{title}</p>
+            <p className="text-xl font-bold mt-1.5 text-foreground tabular-nums">{value}</p>
+            {subtitle && <p className="text-[11px] text-muted-foreground mt-1">{subtitle}</p>}
           </div>
-          <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
-            <Icon className="size-4 text-white" />
+          <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${tint.bg}`}>
+            <Icon className={`size-[18px] ${tint.icon}`} />
           </div>
         </div>
       </CardContent>
@@ -52,28 +55,6 @@ function AlertItem({ icon: Icon, iconColor, label, value, action, onAction, seve
   );
 }
 
-// ─── Workflow Bar ─────────────────────────────────────────────────────────────
-function WorkflowBar({ steps, color, lang, setActiveItem, ArrowIcon }) {
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {steps.map((step, i) => (
-        <React.Fragment key={step.key}>
-          <button
-            onClick={() => step.ready && setActiveItem(step.key)}
-            className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors whitespace-nowrap
-              ${step.ready
-                ? `${color.border} ${color.bg} ${color.text} ${color.hover}`
-                : 'border-slate-200 bg-slate-50 text-slate-400 cursor-default'}`}
-          >
-            {lang === 'ar' ? step.ar : step.en}
-          </button>
-          {i < steps.length - 1 && <ArrowIcon className={`size-3 shrink-0 ${color.arrow}`} />}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { lang, setActiveItem, setProjectContext, setClientContext } = useStore();
@@ -82,9 +63,7 @@ export default function Dashboard() {
 
   const load = async () => {
     setLoading(true);
-    // Load entities one at a time. Each request retries with backoff when the
-    // API rate limit is hit; if a request still fails it falls back to an empty
-    // result so the dashboard always renders instead of crashing.
+    // Load entities one at a time with backoff so rate limits never crash the dashboard.
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const step = async (fn, fallback = []) => {
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -123,6 +102,7 @@ export default function Dashboard() {
   const pendingRevenue    = invoices.filter(i => ['SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
   const totalExpenses     = expenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
   const netProfit         = collectedRevenue - totalExpenses;
+  const margin            = collectedRevenue > 0 ? Math.round((netProfit / collectedRevenue) * 100) : 0;
   const availableEquip    = equipment.filter(e => e.status === 'AVAILABLE').length;
   const rentedEquip       = equipment.filter(e => e.status === 'RENTED').length;
   const maintenanceEquip  = equipment.filter(e => e.status === 'MAINTENANCE').length;
@@ -160,50 +140,86 @@ export default function Dashboard() {
     }] : [],
   ];
 
-  // ─── Workflows ───────────────────────────────────────────────────────────
-  const isRTL = lang === 'ar';
-  const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
-  const constructionSteps = [
-    { key: 'clients',          ar: 'العميل',     en: 'Client',     ready: true },
-    { key: 'projects',         ar: 'المشروع',    en: 'Project',    ready: true },
-    { key: 'contracts',        ar: 'العقد',      en: 'Contract',   ready: true },
-    { key: 'purchase-orders',  ar: 'الشراء',     en: 'Purchasing', ready: true },
-    { key: 'sales',            ar: 'الفاتورة',   en: 'Invoice',    ready: true },
-    { key: 'client-payments',  ar: 'التحصيل',    en: 'Collection', ready: false },
-  ];
-  const rentalSteps = [
-    { key: 'equipment',        ar: 'المعدة',     en: 'Equipment',  ready: true },
-    { key: 'rental-contracts', ar: 'العقد',      en: 'Contract',   ready: true },
-    { key: 'timesheets',       ar: 'ساعات',      en: 'Timesheets', ready: false },
-    { key: 'rental-invoices',  ar: 'الفاتورة',   en: 'Invoice',    ready: false },
-    { key: 'rental-payments',  ar: 'التحصيل',    en: 'Collection', ready: false },
-  ];
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return t('صباح الخير', 'Good morning', lang);
+    if (h < 18) return t('مساء الخير', 'Good afternoon', lang);
+    return t('مساء الخير', 'Good evening', lang);
+  })();
+  const todayLabel = new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   if (loading) {
     return (
-      <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Card key={i}><CardContent className="p-4"><div className="h-16 bg-muted animate-pulse rounded" /></CardContent></Card>
-        ))}
+      <div className="p-4 md:p-6 space-y-5">
+        <div className="h-32 bg-muted animate-pulse rounded-2xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4"><div className="h-16 bg-muted animate-pulse rounded" /></CardContent></Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">{t('مركز القيادة', 'Command Center', lang)}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{t('نظرة عامة فورية على أداء الشركة', 'Real-time company performance overview', lang)}</p>
+      {/* ─── Hero ─────────────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 text-white shadow-xl">
+        <div className="absolute -end-16 -top-16 size-64 rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="absolute -start-10 -bottom-20 size-56 rounded-full bg-teal-400/10 blur-3xl" />
+        <div className="relative p-5 md:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs text-emerald-300/90 font-medium">{greeting} · {todayLabel}</p>
+              <h1 className="text-2xl md:text-3xl font-bold mt-1">{t('مركز القيادة', 'Command Center', lang)}</h1>
+              <p className="text-sm text-slate-300 mt-1">{t('نظرة عامة فورية على أداء الشركة', 'Real-time company performance overview', lang)}</p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={load} className="text-white hover:bg-white/10 hover:text-white shrink-0">
+              <RefreshCw className="size-4" />
+            </Button>
+          </div>
+
+          {/* Live financial strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+            <div className="rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 p-3">
+              <p className="text-[11px] text-slate-300">{t('الإيرادات المحصلة', 'Collected Revenue', lang)}</p>
+              <p className="text-lg font-bold mt-0.5 tabular-nums">{formatCurrency(collectedRevenue, lang)}</p>
+            </div>
+            <div className="rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 p-3">
+              <p className="text-[11px] text-slate-300">{t('المصروفات', 'Expenses', lang)}</p>
+              <p className="text-lg font-bold mt-0.5 tabular-nums text-rose-300">{formatCurrency(totalExpenses, lang)}</p>
+            </div>
+            <div className="rounded-xl bg-white/5 backdrop-blur-sm border border-white/10 p-3">
+              <p className="text-[11px] text-slate-300">{t('الذمم المدينة', 'Receivables', lang)}</p>
+              <p className="text-lg font-bold mt-0.5 tabular-nums text-amber-300">{formatCurrency(pendingRevenue, lang)}</p>
+            </div>
+            <div className="rounded-xl bg-emerald-500/15 backdrop-blur-sm border border-emerald-400/30 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-emerald-200">{t('صافي الربح', 'Net Profit', lang)}</p>
+                {netProfit >= 0 ? <TrendingUp className="size-3.5 text-emerald-300" /> : <TrendingDown className="size-3.5 text-rose-300" />}
+              </div>
+              <p className={`text-lg font-bold mt-0.5 tabular-nums ${netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatCurrency(netProfit, lang)}</p>
+            </div>
+          </div>
+
+          {/* Profit margin bar */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] text-slate-300 mb-1.5">
+              <span>{t('هامش الربح', 'Profit Margin', lang)}</span>
+              <span className="font-semibold text-white tabular-nums">{margin}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${netProfit >= 0 ? 'bg-gradient-to-r from-emerald-400 to-teal-300' : 'bg-gradient-to-r from-rose-500 to-rose-400'}`}
+                style={{ width: `${Math.min(Math.abs(margin), 100)}%` }}
+              />
+            </div>
+          </div>
         </div>
-        <Button variant="outline" size="icon" onClick={load} className="size-8">
-          <RefreshCw className="size-3.5" />
-        </Button>
       </div>
 
-      {/* Alerts Zone */}
+      {/* ─── Alerts ────────────────────────────────────────────────────────── */}
       {alerts.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
@@ -217,222 +233,176 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* KPI Grid */}
+      {/* ─── KPI Grid ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KPICard
           title={t('مشاريع نشطة', 'Active Projects', lang)}
           value={activeProjects.length}
           subtitle={`${t('إجمالي', 'Total', lang)}: ${projects.length}`}
-          icon={Building2} iconBg="bg-emerald-500"
+          icon={Building2} tint={{ bg: 'bg-emerald-100', icon: 'text-emerald-600', glow: 'bg-emerald-500' }}
           onClick={() => setActiveItem('projects')}
         />
         <KPICard
           title={t('قيمة العقود', 'Contract Value', lang)}
           value={formatCurrency(totalContractVal, lang)}
           subtitle={t('جميع المشاريع', 'All projects', lang)}
-          icon={FileText} iconBg="bg-blue-500"
-        />
-        <KPICard
-          title={t('الإيرادات المحصلة', 'Collected Revenue', lang)}
-          value={formatCurrency(collectedRevenue, lang)}
-          subtitle={t('فواتير مدفوعة', 'Paid invoices', lang)}
-          icon={TrendingUp} iconBg="bg-teal-500"
-          onClick={() => setActiveItem('sales')}
-        />
-        <KPICard
-          title={t('الذمم المدينة', 'Receivables', lang)}
-          value={formatCurrency(pendingRevenue, lang)}
-          subtitle={`${overdueInvoices.length} ${t('متأخرة', 'overdue', lang)}`}
-          icon={CreditCard} iconBg={overdueInvoices.length ? 'bg-rose-500' : 'bg-amber-500'}
-          onClick={() => setActiveItem('sales')}
+          icon={FileText} tint={{ bg: 'bg-blue-100', icon: 'text-blue-600', glow: 'bg-blue-500' }}
         />
         <KPICard
           title={t('المعدات المتاحة', 'Available Equipment', lang)}
           value={availableEquip}
           subtitle={`${rentedEquip} ${t('مؤجرة', 'rented', lang)} · ${maintenanceEquip} ${t('صيانة', 'maint.', lang)}`}
-          icon={Truck} iconBg="bg-cyan-500"
+          icon={Truck} tint={{ bg: 'bg-cyan-100', icon: 'text-cyan-600', glow: 'bg-cyan-500' }}
           onClick={() => setActiveItem('equipment')}
+        />
+        <KPICard
+          title={t('الذمم المدينة', 'Receivables', lang)}
+          value={formatCurrency(pendingRevenue, lang)}
+          subtitle={`${overdueInvoices.length} ${t('متأخرة', 'overdue', lang)}`}
+          icon={CreditCard} tint={overdueInvoices.length ? { bg: 'bg-rose-100', icon: 'text-rose-600', glow: 'bg-rose-500' } : { bg: 'bg-amber-100', icon: 'text-amber-600', glow: 'bg-amber-500' }}
+          onClick={() => setActiveItem('sales')}
         />
         <KPICard
           title={t('عقود التأجير النشطة', 'Active Rentals', lang)}
           value={activeRentals.length}
           subtitle={`${expiredRentals.length} ${t('منتهية', 'expired', lang)}`}
-          icon={Package} iconBg={expiredRentals.length ? 'bg-rose-500' : 'bg-purple-500'}
+          icon={Package} tint={expiredRentals.length ? { bg: 'bg-rose-100', icon: 'text-rose-600', glow: 'bg-rose-500' } : { bg: 'bg-purple-100', icon: 'text-purple-600', glow: 'bg-purple-500' }}
           onClick={() => setActiveItem('rental-contracts')}
         />
         <KPICard
           title={t('الموظفون', 'Employees', lang)}
           value={employees.length}
           subtitle={t('نشطون', 'Active', lang)}
-          icon={Users} iconBg="bg-violet-500"
+          icon={Users} tint={{ bg: 'bg-violet-100', icon: 'text-violet-600', glow: 'bg-violet-500' }}
           onClick={() => setActiveItem('employees')}
+        />
+        <KPICard
+          title={t('الإيرادات المحصلة', 'Collected Revenue', lang)}
+          value={formatCurrency(collectedRevenue, lang)}
+          subtitle={t('فواتير مدفوعة', 'Paid invoices', lang)}
+          icon={TrendingUp} tint={{ bg: 'bg-teal-100', icon: 'text-teal-600', glow: 'bg-teal-500' }}
+          onClick={() => setActiveItem('sales')}
         />
         <KPICard
           title={t('صافي الربح', 'Net Profit', lang)}
           value={formatCurrency(netProfit, lang)}
           subtitle={netProfit >= 0 ? t('ربح', 'Profit', lang) : t('خسارة', 'Loss', lang)}
-          icon={netProfit >= 0 ? TrendingUp : TrendingDown}
-          iconBg={netProfit >= 0 ? 'bg-emerald-600' : 'bg-rose-600'}
+          icon={Wallet} tint={netProfit >= 0 ? { bg: 'bg-emerald-100', icon: 'text-emerald-600', glow: 'bg-emerald-600' } : { bg: 'bg-rose-100', icon: 'text-rose-600', glow: 'bg-rose-600' }}
         />
       </div>
 
-      {/* Dual Hub */}
-      <div className="grid lg:grid-cols-2 gap-4">
+      {/* ─── Active lists + Quick actions ──────────────────────────────────── */}
+      <div className="grid lg:grid-cols-3 gap-4">
 
-        {/* Construction Hub */}
-        <Card className="border-t-4 border-t-emerald-500">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="size-9 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <Building2 className="size-4 text-emerald-600" />
-              </div>
-              <div>
-                <CardTitle className="text-sm">{t('دورة المشاريع التنفيذية', 'Construction Cycle', lang)}</CardTitle>
-                <p className="text-[11px] text-muted-foreground">{activeProjects.length} {t('مشروع نشط', 'active projects', lang)}</p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <WorkflowBar steps={constructionSteps} lang={lang} setActiveItem={setActiveItem} ArrowIcon={ArrowIcon}
-              color={{ border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-700', hover: 'hover:bg-emerald-100', arrow: 'text-emerald-400' }}
-            />
-            {/* Financial mini */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-emerald-50 rounded-lg p-2">
-                <p className="text-sm font-bold text-emerald-700">{formatCurrency(totalContractVal, lang)}</p>
-                <p className="text-[10px] text-muted-foreground">{t('العقود', 'Contracts', lang)}</p>
-              </div>
-              <div className="bg-teal-50 rounded-lg p-2">
-                <p className="text-sm font-bold text-teal-700">{formatCurrency(collectedRevenue, lang)}</p>
-                <p className="text-[10px] text-muted-foreground">{t('محصّل', 'Collected', lang)}</p>
-              </div>
-              <div className="bg-amber-50 rounded-lg p-2">
-                <p className="text-sm font-bold text-amber-700">{formatCurrency(pendingRevenue, lang)}</p>
-                <p className="text-[10px] text-muted-foreground">{t('معلق', 'Pending', lang)}</p>
-              </div>
-            </div>
-            {/* Recent active projects */}
-            <div className="space-y-1">
-              {activeProjects.slice(0, 4).map(p => {
-                const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.PLANNING;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => { setProjectContext(p.id, p.name); if (p.clientId) setClientContext(p.clientId, p.clientName); }}
-                    className="w-full flex items-center justify-between text-xs bg-muted/50 hover:bg-muted rounded-lg px-3 py-2 transition-colors"
-                  >
-                    <span className="font-medium truncate">{p.name}</span>
-                    <div className="flex items-center gap-1.5 ms-2 shrink-0">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span>
-                      <ChevronRight className="size-3 text-muted-foreground" />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <Button onClick={() => setActiveItem('projects')} className="w-full bg-emerald-600 hover:bg-emerald-700" size="sm">
-              {t('إدارة المشاريع', 'Manage Projects', lang)}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Rental Hub */}
-        <Card className="border-t-4 border-t-cyan-500">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="size-9 bg-cyan-100 rounded-lg flex items-center justify-center">
-                <Truck className="size-4 text-cyan-600" />
-              </div>
-              <div>
-                <CardTitle className="text-sm">{t('دورة تأجير المعدات', 'Equipment Rental Cycle', lang)}</CardTitle>
-                <p className="text-[11px] text-muted-foreground">{rentedEquip} {t('معدة مؤجرة', 'rented', lang)} · {availableEquip} {t('متاحة', 'available', lang)}</p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <WorkflowBar steps={rentalSteps} lang={lang} setActiveItem={setActiveItem} ArrowIcon={ArrowIcon}
-              color={{ border: 'border-cyan-300', bg: 'bg-cyan-50', text: 'text-cyan-700', hover: 'hover:bg-cyan-100', arrow: 'text-cyan-400' }}
-            />
-            {/* Equipment status grid */}
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(EQUIPMENT_STATUS).map(([status, cfg]) => {
-                const count = equipment.filter(e => e.status === status).length;
-                return (
-                  <div key={status} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
-                    <span className="text-xs text-muted-foreground">{lang === 'ar' ? cfg.ar : cfg.en}</span>
-                    <span className="text-sm font-bold">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
-            {/* Active rentals */}
-            <div className="space-y-1">
-              {activeRentals.slice(0, 3).map(r => (
-                <div key={r.id} className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 ${r.endDate && r.endDate < today ? 'bg-rose-50 border border-rose-200' : 'bg-muted/50'}`}>
-                  <span className="font-medium truncate">{r.equipmentName}</span>
-                  <span className="ms-2 shrink-0 text-muted-foreground">{r.clientName}</span>
+        {/* Active projects */}
+        <Card className="lg:col-span-2 border-border/60">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <Building2 className="size-4 text-emerald-600" />
                 </div>
-              ))}
+                <div>
+                  <p className="text-sm font-semibold">{t('المشاريع النشطة', 'Active Projects', lang)}</p>
+                  <p className="text-[11px] text-muted-foreground">{activeProjects.length} {t('مشروع قيد التنفيذ', 'in progress', lang)}</p>
+                </div>
+              </div>
+              <button onClick={() => setActiveItem('projects')} className="text-xs font-medium text-emerald-600 hover:text-emerald-700">
+                {t('عرض الكل', 'View all', lang)}
+              </button>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => setActiveItem('equipment')} className="flex-1 bg-cyan-600 hover:bg-cyan-700" size="sm">
-                {t('المعدات', 'Equipment', lang)}
-              </Button>
-              <Button onClick={() => setActiveItem('rental-contracts')} variant="outline" className="flex-1" size="sm">
-                {t('عقود التأجير', 'Rentals', lang)}
-              </Button>
-            </div>
+
+            {activeProjects.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">{t('لا توجد مشاريع نشطة حالياً', 'No active projects', lang)}</div>
+            ) : (
+              <div className="space-y-2">
+                {activeProjects.slice(0, 5).map(p => {
+                  const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.PLANNING;
+                  const pct = Math.min(Math.max(p.progressPercent || 0, 0), 100);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => { setProjectContext(p.id, p.name); if (p.clientId) setClientContext(p.clientId, p.clientName); }}
+                      className="w-full text-start rounded-xl border border-border/60 bg-card hover:bg-muted/40 hover:border-emerald-200 transition-all px-3.5 py-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm truncate">{p.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span>
+                          <ChevronRight className="size-3.5 text-muted-foreground" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[11px] font-semibold text-muted-foreground tabular-nums w-9 text-end">{pct}%</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Financial Summary */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{t('الملخص المالي', 'Financial Summary', lang)}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="text-center p-3 bg-emerald-50 rounded-xl">
-              <p className="text-[11px] text-muted-foreground mb-1">{t('إجمالي الإيرادات', 'Total Revenue', lang)}</p>
-              <p className="text-lg font-bold text-emerald-700">{formatCurrency(collectedRevenue, lang)}</p>
-            </div>
-            <div className="text-center p-3 bg-rose-50 rounded-xl">
-              <p className="text-[11px] text-muted-foreground mb-1">{t('إجمالي المصروفات', 'Total Expenses', lang)}</p>
-              <p className="text-lg font-bold text-rose-700">{formatCurrency(totalExpenses, lang)}</p>
-            </div>
-            <div className="text-center p-3 bg-amber-50 rounded-xl">
-              <p className="text-[11px] text-muted-foreground mb-1">{t('ذمم مدينة', 'Receivables', lang)}</p>
-              <p className="text-lg font-bold text-amber-700">{formatCurrency(pendingRevenue, lang)}</p>
-            </div>
-            <div className={`text-center p-3 rounded-xl ${netProfit >= 0 ? 'bg-teal-50' : 'bg-rose-50'}`}>
-              <p className="text-[11px] text-muted-foreground mb-1">{t('صافي الربح', 'Net Profit', lang)}</p>
-              <p className={`text-lg font-bold ${netProfit >= 0 ? 'text-teal-700' : 'text-rose-700'}`}>{formatCurrency(netProfit, lang)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Quick actions + active rentals */}
+        <div className="space-y-4">
+          <Card className="border-border/60">
+            <CardContent className="p-4">
+              <p className="text-sm font-semibold mb-3">{t('إجراءات سريعة', 'Quick Actions', lang)}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: 'sales',            ar: 'فاتورة عميل',  en: 'Invoice',   color: 'hover:border-emerald-200 hover:bg-emerald-50 text-emerald-700' },
+                  { key: 'purchase-orders',  ar: 'أمر شراء',     en: 'Purchase',  color: 'hover:border-amber-200 hover:bg-amber-50 text-amber-700' },
+                  { key: 'expenses',         ar: 'مصروف',        en: 'Expense',   color: 'hover:border-rose-200 hover:bg-rose-50 text-rose-700' },
+                  { key: 'rental-contracts', ar: 'عقد تأجير',    en: 'Rental',    color: 'hover:border-cyan-200 hover:bg-cyan-50 text-cyan-700' },
+                  { key: 'client-payments',  ar: 'تحصيل',        en: 'Collect',   color: 'hover:border-teal-200 hover:bg-teal-50 text-teal-700' },
+                  { key: 'reports',          ar: 'التقارير',     en: 'Reports',   color: 'hover:border-blue-200 hover:bg-blue-50 text-blue-700' },
+                ].map(item => (
+                  <button
+                    key={item.key}
+                    onClick={() => setActiveItem(item.key)}
+                    className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-2 rounded-lg border border-border/60 bg-card text-foreground transition-all ${item.color}`}
+                  >
+                    <Plus className="size-3.5 shrink-0 opacity-60" />
+                    <span className="truncate">{lang === 'ar' ? item.ar : item.en}</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Quick Actions */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-2">{t('إجراءات سريعة', 'Quick Actions', lang)}</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { key: 'sales',           ar: '+ فاتورة عميل',   en: '+ Client Invoice',   color: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' },
-            { key: 'purchase-orders', ar: '+ أمر شراء',       en: '+ Purchase Order',   color: 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' },
-            { key: 'expenses',        ar: '+ مصروف',          en: '+ Expense',          color: 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100' },
-            { key: 'rental-contracts',ar: '+ عقد تأجير',      en: '+ Rental Contract',  color: 'bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100' },
-            { key: 'accounting',      ar: 'القيود المحاسبية', en: 'Journal Entries',    color: 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100' },
-            { key: 'reports',         ar: 'التقارير',         en: 'Reports',            color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
-          ].map(item => (
-            <button
-              key={item.key}
-              onClick={() => setActiveItem(item.key)}
-              className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${item.color}`}
-            >
-              {lang === 'ar' ? item.ar : item.en}
-            </button>
-          ))}
+          <Card className="border-border/60">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="size-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+                    <Truck className="size-4 text-cyan-600" />
+                  </div>
+                  <p className="text-sm font-semibold">{t('التأجير الجاري', 'Active Rentals', lang)}</p>
+                </div>
+                <button onClick={() => setActiveItem('rental-contracts')} className="text-xs font-medium text-cyan-600 hover:text-cyan-700">
+                  {t('الكل', 'All', lang)}
+                </button>
+              </div>
+              {activeRentals.length === 0 ? (
+                <div className="text-center py-6 text-sm text-muted-foreground">{t('لا يوجد تأجير جارٍ', 'No active rentals', lang)}</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {activeRentals.slice(0, 4).map(r => {
+                    const expired = r.endDate && r.endDate < today;
+                    return (
+                      <div key={r.id} className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 border ${expired ? 'bg-rose-50 border-rose-200' : 'bg-muted/40 border-transparent'}`}>
+                        <span className="font-medium truncate">{r.equipmentName}</span>
+                        <span className="ms-2 shrink-0 text-muted-foreground truncate max-w-[45%]">{r.clientName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

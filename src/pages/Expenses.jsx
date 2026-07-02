@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, EXPENSE_CATEGORIES, EXPENSE_TYPES, getExpenseType } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
+import { selectExpenseAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import ExpenseDialog from '@/components/expenses/ExpenseDialog';
@@ -21,6 +22,8 @@ const empty = {
   date: '', projectId: '', projectName: '',
   equipmentId: '', equipmentName: '', employeeId: '', employeeName: '',
   subcontractorId: '', subcontractorName: '', govEntity: '',
+  expenseAccountCode: '', expenseAccountName: '',
+  paymentAccountCode: '', paymentAccountName: '',
   reference: '', notes: '',
   _vatEnabled: false,
 };
@@ -32,6 +35,7 @@ export default function Expenses() {
   const [equipment, setEquipment] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [subcontractors, setSubcontractors] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -46,14 +50,15 @@ export default function Expenses() {
   const load = async () => {
     setLoading(true);
     try {
-      const [e, p, eq, em, sc] = await Promise.all([
+      const [e, p, eq, em, sc, ac] = await Promise.all([
         base44.entities.Expense.list('-created_date', 200),
         base44.entities.Project.list(),
         base44.entities.Equipment.list(),
         base44.entities.Employee.list(),
         base44.entities.Subcontractor.list(),
+        base44.entities.ChartAccount.list('code', 1000),
       ]);
-      setItems(e); setProjects(p); setEquipment(eq); setEmployees(em); setSubcontractors(sc);
+      setItems(e); setProjects(p); setEquipment(eq); setEmployees(em); setSubcontractors(sc); setAccounts(ac);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -67,6 +72,8 @@ export default function Expenses() {
   });
 
   const refs = { projects, equipment, employees, subcontractors };
+  const expenseAccounts = selectExpenseAccounts(accounts);
+  const cashAccounts = selectCashAccounts(accounts);
 
   const filtered = items.filter(i => {
     const match = !search || i.description?.toLowerCase().includes(search.toLowerCase());
@@ -214,6 +221,8 @@ export default function Expenses() {
         equipment={equipment}
         employees={employees}
         subcontractors={subcontractors}
+        expenseAccounts={expenseAccounts}
+        cashAccounts={cashAccounts}
       />
 
       <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}

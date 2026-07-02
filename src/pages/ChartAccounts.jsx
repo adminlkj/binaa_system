@@ -7,11 +7,12 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import { clearAccountsCache } from '@/lib/postingEngine';
 import { nextSerial } from '@/lib/businessEngine';
+import { buildStandardAccounts } from '@/lib/standardChart';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ChartAccountDialog from '@/components/accounting/ChartAccountDialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Search, Pencil, Trash2, Network, Tag } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Network, Tag, ListTree, Loader2 } from 'lucide-react';
 
 const TYPE_META = {
   ASSET: { ar: 'أصول', en: 'Assets', color: 'text-blue-600 bg-blue-50 border-blue-200' },
@@ -30,6 +31,7 @@ export default function ChartAccounts() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [seeding, setSeeding] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -99,6 +101,26 @@ export default function ChartAccounts() {
     await load();
   };
 
+  // يهيّئ الشجرة القياسية للمقاولات — يُنشئ الحسابات المفقودة فقط دون تكرار الموجود.
+  const seedStandardChart = async () => {
+    setSeeding(true);
+    try {
+      const existingCodes = new Set(accounts.map(a => a.code));
+      const toCreate = buildStandardAccounts().filter(a => !existingCodes.has(a.code));
+      if (toCreate.length === 0) {
+        toast({ title: t('الشجرة القياسية موجودة بالفعل', 'Standard chart already present', lang) });
+      } else {
+        await base44.entities.ChartAccount.bulkCreate(toCreate);
+        clearAccountsCache();
+        toast({ title: t(`تمت إضافة ${toCreate.length} حساباً`, `Added ${toCreate.length} accounts`, lang) });
+        await load();
+      }
+    } catch {
+      toast({ title: t('فشل تهيئة الشجرة', 'Failed to seed chart', lang), variant: 'destructive' });
+    }
+    setSeeding(false);
+  };
+
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (acc) => { setEditing(acc); setDialogOpen(true); };
 
@@ -145,9 +167,15 @@ export default function ChartAccounts() {
       title={t('الدليل المحاسبي', 'Chart of Accounts', lang)}
       subtitle={t('شجرة الحسابات وأدوارها الدلالية — المصدر الموحّد للقيود', 'Accounts tree & semantic roles — single source for postings', lang)}
       actions={
-        <Button onClick={openNew} className="bg-teal-600 hover:bg-teal-700 gap-1.5">
-          <Plus className="size-4" />{t('حساب جديد', 'New Account', lang)}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={seedStandardChart} disabled={seeding} className="gap-1.5">
+            {seeding ? <Loader2 className="size-4 animate-spin" /> : <ListTree className="size-4" />}
+            {t('تهيئة الشجرة القياسية', 'Seed Standard Chart', lang)}
+          </Button>
+          <Button onClick={openNew} className="bg-teal-600 hover:bg-teal-700 gap-1.5">
+            <Plus className="size-4" />{t('حساب جديد', 'New Account', lang)}
+          </Button>
+        </div>
       }
     >
       <div className="relative max-w-sm">

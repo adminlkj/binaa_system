@@ -108,3 +108,47 @@ export async function buildJEFromTemplate(operationType, { entryNo, date, descri
 export function isBalanced(je) {
   return Math.abs((je.totalDebit || 0) - (je.totalCredit || 0)) < 0.01;
 }
+
+// ─── قراءة الحسابات حسب دورها المحاسبي (لاستخدام الشاشات الذكية) ─────────────
+//
+// الفكرة: الشاشات لا تعتمد قائمة ثابتة، بل تقرأ الحسابات الحيّة من الدليل وتفهم
+// كيف تُستخدم من نوعها وموقعها في الشجرة، وفق المعايير المحاسبية.
+
+const CASH_ROLES = ['CASH', 'BANK', 'CUSTODY'];
+
+/**
+ * حسابات المصروفات القابلة للترحيل — تظهر مباشرة في شاشة المصروفات.
+ * أي حساب مصروف جديد يُضاف في الدليل يظهر هنا فوراً.
+ */
+export function selectExpenseAccounts(accounts) {
+  return (accounts || [])
+    .filter(a => a.accountType === 'EXPENSE' && a.isPostable && a.isActive !== false)
+    .sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+}
+
+/**
+ * الحسابات النقدية (صندوق/بنك/عهد) المستخدمة كطرق دفع.
+ * تُميَّز إما بدورها الدلالي (CASH/BANK/CUSTODY) أو بوقوعها تحت مجموعة
+ * "النقدية وما في حكمها" (الكود 1110) في الشجرة القياسية.
+ */
+export function selectCashAccounts(accounts) {
+  const list = accounts || [];
+  return list
+    .filter(a =>
+      a.accountType === 'ASSET' && a.isPostable && a.isActive !== false &&
+      (CASH_ROLES.includes(a.semanticRole) || isUnderCashGroup(a, list))
+    )
+    .sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+}
+
+// يتتبّع سلسلة الآباء ليعرف إن كان الحساب واقعاً تحت مجموعة النقدية (1110).
+function isUnderCashGroup(acc, list) {
+  let cur = acc;
+  let guard = 0;
+  while (cur && cur.parentCode && guard < 10) {
+    if (cur.parentCode === '1110') return true;
+    cur = list.find(a => a.code === cur.parentCode);
+    guard += 1;
+  }
+  return false;
+}

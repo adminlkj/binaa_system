@@ -18,6 +18,7 @@ import ExpenseTypePicker from './ExpenseTypePicker';
 export default function ExpenseDialog({
   open, onOpenChange, lang, editing, form, setForm, saving, onSave,
   projects, equipment, employees, subcontractors,
+  expenseAccounts = [], cashAccounts = [],
 }) {
   const [step, setStep] = React.useState(editing ? 2 : 1);
 
@@ -46,6 +47,18 @@ export default function ExpenseDialog({
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const isRTL2 = lang === 'ar';
+  const accName = (a) => (isRTL2 ? a.name : (a.nameEn || a.name));
+
+  const pickExpenseAccount = (code) => {
+    const a = expenseAccounts.find(x => x.code === code);
+    setForm(f => ({ ...f, expenseAccountCode: code, expenseAccountName: a ? a.name : '' }));
+  };
+  const pickPaymentAccount = (code) => {
+    const a = cashAccounts.find(x => x.code === code);
+    setForm(f => ({ ...f, paymentAccountCode: code, paymentAccountName: a ? a.name : '' }));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,6 +137,43 @@ export default function ExpenseDialog({
                 <Input value={form.govEntity} onChange={e => set('govEntity', e.target.value)} placeholder={t('مثل: البلدية، الجوازات...', 'e.g. Municipality...', lang)} />
               </div>
             )}
+
+            {/* الحسابات المحاسبية الذكية — تُقرأ حيّة من الدليل المحاسبي */}
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t('حساب المصروف', 'Expense Account', lang)}</Label>
+              <Select value={form.expenseAccountCode || ''} onValueChange={pickExpenseAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('اختر حساب المصروف من الدليل', 'Select expense account', lang)} />
+                </SelectTrigger>
+                <SelectContent>
+                  {expenseAccounts.length === 0
+                    ? <SelectItem value="none" disabled>{t('لا توجد حسابات مصروفات — أضفها في الدليل', 'No expense accounts — add them in the chart', lang)}</SelectItem>
+                    : expenseAccounts.map(a => (
+                        <SelectItem key={a.code} value={a.code}>
+                          <span className="font-mono text-xs me-2 text-muted-foreground">{a.code}</span>{accName(a)}
+                        </SelectItem>
+                      ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t('طريقة الدفع / الحساب النقدي', 'Payment / Cash Account', lang)}</Label>
+              <Select value={form.paymentAccountCode || ''} onValueChange={pickPaymentAccount}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('صندوق / بنك / عهدة', 'Cash / Bank / Custody', lang)} />
+                </SelectTrigger>
+                <SelectContent>
+                  {cashAccounts.length === 0
+                    ? <SelectItem value="none" disabled>{t('لا توجد حسابات نقدية — أضفها في الدليل', 'No cash accounts — add them in the chart', lang)}</SelectItem>
+                    : cashAccounts.map(a => (
+                        <SelectItem key={a.code} value={a.code}>
+                          <span className="font-mono text-xs me-2 text-muted-foreground">{a.code}</span>{accName(a)}
+                        </SelectItem>
+                      ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">{t('يُفهم استخدام الحساب تلقائياً من نوعه وموقعه في شجرة الحسابات', 'Usage inferred from the account type & position in the tree', lang)}</p>
+            </div>
 
             <div className="space-y-1.5"><Label>{t('المرجع', 'Reference', lang)}</Label><Input value={form.reference} onChange={e => set('reference', e.target.value)} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ', 'Amount', lang)} *</Label><Input type="number" value={form.amount} onChange={e => set('amount', e.target.value)} /></div>

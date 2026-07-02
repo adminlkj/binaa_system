@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Printer, FileDown } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { printDocument } from '@/lib/printTemplate';
 
 /**
  * Shared print + CSV-export toolbar for any data table.
@@ -12,9 +14,11 @@ import { t } from '@/lib/utils-binaa';
  *  - rows: array of records to print/export
  *  - title: { ar, en } | string  — heading shown on the printed page & file name
  *  - fileName: optional base name for the CSV file (defaults to the title)
+ *  - subheading: optional { ar, en } | string shown under the printed heading (filter/period)
  */
-export default function TableToolbar({ columns, rows, title, fileName }) {
+export default function TableToolbar({ columns, rows, title, fileName, subheading }) {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
 
   const label = (h) => (typeof h === 'string' ? h : t(h.ar, h.en, lang));
   const heading = typeof title === 'string' ? title : t(title.ar, title.en, lang);
@@ -40,31 +44,14 @@ export default function TableToolbar({ columns, rows, title, fileName }) {
   };
 
   const print = () => {
-    const dir = lang === 'ar' ? 'rtl' : 'ltr';
-    const th = columns.map((c) => `<th>${label(c.header)}</th>`).join('');
-    const trs = rows
-      .map((r) => `<tr>${columns.map((c) => `<td>${cell(r, c)}</td>`).join('')}</tr>`)
-      .join('');
-    const html = `<!doctype html><html dir="${dir}" lang="${lang}"><head><meta charset="utf-8"><title>${heading}</title>
-      <style>
-        *{font-family:'Cairo',Arial,sans-serif}
-        body{padding:24px;color:#0f172a}
-        h1{font-size:18px;margin:0 0 4px}
-        .meta{color:#64748b;font-size:12px;margin-bottom:16px}
-        table{width:100%;border-collapse:collapse;font-size:12px}
-        th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:${dir === 'rtl' ? 'right' : 'left'}}
-        th{background:#f1f5f9;font-weight:600}
-        tr:nth-child(even) td{background:#f8fafc}
-      </style></head><body>
-      <h1>${heading}</h1>
-      <div class="meta">${rows.length} ${t('سجل', 'records', lang)} — ${new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US')}</div>
-      <table><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>
-      <script>window.onload=function(){window.print();}<\/script>
-      </body></html>`;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(html);
-    w.document.close();
+    printDocument({
+      settings,
+      lang,
+      heading,
+      subheading: subheading ? (typeof subheading === 'string' ? subheading : t(subheading.ar, subheading.en, lang)) : '',
+      headers: columns.map((c) => label(c.header)),
+      rows: rows.map((r) => columns.map((c) => cell(r, c))),
+    });
   };
 
   return (

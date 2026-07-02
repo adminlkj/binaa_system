@@ -8,6 +8,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import TableToolbar from '@/components/shared/TableToolbar';
 
 export default function Reports({ initialReport = 'income', hideSelector = false }) {
   const { lang } = useStore();
@@ -77,6 +78,44 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     { key: 'cashflow', ar: 'التدفق النقدي', en: 'Cash Flow' },
   ];
 
+  const fmt = (n) => formatCurrency(n, lang);
+
+  // ─── مجموعات بيانات الطباعة/التصدير لكل قائمة مالية ───
+  const twoCol = [
+    { header: { ar: 'البند', en: 'Item' }, value: (r) => r.label },
+    { header: { ar: 'المبلغ', en: 'Amount' }, value: (r) => r.amount },
+  ];
+
+  const incomeRows = [
+    { label: t('إجمالي الإيرادات', 'Total Revenue', lang), amount: fmt(totalRevenue) },
+    { label: t('المصروفات التشغيلية', 'Operational Expenses', lang), amount: fmt(totalExpenses) },
+    { label: t('الرواتب المدفوعة', 'Paid Payroll', lang), amount: fmt(totalPayroll) },
+    { label: t('إجمالي التكاليف', 'Total Costs', lang), amount: fmt(totalCosts) },
+    { label: t('صافي الربح / الخسارة', 'Net Profit / Loss', lang), amount: fmt(netProfit) },
+  ];
+
+  const trialColumns = [
+    { header: { ar: 'كود الحساب', en: 'Account Code' }, value: (r) => r.code },
+    { header: { ar: 'اسم الحساب', en: 'Account Name' }, value: (r) => r.name },
+    { header: { ar: 'مدين', en: 'Debit' }, value: (r) => fmt(r.debit) },
+    { header: { ar: 'دائن', en: 'Credit' }, value: (r) => fmt(r.credit) },
+    { header: { ar: 'الرصيد', en: 'Balance' }, value: (r) => `${fmt(Math.abs(r.debit - r.credit))} ${r.debit >= r.credit ? t('مدين', 'Dr', lang) : t('دائن', 'Cr', lang)}` },
+  ];
+
+  const vatRows = [
+    { label: t('ضريبة محصلة (مبيعات)', 'VAT Collected (Sales)', lang), amount: fmt(vatCollected) },
+    { label: t('ضريبة مدفوعة (مشتريات)', 'VAT Paid (Purchases)', lang), amount: fmt(vatPaid) },
+    { label: t('صافي الضريبة المستحقة', 'Net VAT Due', lang), amount: fmt(vatNet) },
+  ];
+
+  const cashflowInflow = invoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const cashflowRows = [
+    { label: t('تحصيلات العملاء (تدفق داخل)', 'Client Collections (Inflow)', lang), amount: fmt(cashflowInflow) },
+    { label: t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang), amount: fmt(totalExpenses) },
+    { label: t('مسيرات الرواتب', 'Payroll', lang), amount: fmt(totalPayroll) },
+    { label: t('صافي التدفق النقدي', 'Net Cash Flow', lang), amount: fmt(netProfit) },
+  ];
+
   return (
     <ModuleLayout
       title={t('التقارير المالية', 'Financial Reports', lang)}
@@ -121,7 +160,10 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                 </Card>
               </div>
               <Card>
-                <CardHeader><CardTitle className="text-base">{t('تفاصيل قائمة الدخل', 'Income Statement Details', lang)}</CardTitle></CardHeader>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-base">{t('تفاصيل قائمة الدخل', 'Income Statement Details', lang)}</CardTitle>
+                  <TableToolbar columns={twoCol} rows={incomeRows} title={{ ar: 'قائمة الدخل', en: 'Income Statement' }} />
+                </CardHeader>
                 <CardContent>
                   <Table>
                     <TableBody>
@@ -166,6 +208,9 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                     {isBalanced ? t('✓ ميزان المراجعة متوازن', '✓ Trial Balance is Balanced', lang) : t('⚠ ميزان غير متوازن', '⚠ Trial Balance Unbalanced', lang)}
                   </p>
                   <p className="text-xs text-muted-foreground">{t('إجمالي المدين', 'Total Debit', lang)}: {formatCurrency(totalDebit, lang)} | {t('إجمالي الدائن', 'Total Credit', lang)}: {formatCurrency(totalCredit, lang)}</p>
+                </div>
+                <div className="ms-auto">
+                  <TableToolbar columns={trialColumns} rows={trialBalanceRows} title={{ ar: 'ميزان المراجعة', en: 'Trial Balance' }} />
                 </div>
               </div>
               <Card>
@@ -234,7 +279,10 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                 </Card>
               </div>
               <Card>
-                <CardHeader><CardTitle className="text-base">{t('تفاصيل الضريبة', 'VAT Details', lang)}</CardTitle></CardHeader>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-base">{t('تفاصيل الضريبة', 'VAT Details', lang)}</CardTitle>
+                  <TableToolbar columns={twoCol} rows={vatRows} title={{ ar: 'تقرير ضريبة القيمة المضافة', en: 'VAT Report' }} />
+                </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
@@ -291,7 +339,10 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                 </Card>
               </div>
               <Card>
-                <CardHeader><CardTitle className="text-base">{t('تفاصيل التدفق النقدي', 'Cash Flow Details', lang)}</CardTitle></CardHeader>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-base">{t('تفاصيل التدفق النقدي', 'Cash Flow Details', lang)}</CardTitle>
+                  <TableToolbar columns={twoCol} rows={cashflowRows} title={{ ar: 'التدفق النقدي', en: 'Cash Flow' }} />
+                </CardHeader>
                 <CardContent>
                   <Table>
                     <TableBody>

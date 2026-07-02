@@ -11,6 +11,7 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import { buildTrialBalance, buildAccountLedger } from '@/lib/ledgerEngine';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 
 const TYPE_META = {
   ASSET: { ar: 'أصول', en: 'Assets', color: 'text-blue-600' },
@@ -45,11 +46,27 @@ export default function TrialBalance() {
   const tb = useMemo(() => buildTrialBalance(entries, accounts, { from, to }), [entries, accounts, from, to]);
   const ledger = useMemo(() => ledgerFor ? buildAccountLedger(entries, ledgerFor.accountCode, { from, to }) : null, [ledgerFor, entries, from, to]);
 
+  const tbColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.accountCode },
+    { header: { ar: 'الحساب', en: 'Account' }, value: (r) => r.accountName },
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => { const m = TYPE_META[r.accountType]; return m ? (lang === 'ar' ? m.ar : m.en) : '—'; } },
+    { header: { ar: 'حركة مدين', en: 'Debit' }, value: (r) => formatCurrency(r.totalDebit, lang) },
+    { header: { ar: 'حركة دائن', en: 'Credit' }, value: (r) => formatCurrency(r.totalCredit, lang) },
+    { header: { ar: 'رصيد مدين', en: 'Dr Balance' }, value: (r) => r.debitBalance ? formatCurrency(r.debitBalance, lang) : '—' },
+    { header: { ar: 'رصيد دائن', en: 'Cr Balance' }, value: (r) => r.creditBalance ? formatCurrency(r.creditBalance, lang) : '—' },
+  ];
+  const periodSub = (from || to) ? `${from || '—'} → ${to || '—'}` : '';
+
   return (
     <ModuleLayout
       title={t('ميزان المراجعة', 'Trial Balance', lang)}
       subtitle={t('أرصدة الحسابات من القيود المُرحّلة', 'Account balances from posted entries', lang)}
-      actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={tbColumns} rows={tb.rows} title={{ ar: 'ميزان المراجعة', en: 'Trial Balance' }} subheading={periodSub} />
+          <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>
+        </div>
+      }
     >
       <div className={`flex items-center gap-3 p-3 rounded-xl border text-sm ${tb.balanced ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
         {tb.balanced ? <CheckCircle className="size-4 text-emerald-600 shrink-0" /> : <XCircle className="size-4 text-rose-600 shrink-0" />}

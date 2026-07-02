@@ -1,5 +1,5 @@
 import React from 'react';
-import { t, formatNumber, formatDate, RIYAL_SYMBOL, INVOICE_STATUS } from '@/lib/utils-binaa';
+import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
 import { buildZatcaQrPayload, zatcaQrImageUrl } from '@/lib/zatcaQr';
 
 // عرض مبلغ مع رمز الريال مكبّراً قليلاً عن الرقم.
@@ -41,7 +41,6 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
   const primary = settings.primaryColor || '#059669';
   const accent = settings.accentColor || '#047857';
   const template = settings.template || 'MODERN';
-  const st = INVOICE_STATUS[invoice.status] || INVOICE_STATUS.DRAFT;
   const typeLabel = TYPE_LABEL[invoice.invoiceType] || TYPE_LABEL.RENTAL;
 
   const subtotal = invoice.subtotal != null ? invoice.subtotal : (invoice.totalAmount || 0) - (invoice.vatAmount || 0);
@@ -204,14 +203,6 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
               <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{formatNumber(invoice.totalHours, 0)} {t('ساعة', 'hrs', lang)}</td>
             </tr>
           )}
-          <tr>
-            <td style={{ color: labelColor, padding: '5px 8px' }}>{t('الحالة', 'Status', lang)}</td>
-            <td colSpan={3} style={{ padding: '5px 8px' }}>
-              <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 999, background: '#ecfdf5', color: accent, fontWeight: 600 }}>
-                {lang === 'ar' ? st.ar : st.en}
-              </span>
-            </td>
-          </tr>
         </tbody>
       </table>
 

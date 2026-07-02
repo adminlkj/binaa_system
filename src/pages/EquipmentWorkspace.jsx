@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, FileText, Wrench, Fuel, DollarSign, Truck } from 'lucide-react';
+import { LayoutGrid, FileText, Wrench, Fuel, DollarSign, Truck, PackageCheck, Timer, ReceiptText, PieChart } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, EQUIPMENT_STATUS } from '@/lib/utils-binaa';
@@ -9,6 +9,10 @@ import EquipmentOverview from '@/components/workspace/EquipmentOverview';
 import RelatedList from '@/components/workspace/RelatedList';
 import MaintenanceTab from '@/components/workspace/tabs/MaintenanceTab';
 import FuelTab from '@/components/workspace/tabs/FuelTab';
+import DeliveryOrdersTab from '@/components/workspace/tabs/DeliveryOrdersTab';
+import OperatingHoursTab from '@/components/workspace/tabs/OperatingHoursTab';
+import RentalInvoicesTab from '@/components/workspace/tabs/RentalInvoicesTab';
+import ProfitabilityTab from '@/components/workspace/tabs/ProfitabilityTab';
 
 export default function EquipmentWorkspace() {
   const { lang, activeEquipmentId, setActiveItem } = useStore();
@@ -19,21 +23,23 @@ export default function EquipmentWorkspace() {
   const [maintenance, setMaintenance] = useState([]);
   const [fuel, setFuel] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [rentalInvoices, setRentalInvoices] = useState([]);
 
   useEffect(() => {
     if (!activeEquipmentId) { setLoading(false); return; }
     (async () => {
       setLoading(true);
       try {
-        const [eq, rc, mr, fl, exp] = await Promise.all([
+        const [eq, rc, mr, fl, exp, rinv] = await Promise.all([
           base44.entities.Equipment.filter({ id: activeEquipmentId }),
           base44.entities.RentalContract.filter({ equipmentId: activeEquipmentId }),
           base44.entities.MaintenanceRecord.filter({ equipmentId: activeEquipmentId }),
           base44.entities.FuelLog.filter({ equipmentId: activeEquipmentId }),
           base44.entities.Expense.filter({ equipmentId: activeEquipmentId }),
+          base44.entities.RentalInvoice.filter({ equipmentId: activeEquipmentId }),
         ]);
         setEquipment(eq[0] || null);
-        setRentals(rc); setMaintenance(mr); setFuel(fl); setExpenses(exp);
+        setRentals(rc); setMaintenance(mr); setFuel(fl); setExpenses(exp); setRentalInvoices(rinv);
       } finally {
         setLoading(false);
       }
@@ -68,7 +74,8 @@ export default function EquipmentWorkspace() {
     );
   }
 
-  const revenue = rentals.reduce((s, r) => s + (r.totalAmount || 0), 0);
+  const revenue = rentals.reduce((s, r) => s + (r.totalAmount || 0), 0)
+    + rentalInvoices.reduce((s, r) => s + (r.totalAmount || 0), 0);
   const costs = maintenance.reduce((s, m) => s + (m.cost || 0), 0)
     + fuel.reduce((s, f) => s + (f.totalCost || 0), 0)
     + expenses.reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
@@ -76,12 +83,18 @@ export default function EquipmentWorkspace() {
   const st = EQUIPMENT_STATUS[equipment.status] || EQUIPMENT_STATUS.AVAILABLE;
   const badge = <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span>;
 
+  // Rental lifecycle workflow order:
+  // Overview → Rentals → Delivery/Return → Operating Hours → Maintenance → Fuel → Invoices → Expenses → Profitability
   const tabs = [
     { key: 'overview', ar: 'نظرة عامة', en: 'Overview', Icon: LayoutGrid },
     { key: 'rentals', ar: 'عقود التأجير', en: 'Rentals', Icon: FileText },
+    { key: 'delivery', ar: 'التسليم والاسترجاع', en: 'Delivery/Return', Icon: PackageCheck },
+    { key: 'hours', ar: 'ساعات التشغيل', en: 'Operating Hours', Icon: Timer },
     { key: 'maintenance', ar: 'الصيانة', en: 'Maintenance', Icon: Wrench },
     { key: 'fuel', ar: 'الوقود', en: 'Fuel', Icon: Fuel },
+    { key: 'invoices', ar: 'فواتير التأجير', en: 'Rental Invoices', Icon: ReceiptText },
     { key: 'expenses', ar: 'المصروفات', en: 'Expenses', Icon: DollarSign },
+    { key: 'profitability', ar: 'ربحية المعدة', en: 'Profitability', Icon: PieChart },
   ];
 
   return (
@@ -111,8 +124,12 @@ export default function EquipmentWorkspace() {
         />
       )}
 
+      {tab === 'delivery' && <DeliveryOrdersTab equipmentId={activeEquipmentId} />}
+      {tab === 'hours' && <OperatingHoursTab equipmentId={activeEquipmentId} />}
       {tab === 'maintenance' && <MaintenanceTab equipmentId={activeEquipmentId} />}
       {tab === 'fuel' && <FuelTab equipmentId={activeEquipmentId} />}
+      {tab === 'invoices' && <RentalInvoicesTab equipmentId={activeEquipmentId} />}
+      {tab === 'profitability' && <ProfitabilityTab revenue={revenue} costs={costs} contractValue={equipment.purchaseCost || 0} />}
 
       {tab === 'expenses' && (
         <RelatedList

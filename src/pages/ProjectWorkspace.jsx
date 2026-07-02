@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, FileText, ReceiptText, ShoppingCart, DollarSign, Building2, ListChecks, ClipboardCheck, GitPullRequestArrow, FolderOpen, BookOpen } from 'lucide-react';
+import { LayoutGrid, FileText, ReceiptText, ShoppingCart, DollarSign, Building2, ListChecks, ClipboardCheck, GitPullRequestArrow, FolderOpen, BookOpen, ShieldCheck, AlertTriangle, Hammer, CalendarDays, PieChart } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa';
@@ -14,6 +14,11 @@ import ProgressBillingTab from '@/components/workspace/tabs/ProgressBillingTab';
 import ChangeOrdersTab from '@/components/workspace/tabs/ChangeOrdersTab';
 import DocumentsTab from '@/components/workspace/tabs/DocumentsTab';
 import StatementTab from '@/components/workspace/tabs/StatementTab';
+import GuaranteesTab from '@/components/workspace/tabs/GuaranteesTab';
+import PenaltiesTab from '@/components/workspace/tabs/PenaltiesTab';
+import WorkOrdersTab from '@/components/workspace/tabs/WorkOrdersTab';
+import DailyReportsTab from '@/components/workspace/tabs/DailyReportsTab';
+import ProfitabilityTab from '@/components/workspace/tabs/ProfitabilityTab';
 
 export default function ProjectWorkspace() {
   const { lang, activeProjectId, activeProjectName, setActiveItem } = useStore();
@@ -80,15 +85,22 @@ export default function ProjectWorkspace() {
   const st = PROJECT_STATUS[project.status] || PROJECT_STATUS.PLANNING;
   const badge = <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span>;
 
+  // Tabs follow the project lifecycle workflow, not disjoint sections:
+  // Overview → Contract → BOQ → Execution → Costs → Revenue → Profitability → Statement → Documents
   const tabs = [
     { key: 'overview', ar: 'نظرة عامة', en: 'Overview', Icon: LayoutGrid },
     { key: 'contracts', ar: 'العقود', en: 'Contracts', Icon: FileText },
     { key: 'change-orders', ar: 'الملاحق وأوامر التغيير', en: 'Change Orders', Icon: GitPullRequestArrow },
+    { key: 'guarantees', ar: 'الضمانات', en: 'Guarantees', Icon: ShieldCheck },
+    { key: 'penalties', ar: 'الغرامات', en: 'Penalties', Icon: AlertTriangle },
     { key: 'boq', ar: 'جدول الكميات', en: 'BOQ', Icon: ListChecks },
+    { key: 'work-orders', ar: 'أوامر العمل', en: 'Work Orders', Icon: Hammer },
+    { key: 'daily-reports', ar: 'الأعمال اليومية', en: 'Daily Reports', Icon: CalendarDays },
     { key: 'billing', ar: 'المستخلصات', en: 'Progress Billing', Icon: ClipboardCheck },
     { key: 'sales', ar: 'المبيعات', en: 'Sales', Icon: ReceiptText },
     { key: 'purchases', ar: 'المشتريات', en: 'Purchases', Icon: ShoppingCart },
     { key: 'expenses', ar: 'المصروفات', en: 'Expenses', Icon: DollarSign },
+    { key: 'profitability', ar: 'الربحية', en: 'Profitability', Icon: PieChart },
     { key: 'statement', ar: 'كشف الحساب', en: 'Statement', Icon: BookOpen },
     { key: 'documents', ar: 'المستندات', en: 'Documents', Icon: FolderOpen },
   ];
@@ -152,8 +164,13 @@ export default function ProjectWorkspace() {
       )}
 
       {tab === 'change-orders' && <ChangeOrdersTab projectId={activeProjectId} />}
+      {tab === 'guarantees' && <GuaranteesTab projectId={activeProjectId} />}
+      {tab === 'penalties' && <PenaltiesTab projectId={activeProjectId} />}
       {tab === 'boq' && <BoqTab projectId={activeProjectId} />}
+      {tab === 'work-orders' && <WorkOrdersTab projectId={activeProjectId} />}
+      {tab === 'daily-reports' && <DailyReportsTab projectId={activeProjectId} />}
       {tab === 'billing' && <ProgressBillingTab projectId={activeProjectId} />}
+      {tab === 'profitability' && <ProfitabilityTab revenue={revenue} costs={costs} contractValue={project.contractValue || 0} />}
       {tab === 'statement' && <StatementTab invoices={invoices} purchases={purchases} expenses={expenses} />}
       {tab === 'documents' && <DocumentsTab projectId={activeProjectId} />}
     </div>

@@ -25,7 +25,10 @@ export default function AppShell({ children }) {
     : 'U';
 
   const handleLogout = () => {
-    base44.auth.logout('/login');
+    // Clear the session token without provider redirect, then hard-navigate to
+    // the in-app login page so the auth flow re-initializes cleanly.
+    base44.auth.logout();
+    window.location.href = '/login';
   };
 
   return (

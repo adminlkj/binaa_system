@@ -24,6 +24,9 @@ import Expenses from '@/pages/Expenses';
 import Subcontractors from '@/pages/Subcontractors';
 import JournalEntries from '@/pages/JournalEntries';
 import PayrollRuns from '@/pages/PayrollRuns';
+import Reports from '@/pages/Reports';
+import Settings from '@/pages/Settings';
+import ComingSoon from '@/pages/ComingSoon';
 
 // Page map for sidebar navigation
 function MainApp() {
@@ -31,19 +34,44 @@ function MainApp() {
 
   const pageMap = {
     dashboard: <Dashboard />,
+    // Projects cycle
     projects: <Projects />,
     contracts: <Contracts />,
+    boq: <ComingSoon title="جدول الكميات BOQ" titleEn="Bill of Quantities (BOQ)" />,
     sales: <SalesInvoices />,
+    'client-payments': <ComingSoon title="التحصيلات" titleEn="Client Collections" />,
+    // Rental cycle
     equipment: <Equipment />,
     'rental-contracts': <RentalContracts />,
-    employees: <Employees />,
-    'payroll-runs': <PayrollRuns />,
+    'delivery-orders': <ComingSoon title="أوامر التوصيل" titleEn="Delivery Orders" />,
+    timesheets: <ComingSoon title="ساعات التشغيل" titleEn="Timesheets" />,
+    'rental-invoices': <ComingSoon title="فواتير التأجير" titleEn="Rental Invoices" />,
+    'rental-payments': <ComingSoon title="تحصيلات التأجير" titleEn="Rental Collections" />,
+    'equipment-maintenance': <ComingSoon title="الصيانة" titleEn="Maintenance" />,
+    fuel: <ComingSoon title="الوقود" titleEn="Fuel Log" />,
+    // Costs cycle
+    'purchase-requests': <ComingSoon title="طلبات الشراء" titleEn="Purchase Requests" />,
     'purchase-orders': <PurchaseOrders />,
+    'supplier-invoices': <ComingSoon title="فواتير الموردين" titleEn="Supplier Invoices" />,
+    'supplier-payments': <ComingSoon title="سداد الموردين" titleEn="Supplier Payments" />,
     expenses: <Expenses />,
+    'petty-cash': <ComingSoon title="الصندوق النقدي" titleEn="Petty Cash" />,
+    // Subcontractors
     subcontractors: <Subcontractors />,
+    // HR cycle
+    employees: <Employees />,
+    attendance: <ComingSoon title="الحضور والانصراف" titleEn="Attendance" />,
+    'payroll-runs': <PayrollRuns />,
+    advances: <ComingSoon title="السلف" titleEn="Employee Advances" />,
+    // Accounting
+    accounting: <JournalEntries />,
+    vat: <Reports />,
+    reports: <Reports />,
+    // Settings
     clients: <Clients />,
     suppliers: <Suppliers />,
-    accounting: <JournalEntries />,
+    inventory: <ComingSoon title="المخزون" titleEn="Inventory" />,
+    settings: <Settings />,
   };
 
   const currentPage = pageMap[activeItem] || <Dashboard />;

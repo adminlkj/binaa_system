@@ -10,11 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, CONTRACT_STATUS } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
-const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, ACTIVE: { ar: 'نشط', en: 'Active', color: 'bg-emerald-100 text-emerald-700' }, COMPLETED: { ar: 'مكتمل', en: 'Completed', color: 'bg-blue-100 text-blue-700' }, CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700' } };
 const empty = { contractNo: '', projectId: '', projectName: '', clientId: '', clientName: '', totalValue: '', startDate: '', endDate: '', status: 'DRAFT', description: '', notes: '' };
 
 export default function Contracts() {
@@ -26,14 +26,19 @@ export default function Contracts() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [c, p, cl] = await Promise.all([base44.entities.Contract.list('-created_date'), base44.entities.Project.list(), base44.entities.Client.list()]);
-    setItems(c); setProjects(p); setClients(cl); setLoading(false);
+    try {
+      const [c, p, cl] = await Promise.all([base44.entities.Contract.list('-created_date', 200), base44.entities.Project.list(), base44.entities.Client.list()]);
+      setItems(c); setProjects(p); setClients(cl);
+    } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
@@ -44,21 +49,27 @@ export default function Contracts() {
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
     if (!form.contractNo || !form.projectId) return toast.error(t('رقم العقد والمشروع مطلوبان', 'Contract No. and Project are required', lang));
+    if (form.startDate && form.endDate && form.endDate < form.startDate)
+      return toast.error(t('تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء', 'End date must be after start date', lang));
     setSaving(true);
-    const proj = projects.find(p => p.id === form.projectId);
-    const cl = clients.find(c => c.id === form.clientId);
-    const data = { ...form, totalValue: parseFloat(form.totalValue) || 0, projectName: proj?.name || form.projectName, clientName: cl?.name || form.clientName };
-    if (editing) { await base44.entities.Contract.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.Contract.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      const proj = projects.find(p => p.id === form.projectId);
+      const cl = clients.find(c => c.id === form.clientId);
+      const data = { ...form, totalValue: parseFloat(form.totalValue) || 0, projectName: proj?.name || form.projectName, clientName: cl?.name || form.clientName };
+      if (editing) { await base44.entities.Contract.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.Contract.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('هل أنت متأكد؟', 'Delete?', lang))) return;
-    await base44.entities.Contract.delete(id); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const remove = async () => {
+    try { await base44.entities.Contract.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
+    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   return (
@@ -76,7 +87,7 @@ export default function Contracts() {
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">{t('الكل', 'All', lang)}</SelectItem>
-            {Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}
+            {Object.entries(CONTRACT_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}
           </SelectContent>
         </Select>
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
@@ -101,7 +112,7 @@ export default function Contracts() {
               {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
                 : filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد عقود', 'No contracts', lang)}</TableCell></TableRow>
                 : filtered.map(item => {
-                  const st = STATUSES[item.status] || STATUSES.DRAFT;
+                  const st = CONTRACT_STATUS[item.status] || CONTRACT_STATUS.DRAFT;
                   return (
                     <TableRow key={item.id} className="hover:bg-muted/30">
                       <TableCell className="font-mono text-xs font-medium">{item.contractNo}</TableCell>
@@ -114,7 +125,7 @@ export default function Contracts() {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -146,12 +157,12 @@ export default function Contracts() {
             </div>
             <div className="space-y-1.5"><Label>{t('القيمة الإجمالية', 'Total Value', lang)}</Label><Input type="number" value={form.totalValue} onChange={e => setForm(f => ({ ...f, totalValue: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ البدء', 'Start Date', lang)}</Label><Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
               <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
+                <SelectContent>{Object.entries(CONTRACT_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
@@ -163,6 +174,11 @@ export default function Contracts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف العقد', 'Delete Contract', lang)}
+        description={t('سيتم حذف العقد نهائياً.', 'This contract will be permanently deleted.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

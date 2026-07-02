@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
+// Keys that have full pages built
+const READY_KEYS = new Set(['dashboard','projects','contracts','sales','equipment','rental-contracts','purchase-orders','expenses','subcontractors','employees','payroll-runs','accounting','vat','reports','clients','suppliers','settings']);
+
 const navGroups = [
   {
     key: 'projects-cycle',
@@ -180,16 +183,20 @@ export default function Sidebar({ onClose }) {
 
               {expanded && (
                 <div className="ms-4 mt-0.5 space-y-0.5 border-s-2 border-muted ps-3">
-                  {group.items.map(item => (
-                    <button
-                      key={item.key}
-                      onClick={() => handleItem(item.key)}
-                      className={`flex items-center w-full rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors gap-2 ${activeItem === item.key ? `${color.bg} text-white shadow-sm` : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-                    >
-                      <item.Icon className="size-3.5 shrink-0" />
-                      <span>{lang === 'ar' ? item.ar : item.en}</span>
-                    </button>
-                  ))}
+                  {group.items.map(item => {
+                    const isReady = READY_KEYS.has(item.key);
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => handleItem(item.key)}
+                        className={`flex items-center w-full rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors gap-2 ${activeItem === item.key ? `${color.bg} text-white shadow-sm` : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                      >
+                        <item.Icon className="size-3.5 shrink-0" />
+                        <span className="flex-1 text-start">{lang === 'ar' ? item.ar : item.en}</span>
+                        {!isReady && <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-600 font-semibold shrink-0">{lang === 'ar' ? 'قريباً' : 'Soon'}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

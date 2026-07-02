@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Calculator } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,50 +12,74 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
 const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, APPROVED: { ar: 'موافق', en: 'Approved', color: 'bg-blue-100 text-blue-700' }, PAID: { ar: 'مدفوع', en: 'Paid', color: 'bg-emerald-100 text-emerald-700' } };
-const MONTHS = { 1: 'يناير/January', 2: 'فبراير/February', 3: 'مارس/March', 4: 'أبريل/April', 5: 'مايو/May', 6: 'يونيو/June', 7: 'يوليو/July', 8: 'أغسطس/August', 9: 'سبتمبر/September', 10: 'أكتوبر/October', 11: 'نوفمبر/November', 12: 'ديسمبر/December' };
+const MONTHS = { 1: 'يناير / January', 2: 'فبراير / February', 3: 'مارس / March', 4: 'أبريل / April', 5: 'مايو / May', 6: 'يونيو / June', 7: 'يوليو / July', 8: 'أغسطس / August', 9: 'سبتمبر / September', 10: 'أكتوبر / October', 11: 'نوفمبر / November', 12: 'ديسمبر / December' };
 const empty = { code: '', month: '', year: new Date().getFullYear(), totalSalaries: '', totalAllowances: '', totalDeductions: '', netAmount: '', status: 'DRAFT', notes: '' };
 
 export default function PayrollRuns() {
   const { lang } = useStore();
   const [items, setItems] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); setItems(await base44.entities.PayrollRun.list('-created_date')); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [p, e] = await Promise.all([base44.entities.PayrollRun.list('-created_date', 100), base44.entities.Employee.filter({ status: 'ACTIVE' })]);
+      setItems(p); setEmployees(e);
+    } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
+
+  // Auto-populate from employees
+  const autoFillFromEmployees = () => {
+    const totalSalaries = employees.reduce((s, e) => s + (e.salary || 0), 0);
+    const totalAllowances = employees.reduce((s, e) => s + (e.allowances || 0), 0);
+    setForm(f => ({ ...f, totalSalaries: totalSalaries.toFixed(2), totalAllowances: totalAllowances.toFixed(2) }));
+    toast.success(t(`تم احتساب رواتب ${employees.length} موظف`, `Auto-filled from ${employees.length} employees`, lang));
+  };
 
   const filtered = items.filter(i => !search || i.code?.toLowerCase().includes(search.toLowerCase()));
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
-  const calcNet = (f) => {
-    const sal = parseFloat(f.totalSalaries) || 0;
-    const all = parseFloat(f.totalAllowances) || 0;
-    const ded = parseFloat(f.totalDeductions) || 0;
-    return sal + all - ded;
-  };
+  const sal = parseFloat(form.totalSalaries) || 0;
+  const all = parseFloat(form.totalAllowances) || 0;
+  const ded = parseFloat(form.totalDeductions) || 0;
+  const netAmount = sal + all - ded;
 
   const save = async () => {
     if (!form.code || !form.month || !form.year) return toast.error(t('الكود والشهر والسنة مطلوبة', 'Code, month and year required', lang));
     setSaving(true);
-    const data = { ...form, month: parseInt(form.month), year: parseInt(form.year), totalSalaries: parseFloat(form.totalSalaries) || 0, totalAllowances: parseFloat(form.totalAllowances) || 0, totalDeductions: parseFloat(form.totalDeductions) || 0, netAmount: calcNet(form) };
-    if (editing) { await base44.entities.PayrollRun.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.PayrollRun.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      const data = { ...form, month: parseInt(form.month), year: parseInt(form.year), totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
+      if (editing) { await base44.entities.PayrollRun.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.PayrollRun.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('حذف؟', 'Delete?', lang))) return;
-    await base44.entities.PayrollRun.delete(id); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const remove = async () => {
+    try { await base44.entities.PayrollRun.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
+    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
+
+  // Summary
+  const empTotalSalary = employees.reduce((s, e) => s + (e.salary || 0) + (e.allowances || 0), 0);
 
   return (
     <ModuleLayout
@@ -63,6 +87,22 @@ export default function PayrollRuns() {
       subtitle={t('إدارة مسيرات رواتب الموظفين', 'Manage employee payroll runs', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('مسير جديد', 'New Payroll', lang)}</Button>}
     >
+      {/* Employee Summary Card */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 text-center">
+          <p className="text-xl font-bold text-violet-700">{employees.length}</p>
+          <p className="text-xs text-muted-foreground">{t('موظف نشط', 'Active Employees', lang)}</p>
+        </div>
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 text-center">
+          <p className="text-lg font-bold text-violet-700">{formatCurrency(empTotalSalary, lang)}</p>
+          <p className="text-xs text-muted-foreground">{t('إجمالي الرواتب+البدلات', 'Total Salaries+Allowances', lang)}</p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+          <p className="text-xl font-bold text-emerald-700">{items.filter(i => i.status === 'PAID').length}</p>
+          <p className="text-xs text-muted-foreground">{t('مسيرات مدفوعة', 'Paid Runs', lang)}</p>
+        </div>
+      </div>
+
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -103,7 +143,7 @@ export default function PayrollRuns() {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -118,7 +158,7 @@ export default function PayrollRuns() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? t('تعديل المسير', 'Edit Payroll', lang) : t('مسير جديد', 'New Payroll Run', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('الكود', 'Code', lang)} *</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('الكود', 'Code', lang)} *</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="PAY-2026-07" /></div>
             <div className="space-y-1.5">
               <Label>{t('الشهر', 'Month', lang)} *</Label>
               <Select value={String(form.month)} onValueChange={v => setForm(f => ({ ...f, month: v }))}>
@@ -134,10 +174,19 @@ export default function PayrollRuns() {
                 <SelectContent>{Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+
+            {/* Auto-fill button */}
+            <div className="col-span-2">
+              <Button type="button" variant="outline" onClick={autoFillFromEmployees} className="w-full gap-2 border-violet-300 text-violet-700 hover:bg-violet-50">
+                <Calculator className="size-4" />
+                {t(`احتساب تلقائي من ${employees.length} موظف`, `Auto-calculate from ${employees.length} employees`, lang)}
+              </Button>
+            </div>
+
             <div className="space-y-1.5"><Label>{t('إجمالي الرواتب', 'Total Salaries', lang)}</Label><Input type="number" value={form.totalSalaries} onChange={e => setForm(f => ({ ...f, totalSalaries: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('إجمالي البدلات', 'Total Allowances', lang)}</Label><Input type="number" value={form.totalAllowances} onChange={e => setForm(f => ({ ...f, totalAllowances: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('إجمالي الخصومات', 'Total Deductions', lang)}</Label><Input type="number" value={form.totalDeductions} onChange={e => setForm(f => ({ ...f, totalDeductions: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('الصافي', 'Net Amount', lang)}</Label><Input readOnly value={calcNet(form).toFixed(2)} className="bg-muted font-bold" /></div>
+            <div className="space-y-1.5"><Label>{t('صافي الراتب (محسوب)', 'Net Amount (auto)', lang)}</Label><Input readOnly value={netAmount.toFixed(2)} className="bg-muted font-bold text-emerald-700" /></div>
             <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -146,6 +195,11 @@ export default function PayrollRuns() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف المسير', 'Delete Payroll Run', lang)}
+        description={t('سيتم حذف مسير الرواتب نهائياً.', 'This payroll run will be permanently deleted.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

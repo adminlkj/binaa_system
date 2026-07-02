@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, Eye, RefreshCw, Building2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,9 +12,11 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
 const emptyForm = { code: '', name: '', nameAr: '', clientId: '', clientName: '', location: '', startDate: '', endDate: '', status: 'PLANNING', projectType: 'CONSTRUCTION', contractValue: '', description: '' };
+const PROJECT_TYPES = { CONSTRUCTION: { ar: 'تنفيذي', en: 'Construction' }, RENTAL: { ar: 'تأجير', en: 'Rental' }, BOTH: { ar: 'الاثنان', en: 'Both' } };
 
 export default function Projects() {
   const { lang } = useStore();
@@ -24,53 +26,52 @@ export default function Projects() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [p, c] = await Promise.all([base44.entities.Project.list('-created_date'), base44.entities.Client.list()]);
-    setItems(p); setClients(c); setLoading(false);
+    try {
+      const [p, c] = await Promise.all([base44.entities.Project.list('-created_date', 200), base44.entities.Client.list()]);
+      setItems(p); setClients(c);
+    } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load data', lang)); }
+    setLoading(false);
   };
-
   useEffect(() => { load(); }, []);
 
   const filtered = items.filter(i => {
     const matchSearch = !search || i.name?.toLowerCase().includes(search.toLowerCase()) || i.code?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'ALL' || i.status === filterStatus;
-    return matchSearch && matchStatus;
+    return matchSearch && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
   const openNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...emptyForm, ...item, contractValue: item.contractValue || '' }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
     if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name are required', lang));
+    if (form.startDate && form.endDate && form.endDate < form.startDate)
+      return toast.error(t('تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء', 'End date must be after start date', lang));
     setSaving(true);
-    const data = { ...form, contractValue: parseFloat(form.contractValue) || 0 };
-    if (form.clientId) {
+    try {
       const cl = clients.find(c => c.id === form.clientId);
-      if (cl) data.clientName = cl.name;
-    }
-    if (editing) {
-      await base44.entities.Project.update(editing.id, data);
-      toast.success(t('تم التحديث', 'Updated successfully', lang));
-    } else {
-      await base44.entities.Project.create(data);
-      toast.success(t('تم الإنشاء', 'Created successfully', lang));
-    }
-    setSaving(false); setDialogOpen(false); load();
+      const data = { ...form, contractValue: parseFloat(form.contractValue) || 0, clientName: cl?.name || form.clientName };
+      if (editing) { await base44.entities.Project.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.Project.create(data); toast.success(t('تم إنشاء المشروع', 'Project created', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('هل أنت متأكد من الحذف؟', 'Are you sure you want to delete?', lang))) return;
-    await base44.entities.Project.delete(id);
-    toast.success(t('تم الحذف', 'Deleted', lang));
-    load();
+  const remove = async () => {
+    try {
+      await base44.entities.Project.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
-
-  const projectTypes = { CONSTRUCTION: { ar: 'تنفيذي', en: 'Construction' }, RENTAL: { ar: 'تأجير', en: 'Rental' }, BOTH: { ar: 'الاثنان', en: 'Both' } };
 
   return (
     <ModuleLayout
@@ -82,7 +83,6 @@ export default function Projects() {
         </Button>
       }
     >
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -98,7 +98,6 @@ export default function Projects() {
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
       </div>
 
-      {/* Table */}
       <Card>
         <div className="overflow-x-auto">
           <Table>
@@ -115,95 +114,66 @@ export default function Projects() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>
-                ))
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد مشاريع', 'No projects found', lang)}</TableCell></TableRow>
-              ) : filtered.map(item => {
-                const st = PROJECT_STATUS[item.status] || PROJECT_STATUS.PLANNING;
-                const pt = projectTypes[item.projectType] || { ar: item.projectType, en: item.projectType };
-                return (
-                  <TableRow key={item.id} className="hover:bg-muted/30">
-                    <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.clientName || '—'}</TableCell>
-                    <TableCell><span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">{lang === 'ar' ? pt.ar : pt.en}</span></TableCell>
-                    <TableCell className="font-medium">{formatCurrency(item.contractValue, lang)}</TableCell>
-                    <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(item.startDate, lang)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {loading ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد مشاريع', 'No projects found', lang)}</TableCell></TableRow>
+                : filtered.map(item => {
+                  const st = PROJECT_STATUS[item.status] || PROJECT_STATUS.PLANNING;
+                  const pt = PROJECT_TYPES[item.projectType] || { ar: item.projectType, en: item.projectType };
+                  return (
+                    <TableRow key={item.id} className="hover:bg-muted/30">
+                      <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{item.clientName || '—'}</TableCell>
+                      <TableCell><span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">{lang === 'ar' ? pt.ar : pt.en}</span></TableCell>
+                      <TableCell className="font-medium">{formatCurrency(item.contractValue, lang)}</TableCell>
+                      <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatDate(item.startDate, lang)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
             </TableBody>
           </Table>
         </div>
       </Card>
 
-      {/* Summary */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span>{filtered.length} {t('مشروع', 'projects', lang)}</span>
         <span>|</span>
         <span>{t('إجمالي قيمة العقود', 'Total contract value', lang)}: {formatCurrency(filtered.reduce((s, i) => s + (i.contractValue || 0), 0), lang)}</span>
       </div>
 
-      {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? t('تعديل المشروع', 'Edit Project', lang) : t('مشروع جديد', 'New Project', lang)}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5">
-              <Label>{t('كود المشروع', 'Project Code', lang)} *</Label>
-              <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="PRJ-0001" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('اسم المشروع', 'Project Name', lang)} *</Label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('الاسم بالعربية', 'Name in Arabic', lang)}</Label>
-              <Input value={form.nameAr} onChange={e => setForm(f => ({ ...f, nameAr: e.target.value }))} dir="rtl" />
-            </div>
+            <div className="space-y-1.5"><Label>{t('كود المشروع', 'Project Code', lang)} *</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="PRJ-0001" /></div>
+            <div className="space-y-1.5"><Label>{t('اسم المشروع', 'Project Name', lang)} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('الاسم بالعربية', 'Name in Arabic', lang)}</Label><Input value={form.nameAr} onChange={e => setForm(f => ({ ...f, nameAr: e.target.value }))} dir="rtl" /></div>
             <div className="space-y-1.5">
               <Label>{t('العميل', 'Client', lang)}</Label>
-              <Select value={form.clientId} onValueChange={v => setForm(f => ({ ...f, clientId: v }))}>
+              <Select value={form.clientId} onValueChange={v => { const cl = clients.find(c => c.id === v); setForm(f => ({ ...f, clientId: v, clientName: cl?.name || '' })); }}>
                 <SelectTrigger><SelectValue placeholder={t('اختر عميل', 'Select client', lang)} /></SelectTrigger>
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>{t('الموقع', 'Location', lang)}</Label>
-              <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('قيمة العقد', 'Contract Value', lang)}</Label>
-              <Input type="number" value={form.contractValue} onChange={e => setForm(f => ({ ...f, contractValue: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('تاريخ البدء', 'Start Date', lang)}</Label>
-              <Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label>
-              <Input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
-            </div>
+            <div className="space-y-1.5"><Label>{t('الموقع', 'Location', lang)}</Label><Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('قيمة العقد', 'Contract Value', lang)}</Label><Input type="number" value={form.contractValue} onChange={e => setForm(f => ({ ...f, contractValue: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('تاريخ البدء', 'Start Date', lang)}</Label><Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('نوع المشروع', 'Project Type', lang)}</Label>
               <Select value={form.projectType} onValueChange={v => setForm(f => ({ ...f, projectType: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CONSTRUCTION">{t('تنفيذي', 'Construction', lang)}</SelectItem>
-                  <SelectItem value="RENTAL">{t('تأجير', 'Rental', lang)}</SelectItem>
-                  <SelectItem value="BOTH">{t('الاثنان', 'Both', lang)}</SelectItem>
+                  {Object.entries(PROJECT_TYPES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -214,10 +184,7 @@ export default function Projects() {
                 <SelectContent>{Object.entries(PROJECT_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label>{t('الوصف', 'Description', lang)}</Label>
-              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} />
-            </div>
+            <div className="col-span-2 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
@@ -225,6 +192,11 @@ export default function Projects() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف المشروع', 'Delete Project', lang)}
+        description={t('سيتم حذف المشروع نهائياً. هل أنت متأكد؟', 'This project will be permanently deleted. Are you sure?', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

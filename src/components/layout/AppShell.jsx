@@ -1,10 +1,25 @@
-import React from 'react';
-import { Menu, Bell, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Menu, Bell, LogOut, User, ChevronDown } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useStore } from '@/lib/store';
+import { base44 } from '@/api/base44Client';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function AppShell({ children }) {
   const { sidebarOpen, setSidebarOpen, lang } = useStore();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(u => setUser(u)).catch(() => {});
+  }, []);
+
+  const initials = user?.full_name
+    ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'U';
+
+  const handleLogout = () => {
+    base44.auth.logout('/login');
+  };
 
   return (
     <div className="flex h-screen bg-background overflow-hidden" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -37,12 +52,32 @@ export default function AppShell({ children }) {
             <Menu className="size-5" />
           </button>
           <div className="flex-1" />
-          <button className="size-9 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground">
-            <Bell className="size-5" />
-          </button>
-          <button className="size-9 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-semibold text-sm">
-            A
-          </button>
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors">
+                <div className="size-8 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-sm flex items-center justify-center">
+                  {initials}
+                </div>
+                <span className="text-sm font-medium hidden sm:block max-w-[120px] truncate">
+                  {user?.full_name || (lang === 'ar' ? 'المستخدم' : 'User')}
+                </span>
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <div className="px-2 py-1.5">
+                <p className="text-xs font-medium">{user?.full_name || '—'}</p>
+                <p className="text-xs text-muted-foreground truncate">{user?.email || '—'}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-rose-600 gap-2 cursor-pointer">
+                <LogOut className="size-4" />
+                {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         {/* Page Content */}

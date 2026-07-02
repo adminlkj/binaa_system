@@ -12,10 +12,12 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
 const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, ACTIVE: { ar: 'نشط', en: 'Active', color: 'bg-cyan-100 text-cyan-700' }, COMPLETED: { ar: 'مكتمل', en: 'Completed', color: 'bg-blue-100 text-blue-700' }, CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700' } };
 const RATE_TYPES = { DAILY: { ar: 'يومي', en: 'Daily' }, WEEKLY: { ar: 'أسبوعي', en: 'Weekly' }, MONTHLY: { ar: 'شهري', en: 'Monthly' }, HOURLY: { ar: 'بالساعة', en: 'Hourly' } };
+const VAT_RATE = 0.15;
 const empty = { contractNo: '', equipmentId: '', equipmentName: '', clientId: '', clientName: '', startDate: '', endDate: '', rateType: 'DAILY', rate: '', deliveryFees: '', totalAmount: '', vatAmount: '', status: 'DRAFT', notes: '' };
 
 export default function RentalContracts() {
@@ -27,14 +29,19 @@ export default function RentalContracts() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [r, eq, cl] = await Promise.all([base44.entities.RentalContract.list('-created_date'), base44.entities.Equipment.list(), base44.entities.Client.list()]);
-    setItems(r); setEquipment(eq); setClients(cl); setLoading(false);
+    try {
+      const [r, eq, cl] = await Promise.all([base44.entities.RentalContract.list('-created_date', 200), base44.entities.Equipment.list(), base44.entities.Client.list()]);
+      setItems(r); setEquipment(eq); setClients(cl);
+    } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
@@ -45,21 +52,57 @@ export default function RentalContracts() {
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+
+  // Auto-calculate totals
+  const rate = parseFloat(form.rate) || 0;
+  const delivery = parseFloat(form.deliveryFees) || 0;
+  const base = rate + delivery;
+  const vatAmt = +(base * VAT_RATE).toFixed(2);
+  const totalAmt = +(base + vatAmt).toFixed(2);
 
   const save = async () => {
     if (!form.contractNo || !form.equipmentId || !form.clientId) return toast.error(t('الحقول المطلوبة ناقصة', 'Required fields missing', lang));
+    if (form.startDate && form.endDate && form.endDate < form.startDate)
+      return toast.error(t('تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء', 'End date must be after start date', lang));
     setSaving(true);
-    const eq = equipment.find(e => e.id === form.equipmentId);
-    const cl = clients.find(c => c.id === form.clientId);
-    const data = { ...form, rate: parseFloat(form.rate) || 0, deliveryFees: parseFloat(form.deliveryFees) || 0, totalAmount: parseFloat(form.totalAmount) || 0, vatAmount: parseFloat(form.vatAmount) || 0, equipmentName: eq?.name || form.equipmentName, clientName: cl?.name || form.clientName };
-    if (editing) { await base44.entities.RentalContract.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.RentalContract.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      const eq = equipment.find(e => e.id === form.equipmentId);
+      const cl = clients.find(c => c.id === form.clientId);
+      const data = { ...form, rate, deliveryFees: delivery, totalAmount: totalAmt, vatAmount: vatAmt, equipmentName: eq?.name || form.equipmentName, clientName: cl?.name || form.clientName };
+
+      if (editing) {
+        await base44.entities.RentalContract.update(editing.id, data);
+        // Update equipment status based on contract status
+        if (eq) {
+          const newEquipStatus = data.status === 'ACTIVE' ? 'RENTED' : (data.status === 'COMPLETED' || data.status === 'CANCELLED' ? 'AVAILABLE' : eq.status);
+          if (newEquipStatus !== eq.status) await base44.entities.Equipment.update(eq.id, { status: newEquipStatus });
+        }
+        toast.success(t('تم التحديث', 'Updated', lang));
+      } else {
+        await base44.entities.RentalContract.create(data);
+        // Auto-set equipment to RENTED when contract is active
+        if (eq && data.status === 'ACTIVE') {
+          await base44.entities.Equipment.update(eq.id, { status: 'RENTED' });
+        }
+        toast.success(t('تمت الإضافة', 'Added', lang));
+      }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('هل أنت متأكد؟', 'Delete?', lang))) return;
-    await base44.entities.RentalContract.delete(id); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const remove = async () => {
+    try {
+      const contract = items.find(i => i.id === deleteId);
+      await base44.entities.RentalContract.delete(deleteId);
+      // Restore equipment status if it was rented via this contract
+      if (contract?.equipmentId) {
+        const eq = equipment.find(e => e.id === contract.equipmentId);
+        if (eq && eq.status === 'RENTED') await base44.entities.Equipment.update(eq.id, { status: 'AVAILABLE' });
+      }
+      toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   return (
@@ -93,14 +136,15 @@ export default function RentalContracts() {
                 <TableHead>{t('العميل', 'Client', lang)}</TableHead>
                 <TableHead>{t('نوع السعر', 'Rate Type', lang)}</TableHead>
                 <TableHead>{t('السعر', 'Rate', lang)}</TableHead>
-                <TableHead>{t('الإجمالي', 'Total', lang)}</TableHead>
+                <TableHead>{t('الإجمالي+ضريبة', 'Total+VAT', lang)}</TableHead>
+                <TableHead>{t('تاريخ البدء', 'Start', lang)}</TableHead>
                 <TableHead>{t('الحالة', 'Status', lang)}</TableHead>
                 <TableHead>{t('الإجراءات', 'Actions', lang)}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد عقود', 'No contracts', lang)}</TableCell></TableRow>
+              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا توجد عقود', 'No contracts', lang)}</TableCell></TableRow>
                 : filtered.map(item => {
                   const st = STATUSES[item.status] || STATUSES.DRAFT;
                   const rt = RATE_TYPES[item.rateType] || { ar: item.rateType, en: item.rateType };
@@ -112,11 +156,12 @@ export default function RentalContracts() {
                       <TableCell className="text-xs"><span className="bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-full px-2 py-0.5">{lang === 'ar' ? rt.ar : rt.en}</span></TableCell>
                       <TableCell className="font-medium">{formatCurrency(item.rate, lang)}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
+                      <TableCell className="text-xs">{formatDate(item.startDate, lang)}</TableCell>
                       <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -134,9 +179,9 @@ export default function RentalContracts() {
             <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No.', lang)} *</Label><Input value={form.contractNo} onChange={e => setForm(f => ({ ...f, contractNo: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('المعدة', 'Equipment', lang)} *</Label>
-              <Select value={form.equipmentId} onValueChange={v => { const eq = equipment.find(e => e.id === v); setForm(f => ({ ...f, equipmentId: v, equipmentName: eq?.name || '' })); }}>
+              <Select value={form.equipmentId} onValueChange={v => { const eq = equipment.find(e => e.id === v); setForm(f => ({ ...f, equipmentId: v, equipmentName: eq?.name || '', rate: eq?.dailyRate || f.rate })); }}>
                 <SelectTrigger><SelectValue placeholder={t('اختر معدة', 'Select equipment', lang)} /></SelectTrigger>
-                <SelectContent>{equipment.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}</SelectContent>
+                <SelectContent>{equipment.map(e => <SelectItem key={e.id} value={e.id}>{e.name} {e.status !== 'AVAILABLE' ? `(${e.status})` : ''}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
@@ -155,10 +200,10 @@ export default function RentalContracts() {
             </div>
             <div className="space-y-1.5"><Label>{t('السعر', 'Rate', lang)}</Label><Input type="number" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('رسوم التوصيل', 'Delivery Fees', lang)}</Label><Input type="number" value={form.deliveryFees} onChange={e => setForm(f => ({ ...f, deliveryFees: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('إجمالي المبلغ', 'Total Amount', lang)}</Label><Input type="number" value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('مبلغ الضريبة', 'VAT Amount', lang)}</Label><Input type="number" value={form.vatAmount} onChange={e => setForm(f => ({ ...f, vatAmount: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('مبلغ الضريبة 15%', 'VAT 15%', lang)}</Label><Input readOnly value={vatAmt.toFixed(2)} className="bg-muted" /></div>
+            <div className="space-y-1.5"><Label>{t('الإجمالي شامل الضريبة', 'Total incl. VAT', lang)}</Label><Input readOnly value={totalAmt.toFixed(2)} className="bg-muted font-bold" /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ البدء', 'Start Date', lang)}</Label><Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
               <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
@@ -174,6 +219,11 @@ export default function RentalContracts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف عقد التأجير', 'Delete Rental Contract', lang)}
+        description={t('سيتم حذف العقد وإعادة حالة المعدة إلى متاحة.', 'Contract will be deleted and equipment status restored to Available.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

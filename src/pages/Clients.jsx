@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, Users } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', nameAr: '', phone: '', email: '', address: '', taxNumber: '', contactPerson: '', notes: '' };
@@ -21,30 +22,40 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); setItems(await base44.entities.Client.list('-created_date')); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    try { setItems(await base44.entities.Client.list('-created_date', 200)); }
+    catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
   const filtered = items.filter(i => !search || i.name?.toLowerCase().includes(search.toLowerCase()) || i.code?.toLowerCase().includes(search.toLowerCase()));
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
     if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name are required', lang));
     setSaving(true);
-    if (editing) { await base44.entities.Client.update(editing.id, form); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.Client.create(form); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      if (editing) { await base44.entities.Client.update(editing.id, form); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.Client.create(form); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('هل أنت متأكد من الحذف؟', 'Delete?', lang))) return;
-    await base44.entities.Client.delete(id);
-    toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const remove = async () => {
+    try { await base44.entities.Client.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
+    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const fields = [
@@ -57,7 +68,7 @@ export default function Clients() {
     <ModuleLayout
       title={t('العملاء', 'Clients', lang)}
       subtitle={t('إدارة بيانات العملاء', 'Manage client records', lang)}
-      actions={<Button onClick={openNew} className="gap-2"><Plus className="size-4" />{t('عميل جديد', 'New Client', lang)}</Button>}
+      actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('عميل جديد', 'New Client', lang)}</Button>}
     >
       <div className="flex gap-3">
         <div className="relative flex-1">
@@ -95,7 +106,7 @@ export default function Clients() {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -104,6 +115,7 @@ export default function Clients() {
           </Table>
         </div>
       </Card>
+      <p className="text-sm text-muted-foreground">{filtered.length} {t('عميل', 'clients', lang)}</p>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl">
@@ -115,21 +127,20 @@ export default function Clients() {
                 <Input value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
               </div>
             ))}
-            <div className="col-span-2 space-y-1.5">
-              <Label>{t('العنوان', 'Address', lang)}</Label>
-              <Textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2} />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label>{t('ملاحظات', 'Notes', lang)}</Label>
-              <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
-            </div>
+            <div className="col-span-2 space-y-1.5"><Label>{t('العنوان', 'Address', lang)}</Label><Textarea value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2} /></div>
+            <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-            <Button onClick={save} disabled={saving}>{saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}</Button>
+            <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">{saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف العميل', 'Delete Client', lang)}
+        description={t('سيتم حذف العميل نهائياً.', 'This client will be permanently deleted.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

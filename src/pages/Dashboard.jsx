@@ -76,20 +76,20 @@ export default function Dashboard() {
   const overdueInvoices = invoices.filter(i => i.status === 'OVERDUE');
 
   const constructionWorkflow = [
-    { ar: 'العميل', en: 'Client', key: 'clients' },
-    { ar: 'المشروع', en: 'Project', key: 'projects' },
-    { ar: 'العقد', en: 'Contract', key: 'contracts' },
-    { ar: 'BOQ', en: 'BOQ', key: 'boq' },
-    { ar: 'الفاتورة', en: 'Invoice', key: 'sales' },
-    { ar: 'التحصيل', en: 'Collection', key: 'client-payments' },
+    { ar: 'العميل', en: 'Client', key: 'clients', ready: true },
+    { ar: 'المشروع', en: 'Project', key: 'projects', ready: true },
+    { ar: 'العقد', en: 'Contract', key: 'contracts', ready: true },
+    { ar: 'BOQ', en: 'BOQ', key: 'boq', ready: false },
+    { ar: 'الفاتورة', en: 'Invoice', key: 'sales', ready: true },
+    { ar: 'التحصيل', en: 'Collection', key: 'client-payments', ready: false },
   ];
   const rentalWorkflow = [
-    { ar: 'المعدة', en: 'Equipment', key: 'equipment' },
-    { ar: 'عقد التأجير', en: 'Rental Contract', key: 'rental-contracts' },
-    { ar: 'أمر التوصيل', en: 'Delivery Order', key: 'delivery-orders' },
-    { ar: 'ساعات التشغيل', en: 'Timesheets', key: 'timesheets' },
-    { ar: 'الفاتورة', en: 'Invoice', key: 'rental-invoices' },
-    { ar: 'التحصيل', en: 'Collection', key: 'rental-payments' },
+    { ar: 'المعدة', en: 'Equipment', key: 'equipment', ready: true },
+    { ar: 'عقد التأجير', en: 'Rental Contract', key: 'rental-contracts', ready: true },
+    { ar: 'أمر التوصيل', en: 'Delivery Order', key: 'delivery-orders', ready: false },
+    { ar: 'ساعات التشغيل', en: 'Timesheets', key: 'timesheets', ready: false },
+    { ar: 'الفاتورة', en: 'Invoice', key: 'rental-invoices', ready: false },
+    { ar: 'التحصيل', en: 'Collection', key: 'rental-payments', ready: false },
   ];
 
   const isRTL = lang === 'ar';
@@ -157,15 +157,16 @@ export default function Dashboard() {
               <p className="text-xs font-medium text-muted-foreground mb-2">{t('سير العمل', 'Workflow', lang)}</p>
               <div className="flex items-center gap-1 flex-wrap">
                 {constructionWorkflow.map((step, i) => (
-                  <React.Fragment key={step.key}>
-                    <button
-                      onClick={() => setActiveItem(step.key)}
-                      className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-100 transition-colors whitespace-nowrap"
-                    >
-                      {lang === 'ar' ? step.ar : step.en}
-                    </button>
-                    {i < constructionWorkflow.length - 1 && <ArrowIcon className="size-3 text-emerald-400 shrink-0" />}
-                  </React.Fragment>
+                <React.Fragment key={step.key}>
+                  <button
+                    onClick={() => setActiveItem(step.key)}
+                    className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors whitespace-nowrap ${step.ready ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-slate-50 text-slate-400 cursor-default'}`}
+                    title={step.ready ? '' : (lang === 'ar' ? 'قيد التطوير' : 'Coming soon')}
+                  >
+                    {lang === 'ar' ? step.ar : step.en}
+                  </button>
+                  {i < constructionWorkflow.length - 1 && <ArrowIcon className="size-3 text-emerald-400 shrink-0" />}
+                </React.Fragment>
                 ))}
               </div>
             </div>
@@ -203,10 +204,14 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            <Button onClick={() => setActiveItem('projects')} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2" size="sm">
-              {t('عرض جميع المشاريع', 'View All Projects', lang)}
-              <ArrowIcon className="size-3.5" />
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setActiveItem('projects')} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2" size="sm">
+                {t('المشاريع', 'Projects', lang)}
+              </Button>
+              <Button onClick={() => setActiveItem('reports')} variant="outline" className="flex-1 gap-2" size="sm">
+                {t('التقارير', 'Reports', lang)}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -229,15 +234,16 @@ export default function Dashboard() {
               <p className="text-xs font-medium text-muted-foreground mb-2">{t('سير العمل', 'Workflow', lang)}</p>
               <div className="flex items-center gap-1 flex-wrap">
                 {rentalWorkflow.map((step, i) => (
-                  <React.Fragment key={step.key}>
-                    <button
-                      onClick={() => setActiveItem(step.key)}
-                      className="rounded-full border border-cyan-300 bg-cyan-50 px-2.5 py-1 text-[10px] font-medium text-cyan-700 hover:bg-cyan-100 transition-colors whitespace-nowrap"
-                    >
-                      {lang === 'ar' ? step.ar : step.en}
-                    </button>
-                    {i < rentalWorkflow.length - 1 && <ArrowIcon className="size-3 text-cyan-400 shrink-0" />}
-                  </React.Fragment>
+                <React.Fragment key={step.key}>
+                  <button
+                    onClick={() => setActiveItem(step.key)}
+                    className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors whitespace-nowrap ${step.ready ? 'border-cyan-300 bg-cyan-50 text-cyan-700 hover:bg-cyan-100' : 'border-slate-200 bg-slate-50 text-slate-400 cursor-default'}`}
+                    title={step.ready ? '' : (lang === 'ar' ? 'قيد التطوير' : 'Coming soon')}
+                  >
+                    {lang === 'ar' ? step.ar : step.en}
+                  </button>
+                  {i < rentalWorkflow.length - 1 && <ArrowIcon className="size-3 text-cyan-400 shrink-0" />}
+                </React.Fragment>
                 ))}
               </div>
             </div>
@@ -267,10 +273,14 @@ export default function Dashboard() {
                 <p className="text-[10px] text-muted-foreground">{t('مؤجرة', 'Rented', lang)}</p>
               </div>
             </div>
-            <Button onClick={() => setActiveItem('equipment')} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white gap-2" size="sm">
-              {t('عرض جميع المعدات', 'View All Equipment', lang)}
-              <ArrowIcon className="size-3.5" />
-            </Button>
+        <div className="flex gap-2">
+              <Button onClick={() => setActiveItem('equipment')} className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white gap-2" size="sm">
+                {t('المعدات', 'Equipment', lang)}
+              </Button>
+              <Button onClick={() => setActiveItem('rental-contracts')} variant="outline" className="flex-1 gap-2" size="sm">
+                {t('عقود التأجير', 'Rental Contracts', lang)}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

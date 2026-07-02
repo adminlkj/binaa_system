@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
 const emptyLine = { accountCode: '', accountName: '', debit: '', credit: '', description: '' };
@@ -21,44 +22,70 @@ export default function JournalEntries() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterPosted, setFilterPosted] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); setItems(await base44.entities.JournalEntry.list('-created_date')); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    try { setItems(await base44.entities.JournalEntry.list('-date', 200)); }
+    catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
-  const filtered = items.filter(i => !search || i.entryNo?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = items.filter(i => {
+    const match = !search || i.entryNo?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase());
+    const matchPosted = filterPosted === 'ALL' || (filterPosted === 'POSTED' && i.isPosted) || (filterPosted === 'DRAFT' && !i.isPosted);
+    return match && matchPosted;
+  });
 
   const openNew = () => { setEditing(null); setForm({ ...empty, lines: [{ ...emptyLine }, { ...emptyLine }] }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item, lines: item.lines?.length ? item.lines : [{ ...emptyLine }, { ...emptyLine }] }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
-  const updateLine = (idx, field, val) => {
-    setForm(f => { const lines = [...f.lines]; lines[idx] = { ...lines[idx], [field]: val }; return { ...f, lines }; });
-  };
+  const updateLine = (idx, field, val) => setForm(f => { const lines = [...f.lines]; lines[idx] = { ...lines[idx], [field]: val }; return { ...f, lines }; });
   const addLine = () => setForm(f => ({ ...f, lines: [...f.lines, { ...emptyLine }] }));
-  const removeLine = (idx) => setForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }));
+  const removeLine = (idx) => { if (form.lines.length <= 2) return; setForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) })); };
 
   const totalDebit = form.lines.reduce((s, l) => s + (parseFloat(l.debit) || 0), 0);
   const totalCredit = form.lines.reduce((s, l) => s + (parseFloat(l.credit) || 0), 0);
-  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
 
   const save = async () => {
     if (!form.entryNo || !form.date) return toast.error(t('رقم القيد والتاريخ مطلوبان', 'Entry No. and date required', lang));
-    if (!isBalanced) return toast.error(t('القيد غير متوازن', 'Entry is not balanced', lang));
+    if (!isBalanced) return toast.error(t('القيد غير متوازن — المدين يجب أن يساوي الدائن', 'Entry not balanced — Debit must equal Credit', lang));
     setSaving(true);
-    const lines = form.lines.map(l => ({ ...l, debit: parseFloat(l.debit) || 0, credit: parseFloat(l.credit) || 0 }));
-    const data = { ...form, lines, totalDebit, totalCredit };
-    if (editing) { await base44.entities.JournalEntry.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.JournalEntry.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      const lines = form.lines.map(l => ({ ...l, debit: parseFloat(l.debit) || 0, credit: parseFloat(l.credit) || 0 }));
+      const data = { ...form, lines, totalDebit, totalCredit };
+      if (editing) { await base44.entities.JournalEntry.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.JournalEntry.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('حذف؟', 'Delete?', lang))) return;
-    await base44.entities.JournalEntry.delete(id); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const togglePost = async (item) => {
+    try {
+      await base44.entities.JournalEntry.update(item.id, { isPosted: !item.isPosted });
+      toast.success(item.isPosted ? t('تم إلغاء الترحيل', 'Unposted', lang) : t('تم الترحيل', 'Posted', lang));
+      load();
+    } catch { toast.error(t('فشل العملية', 'Operation failed', lang)); }
   };
+
+  const remove = async () => {
+    try { await base44.entities.JournalEntry.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
+    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+  };
+
+  const totalPostedDebit = items.filter(i => i.isPosted).reduce((s, i) => s + (i.totalDebit || 0), 0);
+  const totalPostedCredit = items.filter(i => i.isPosted).reduce((s, i) => s + (i.totalCredit || 0), 0);
+  const globalBalanced = Math.abs(totalPostedDebit - totalPostedCredit) < 0.01;
 
   return (
     <ModuleLayout
@@ -66,10 +93,27 @@ export default function JournalEntries() {
       subtitle={t('القيود المحاسبية اليومية', 'Daily accounting entries', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('قيد جديد', 'New Entry', lang)}</Button>}
     >
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+      {/* Balance Summary */}
+      <div className={`flex items-center gap-3 p-3 rounded-xl border text-sm ${globalBalanced ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+        {globalBalanced ? <CheckCircle className="size-4 text-emerald-600 shrink-0" /> : <XCircle className="size-4 text-rose-600 shrink-0" />}
+        <span className={globalBalanced ? 'text-emerald-700' : 'text-rose-700'}>
+          {t('المرحّل', 'Posted', lang)}: {t('مدين', 'Dr', lang)} {formatCurrency(totalPostedDebit, lang)} | {t('دائن', 'Cr', lang)} {formatCurrency(totalPostedCredit, lang)}
+          {globalBalanced ? ` — ${t('✓ متوازن', '✓ Balanced', lang)}` : ` — ${t('⚠ غير متوازن', '⚠ Unbalanced', lang)}`}
+        </span>
+      </div>
+
+      <div className="flex gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-48">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('بحث...', 'Search...', lang)} className="ps-9" />
+        </div>
+        <div className="flex gap-1">
+          {[['ALL', t('الكل', 'All', lang)], ['DRAFT', t('مسودة', 'Draft', lang)], ['POSTED', t('مرحّل', 'Posted', lang)]].map(([v, l]) => (
+            <button key={v} onClick={() => setFilterPosted(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterPosted === v ? 'bg-teal-600 text-white' : 'bg-muted hover:bg-muted/80'}`}>
+              {l}
+            </button>
+          ))}
         </div>
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
       </div>
@@ -99,14 +143,16 @@ export default function JournalEntries() {
                     <TableCell>{formatCurrency(item.totalDebit, lang)}</TableCell>
                     <TableCell>{formatCurrency(item.totalCredit, lang)}</TableCell>
                     <TableCell>
-                      {item.isPosted
-                        ? <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium"><CheckCircle className="size-3" />{t('مرحّل', 'Posted', lang)}</span>
-                        : <span className="text-xs text-muted-foreground">{t('مسودة', 'Draft', lang)}</span>}
+                      <button onClick={() => togglePost(item)}
+                        className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${item.isPosted ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {item.isPosted ? <CheckCircle className="size-3" /> : null}
+                        {item.isPosted ? t('مرحّل', 'Posted', lang) : t('مسودة', 'Draft', lang)}
+                      </button>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)} disabled={item.isPosted}><Pencil className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)} disabled={item.isPosted}><Trash2 className="size-3.5" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -126,8 +172,6 @@ export default function JournalEntries() {
               <div className="space-y-1.5"><Label>{t('المصدر', 'Source', lang)}</Label><Input value={form.sourceType} onChange={e => setForm(f => ({ ...f, sourceType: e.target.value }))} /></div>
               <div className="col-span-3 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
             </div>
-
-            {/* Lines */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label>{t('بنود القيد', 'Entry Lines', lang)}</Label>
@@ -150,18 +194,20 @@ export default function JournalEntries() {
                       <TableRow key={idx}>
                         <TableCell className="p-1"><Input value={line.accountCode} onChange={e => updateLine(idx, 'accountCode', e.target.value)} className="h-8 text-xs" /></TableCell>
                         <TableCell className="p-1"><Input value={line.accountName} onChange={e => updateLine(idx, 'accountName', e.target.value)} className="h-8 text-xs" /></TableCell>
-                        <TableCell className="p-1"><Input type="number" value={line.debit} onChange={e => updateLine(idx, 'debit', e.target.value)} className="h-8 text-xs" /></TableCell>
-                        <TableCell className="p-1"><Input type="number" value={line.credit} onChange={e => updateLine(idx, 'credit', e.target.value)} className="h-8 text-xs" /></TableCell>
+                        <TableCell className="p-1"><Input type="number" value={line.debit} onChange={e => { updateLine(idx, 'debit', e.target.value); if (e.target.value) updateLine(idx, 'credit', ''); }} className="h-8 text-xs" /></TableCell>
+                        <TableCell className="p-1"><Input type="number" value={line.credit} onChange={e => { updateLine(idx, 'credit', e.target.value); if (e.target.value) updateLine(idx, 'debit', ''); }} className="h-8 text-xs" /></TableCell>
                         <TableCell className="p-1"><Input value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} className="h-8 text-xs" /></TableCell>
-                        <TableCell className="p-1"><Button type="button" variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => removeLine(idx)}><Trash2 className="size-3" /></Button></TableCell>
+                        <TableCell className="p-1"><Button type="button" variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => removeLine(idx)} disabled={form.lines.length <= 2}><Trash2 className="size-3" /></Button></TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="bg-muted/30 font-medium">
-                      <TableCell colSpan={2} className="text-xs">{t('الإجمالي', 'Total', lang)}</TableCell>
-                      <TableCell className="text-xs">{formatCurrency(totalDebit, lang)}</TableCell>
-                      <TableCell className="text-xs">{formatCurrency(totalCredit, lang)}</TableCell>
+                      <TableCell colSpan={2} className="text-xs font-semibold">{t('الإجمالي', 'Total', lang)}</TableCell>
+                      <TableCell className="text-xs font-bold text-emerald-700">{formatCurrency(totalDebit, lang)}</TableCell>
+                      <TableCell className="text-xs font-bold text-blue-700">{formatCurrency(totalCredit, lang)}</TableCell>
                       <TableCell colSpan={2} className="text-xs">
-                        {isBalanced ? <span className="text-emerald-600">{t('✓ متوازن', '✓ Balanced', lang)}</span> : <span className="text-rose-600">{t('غير متوازن', 'Not balanced', lang)}</span>}
+                        {isBalanced
+                          ? <span className="text-emerald-600 font-semibold">{t('✓ متوازن', '✓ Balanced', lang)}</span>
+                          : <span className="text-rose-600">{t('غير متوازن', 'Not balanced', lang)} ({formatCurrency(Math.abs(totalDebit - totalCredit), lang)})</span>}
                       </TableCell>
                     </TableRow>
                   </TableBody>
@@ -171,10 +217,17 @@ export default function JournalEntries() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-            <Button onClick={save} disabled={saving || !isBalanced} className="bg-teal-600 hover:bg-teal-700">{saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}</Button>
+            <Button onClick={save} disabled={saving || !isBalanced} className="bg-teal-600 hover:bg-teal-700">
+              {saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف القيد', 'Delete Entry', lang)}
+        description={t('سيتم حذف القيد المحاسبي نهائياً.', 'This journal entry will be permanently deleted.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

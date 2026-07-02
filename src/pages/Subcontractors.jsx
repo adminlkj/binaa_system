@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', specialty: '', phone: '', email: '', taxNumber: '', contactPerson: '', totalContracts: '', totalPaid: '', notes: '' };
@@ -21,30 +22,41 @@ export default function Subcontractors() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); setItems(await base44.entities.Subcontractor.list('-created_date')); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    try { setItems(await base44.entities.Subcontractor.list('-created_date', 200)); }
+    catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
   const filtered = items.filter(i => !search || i.name?.toLowerCase().includes(search.toLowerCase()) || i.code?.toLowerCase().includes(search.toLowerCase()));
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
     if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name required', lang));
     setSaving(true);
-    const data = { ...form, totalContracts: parseFloat(form.totalContracts) || 0, totalPaid: parseFloat(form.totalPaid) || 0 };
-    if (editing) { await base44.entities.Subcontractor.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.Subcontractor.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      const data = { ...form, totalContracts: parseFloat(form.totalContracts) || 0, totalPaid: parseFloat(form.totalPaid) || 0 };
+      if (editing) { await base44.entities.Subcontractor.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.Subcontractor.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('حذف؟', 'Delete?', lang))) return;
-    await base44.entities.Subcontractor.delete(id); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const remove = async () => {
+    try { await base44.entities.Subcontractor.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
+    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const fields = [['code', t('الكود', 'Code', lang)], ['name', t('الاسم', 'Name', lang)], ['specialty', t('التخصص', 'Specialty', lang)], ['phone', t('الهاتف', 'Phone', lang)], ['email', t('البريد', 'Email', lang)], ['taxNumber', t('الرقم الضريبي', 'Tax No.', lang)], ['contactPerson', t('شخص التواصل', 'Contact', lang)]];
@@ -91,7 +103,7 @@ export default function Subcontractors() {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -106,9 +118,9 @@ export default function Subcontractors() {
           <DialogHeader><DialogTitle>{editing ? t('تعديل مقاول', 'Edit Subcontractor', lang) : t('مقاول جديد', 'New Subcontractor', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             {fields.map(([field, label]) => <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>)}
-            <div className="space-y-1.5"><Label>{t('إجمالي العقود', 'Total Contracts', lang)}</Label><Input type="number" value={form.totalContracts} onChange={e => setForm(f => ({ ...f, totalContracts: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('إجمالي المدفوع', 'Total Paid', lang)}</Label><Input type="number" value={form.totalPaid} onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))} /></div>
-            <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
+            <div className="space-y-1.5"><Label>{t('إجمالي العقود', 'Total Contracts', lang)}</Label><Input type="number" value={form.totalContracts || ''} onChange={e => setForm(f => ({ ...f, totalContracts: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('إجمالي المدفوع', 'Total Paid', lang)}</Label><Input type="number" value={form.totalPaid || ''} onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))} /></div>
+            <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
@@ -116,6 +128,11 @@ export default function Subcontractors() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف المقاول', 'Delete Subcontractor', lang)}
+        description={t('سيتم حذف بيانات مقاول الباطن نهائياً.', 'This subcontractor will be permanently deleted.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

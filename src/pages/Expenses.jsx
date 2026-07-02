@@ -12,8 +12,10 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, EXPENSE_CATEGORIES } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
 
+const VAT_RATE = 0.15;
 const empty = { category: 'OTHER', description: '', amount: '', vatAmount: '', totalAmount: '', date: '', projectId: '', projectName: '', reference: '', notes: '' };
 
 export default function Expenses() {
@@ -24,14 +26,20 @@ export default function Expenses() {
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
+  const [vatEnabled, setVatEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [e, p] = await Promise.all([base44.entities.Expense.list('-created_date'), base44.entities.Project.list()]);
-    setItems(e); setProjects(p); setLoading(false);
+    try {
+      const [e, p] = await Promise.all([base44.entities.Expense.list('-created_date', 200), base44.entities.Project.list()]);
+      setItems(e); setProjects(p);
+    } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
@@ -40,24 +48,31 @@ export default function Expenses() {
     return match && (filterCat === 'ALL' || i.category === filterCat);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm(empty); setVatEnabled(false); setDialogOpen(true); };
+  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setVatEnabled((item.vatAmount || 0) > 0); setDialogOpen(true); };
+  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+
+  // Auto-calculate amounts
+  const amt = parseFloat(form.amount) || 0;
+  const vatAmt = vatEnabled ? +(amt * VAT_RATE).toFixed(2) : 0;
+  const totalAmt = +(amt + vatAmt).toFixed(2);
 
   const save = async () => {
     if (!form.description || !form.amount) return toast.error(t('الوصف والمبلغ مطلوبان', 'Description and amount required', lang));
     setSaving(true);
-    const p = projects.find(p => p.id === form.projectId);
-    const amt = parseFloat(form.amount) || 0;
-    const vat = parseFloat(form.vatAmount) || 0;
-    const data = { ...form, amount: amt, vatAmount: vat, totalAmount: amt + vat, projectName: p?.name || form.projectName };
-    if (editing) { await base44.entities.Expense.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-    else { await base44.entities.Expense.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
-    setSaving(false); setDialogOpen(false); load();
+    try {
+      const p = projects.find(p => p.id === form.projectId);
+      const data = { ...form, amount: amt, vatAmount: vatAmt, totalAmount: totalAmt, projectName: p?.name || form.projectName };
+      if (editing) { await base44.entities.Expense.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.Expense.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      setDialogOpen(false); load();
+    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    setSaving(false);
   };
 
-  const remove = async (id) => {
-    if (!confirm(t('حذف؟', 'Delete?', lang))) return;
-    await base44.entities.Expense.delete(id); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+  const remove = async () => {
+    try { await base44.entities.Expense.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
+    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const totalExpenses = filtered.reduce((s, i) => s + (i.totalAmount || 0), 0);
@@ -110,12 +125,12 @@ export default function Expenses() {
                       <TableCell className="font-medium">{item.description}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{item.projectName || '—'}</TableCell>
                       <TableCell>{formatCurrency(item.amount, lang)}</TableCell>
-                      <TableCell className="text-sm">{formatCurrency(item.vatAmount, lang)}</TableCell>
+                      <TableCell className="text-sm">{item.vatAmount ? formatCurrency(item.vatAmount, lang) : '—'}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => remove(item.id)}><Trash2 className="size-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -149,7 +164,17 @@ export default function Expenses() {
             </div>
             <div className="space-y-1.5"><Label>{t('المرجع', 'Reference', lang)}</Label><Input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ', 'Amount', lang)} *</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
-            <div className="space-y-1.5"><Label>{t('الضريبة', 'VAT', lang)}</Label><Input type="number" value={form.vatAmount} onChange={e => setForm(f => ({ ...f, vatAmount: e.target.value }))} /></div>
+            <div className="space-y-1.5 flex flex-col justify-end">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={vatEnabled} onChange={e => setVatEnabled(e.target.checked)} className="rounded" />
+                {t('إضافة ضريبة 15%', 'Add VAT 15%', lang)}
+              </label>
+              {vatEnabled && <Input readOnly value={vatAmt.toFixed(2)} className="bg-muted mt-1" />}
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t('الإجمالي (محسوب)', 'Total (auto)', lang)}</Label>
+              <Input readOnly value={totalAmt.toFixed(2)} className="bg-muted font-bold" />
+            </div>
             <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -158,6 +183,11 @@ export default function Expenses() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
+        title={t('حذف المصروف', 'Delete Expense', lang)}
+        description={t('سيتم حذف المصروف نهائياً.', 'This expense will be permanently deleted.', lang)}
+        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );
 }

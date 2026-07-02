@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import { toast } from 'sonner';
 
 const METHODS = {
@@ -24,7 +25,7 @@ const METHODS = {
 
 const empty = {
   paymentNo: '', supplierId: '', supplierName: '', supplierInvoiceId: '',
-  date: '', amount: '', method: 'BANK_TRANSFER', reference: '', notes: '',
+  date: '', amount: '', method: 'BANK_TRANSFER', cashAccountCode: '', cashAccountName: '', reference: '', notes: '',
 };
 
 export default function SupplierPayments() {
@@ -32,6 +33,7 @@ export default function SupplierPayments() {
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [cashAccounts, setCashAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,12 +46,14 @@ export default function SupplierPayments() {
   const load = async () => {
     setLoading(true);
     try {
-      const [pay, s, inv] = await Promise.all([
+      const [pay, s, inv, accts] = await Promise.all([
         base44.entities.SupplierPayment.list('-created_date', 200),
         base44.entities.Supplier.list(),
         base44.entities.SupplierInvoice.list('-created_date', 200),
+        loadAccounts(true),
       ]);
       setItems(pay); setSuppliers(s); setInvoices(inv);
+      setCashAccounts(selectCashAccounts(accts));
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -171,6 +175,29 @@ export default function SupplierPayments() {
               <Select value={form.method} onValueChange={v => setForm(f => ({ ...f, method: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{Object.entries(METHODS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t('الحساب النقدي (صندوق / بنك)', 'Cash / Bank Account', lang)}</Label>
+              <Select
+                value={form.cashAccountCode || 'NONE'}
+                onValueChange={v => {
+                  if (v === 'NONE') return setForm(f => ({ ...f, cashAccountCode: '', cashAccountName: '' }));
+                  const a = cashAccounts.find(x => x.code === v);
+                  setForm(f => ({ ...f, cashAccountCode: v, cashAccountName: a?.name || '' }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder={t('اختر حساب الدفع', 'Select payment account', lang)} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">{t('بدون تحديد', 'Unspecified', lang)}</SelectItem>
+                  {cashAccounts.length === 0
+                    ? <SelectItem value="none" disabled>{t('لا توجد حسابات نقدية في الدليل', 'No cash accounts in the chart', lang)}</SelectItem>
+                    : cashAccounts.map(a => (
+                        <SelectItem key={a.code} value={a.code}>
+                          <span className="font-mono text-xs me-2 text-muted-foreground">{a.code}</span>{lang === 'ar' ? a.name : (a.nameEn || a.name)}
+                        </SelectItem>
+                      ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5"><Label>{t('المرجع / رقم الشيك', 'Reference', lang)}</Label><Input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} /></div>

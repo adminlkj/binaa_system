@@ -116,6 +116,20 @@ export function isBalanced(je) {
 
 const CASH_ROLES = ['CASH', 'BANK', 'CUSTODY'];
 
+// كلمات دالّة على النقدية في اسم الحساب (عربي/إنجليزي) — تحليل نصّي لالتقاط
+// حساب كتبه المستخدم بحرّية دون تعيين دور دلالي أو وضعه تحت مجموعة النقدية.
+const CASH_NAME_HINTS = [
+  'صندوق', 'نقد', 'نقدي', 'نقدية', 'خزينة', 'خزنة', 'بنك', 'مصرف',
+  'عهد', 'عهدة', 'محفظة', 'شيك',
+  'cash', 'bank', 'petty', 'till', 'wallet', 'treasury', 'custody', 'cheque', 'check',
+];
+
+// يفهم إن كان اسم الحساب (بالعربية أو الإنجليزية) يدل على حساب نقدي.
+function nameLooksCash(acc) {
+  const text = `${acc.name || ''} ${acc.nameEn || ''}`.toLowerCase();
+  return CASH_NAME_HINTS.some(h => text.includes(h));
+}
+
 /**
  * حسابات المصروفات القابلة للترحيل — تظهر مباشرة في شاشة المصروفات.
  * أي حساب مصروف جديد يُضاف في الدليل يظهر هنا فوراً.
@@ -128,15 +142,18 @@ export function selectExpenseAccounts(accounts) {
 
 /**
  * الحسابات النقدية (صندوق/بنك/عهد) المستخدمة كطرق دفع.
- * تُميَّز إما بدورها الدلالي (CASH/BANK/CUSTODY) أو بوقوعها تحت مجموعة
- * "النقدية وما في حكمها" (الكود 1110) في الشجرة القياسية.
+ * يُفهَم الحساب بثلاث طرق متكاملة، فيكفي أن تتحقق واحدة منها:
+ *   1) دوره الدلالي (CASH/BANK/CUSTODY)،
+ *   2) موقعه في الشجرة تحت مجموعة "النقدية وما في حكمها" (الكود 1110)،
+ *   3) دلالة اسمه (صندوق/بنك/عهدة… Bank/Cash/Petty…).
+ * وبذلك أي حساب نقدي يُضاف لاحقاً يظهر تلقائياً في خيارات الدفع.
  */
 export function selectCashAccounts(accounts) {
   const list = accounts || [];
   return list
     .filter(a =>
       a.accountType === 'ASSET' && a.isPostable && a.isActive !== false &&
-      (CASH_ROLES.includes(a.semanticRole) || isUnderCashGroup(a, list))
+      (CASH_ROLES.includes(a.semanticRole) || isUnderCashGroup(a, list) || nameLooksCash(a))
     )
     .sort((a, b) => (a.code || '').localeCompare(b.code || ''));
 }

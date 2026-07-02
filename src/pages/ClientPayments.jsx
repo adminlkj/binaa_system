@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import { toast } from 'sonner';
 
 const METHODS = {
@@ -20,13 +21,14 @@ const METHODS = {
   CHEQUE:        { ar: 'شيك', en: 'Cheque' },
   CARD:          { ar: 'بطاقة', en: 'Card' },
 };
-const empty = { paymentNo: '', clientId: '', projectId: '', date: '', amount: '', method: 'BANK_TRANSFER', reference: '', notes: '' };
+const empty = { paymentNo: '', clientId: '', projectId: '', date: '', amount: '', method: 'BANK_TRANSFER', cashAccountCode: '', cashAccountName: '', reference: '', notes: '' };
 
 export default function ClientPayments() {
   const { lang } = useStore();
   const [items, setItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [cashAccounts, setCashAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterMethod, setFilterMethod] = useState('ALL');
@@ -40,12 +42,14 @@ export default function ClientPayments() {
   const load = async () => {
     setLoading(true);
     try {
-      const [p, cl, pr] = await Promise.all([
+      const [p, cl, pr, accts] = await Promise.all([
         base44.entities.ClientPayment.list('-date', 300),
         base44.entities.Client.list(),
         base44.entities.Project.list(),
+        loadAccounts(true),
       ]);
       setItems(p); setClients(cl); setProjects(pr);
+      setCashAccounts(selectCashAccounts(accts));
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -76,6 +80,8 @@ export default function ClientPayments() {
         date: form.date,
         amount: Number(form.amount) || 0,
         method: form.method,
+        cashAccountCode: form.cashAccountCode || undefined,
+        cashAccountName: form.cashAccountName || undefined,
         reference: form.reference,
         notes: form.notes,
       };
@@ -187,6 +193,29 @@ export default function ClientPayments() {
               <Select value={form.method} onValueChange={v => setForm(f => ({ ...f, method: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{Object.entries(METHODS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label>{t('الحساب النقدي (صندوق / بنك)', 'Cash / Bank Account', lang)}</Label>
+              <Select
+                value={form.cashAccountCode || 'NONE'}
+                onValueChange={v => {
+                  if (v === 'NONE') return setForm(f => ({ ...f, cashAccountCode: '', cashAccountName: '' }));
+                  const a = cashAccounts.find(x => x.code === v);
+                  setForm(f => ({ ...f, cashAccountCode: v, cashAccountName: a?.name || '' }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder={t('اختر حساب التحصيل', 'Select collection account', lang)} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">{t('بدون تحديد', 'Unspecified', lang)}</SelectItem>
+                  {cashAccounts.length === 0
+                    ? <SelectItem value="none" disabled>{t('لا توجد حسابات نقدية في الدليل', 'No cash accounts in the chart', lang)}</SelectItem>
+                    : cashAccounts.map(a => (
+                        <SelectItem key={a.code} value={a.code}>
+                          <span className="font-mono text-xs me-2 text-muted-foreground">{a.code}</span>{lang === 'ar' ? a.name : (a.nameEn || a.name)}
+                        </SelectItem>
+                      ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-1 col-span-2"><Label>{t('المرجع / رقم الشيك', 'Reference', lang)}</Label><Input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} /></div>

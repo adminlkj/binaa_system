@@ -53,7 +53,9 @@ function AccessDenied() {
 function MainApp() {
   const { activeItem } = useStore();
   const { user: currentUser } = useAuth();
-  const userLoaded = true;
+  // Only enforce per-module permissions once we have a resolved user. Before that
+  // (preview/anonymous session), allow content so the app isn't blocked.
+  const userLoaded = !!currentUser;
 
   const pageMap = {
     dashboard: <Dashboard />,

@@ -13,7 +13,10 @@ export default function AppShell({ children }) {
   // Reuse the already-resolved user from AuthContext (MainApp only renders after
   // auth finished loading), avoiding a second me() call and its race condition.
   const { user } = useAuth();
-  const userLoaded = true;
+  // Only filter the menu by permissions once we actually have a resolved user.
+  // While the user is unresolved (e.g. preview/anonymous session), show the full
+  // menu — the page-level guard still protects the content.
+  const userLoaded = !!user;
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()

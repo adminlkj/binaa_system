@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, genInvoiceNo, INVOICE_STATUS } from '@/lib/utils-binaa';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
@@ -36,6 +36,7 @@ export default function SalesInvoices() {
   const [projects, setProjects] = useState([]);
   const [clients, setClients]   = useState([]);
   const [certificates, setCertificates] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [printInvoice, setPrintInvoice] = useState(null);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
@@ -50,26 +51,34 @@ export default function SalesInvoices() {
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, p, c, cert] = await Promise.all([
+      const [inv, p, c, cert, con] = await Promise.all([
         base44.entities.SalesInvoice.list('-created_date', 200),
         base44.entities.Project.list(),
         base44.entities.Client.list(),
         base44.entities.ProgressBilling.list('-date', 500),
+        base44.entities.Contract.list('-created_date', 500),
       ]);
-      setItems(inv); setProjects(p); setClients(c); setCertificates(cert);
+      setItems(inv); setProjects(p); setClients(c); setCertificates(cert); setContracts(con);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  // تطبيق سياق المشروع/العميل تلقائياً عند فتح نموذج جديد
+  // تطبيق سياق المشروع/العميل تلقائياً عند فتح نموذج جديد + ترقيم تلقائي INV-YYYY-0001
   const buildDefaultForm = () => ({
     ...empty,
+    invoiceNo:   genInvoiceNo('INV', new Date().getFullYear(), items.length + 1),
     projectId:   activeProjectId   || '',
     projectName: activeProjectName || '',
     clientId:    activeClientId    || '',
     clientName:  activeClientName  || '',
   });
+
+  // إثراء الفاتورة برقم العقد المرتبط بمشروعها قبل الطباعة.
+  const openPrint = (item) => {
+    const con = contracts.find(c => c.projectId === item.projectId);
+    setPrintInvoice({ ...item, contractNo: con?.contractNo || '' });
+  };
 
   const filtered = items.filter(i => {
     const match = !search || i.invoiceNo?.toLowerCase().includes(search.toLowerCase()) || i.clientName?.toLowerCase().includes(search.toLowerCase());
@@ -187,7 +196,7 @@ export default function SalesInvoices() {
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => setPrintInvoice(item)}><Printer className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => openPrint(item)}><Printer className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                           </div>

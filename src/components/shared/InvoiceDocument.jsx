@@ -1,6 +1,16 @@
 import React from 'react';
-import { t, formatCurrency, formatDate, INVOICE_STATUS } from '@/lib/utils-binaa';
+import { t, formatNumber, formatDate, RIYAL_SYMBOL, INVOICE_STATUS } from '@/lib/utils-binaa';
 import { buildZatcaQrPayload, zatcaQrImageUrl } from '@/lib/zatcaQr';
+
+// عرض مبلغ مع رمز الريال مكبّراً قليلاً عن الرقم.
+function Money({ value, symbolSize = '1.35em' }) {
+  return (
+    <span style={{ whiteSpace: 'nowrap' }}>
+      {formatNumber(value)}
+      <span style={{ fontSize: symbolSize, verticalAlign: '-0.05em', margin: '0 2px', fontFamily: "'saudi_riyal'" }}>{RIYAL_SYMBOL}</span>
+    </span>
+  );
+}
 
 const TYPE_LABEL = {
   CONSTRUCTION: { ar: 'فاتورة أعمال تنفيذية', en: 'Construction Invoice' },
@@ -43,7 +53,8 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
 
   const companyName = lang === 'ar' ? settings.companyName : (settings.companyNameEn || settings.companyName);
 
-  const qrPayload = settings.showQr && settings.vatNumber
+  // نُظهر رمز QR طالما يوجد رقم ضريبي، إلا إذا عُطّل صراحةً في الإعدادات (showQr === false).
+  const qrPayload = settings.showQr !== false && settings.vatNumber
     ? buildZatcaQrPayload({
         sellerName: settings.companyName,
         vatNumber: settings.vatNumber,
@@ -139,16 +150,40 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
             <td style={{ color: labelColor, padding: '5px 8px', width: '22%' }}>{t('تاريخ الاستحقاق', 'Due Date', lang)}</td>
             <td style={{ fontWeight: 600, padding: '5px 8px' }}>{formatDate(invoice.dueDate, lang)}</td>
           </tr>
+          {invoice.contractNo && (
+            <tr>
+              <td style={{ color: labelColor, padding: '5px 8px' }}>{t('رقم العقد', 'Contract No', lang)}</td>
+              <td style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.contractNo}</td>
+              {invoice.certificateNo ? (
+                <>
+                  <td style={{ color: labelColor, padding: '5px 8px' }}>{t('رقم المستخلص', 'Certificate No', lang)}</td>
+                  <td style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.certificateNo}</td>
+                </>
+              ) : <td colSpan={2} />}
+            </tr>
+          )}
+          {!invoice.contractNo && invoice.certificateNo && (
+            <tr>
+              <td style={{ color: labelColor, padding: '5px 8px' }}>{t('رقم المستخلص', 'Certificate No', lang)}</td>
+              <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.certificateNo}</td>
+            </tr>
+          )}
           {(invoice.periodFrom || invoice.periodTo) && (
             <tr>
               <td style={{ color: labelColor, padding: '5px 8px' }}>{t('فترة الإيجار', 'Rental Period', lang)}</td>
               <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{formatDate(invoice.periodFrom, lang)} — {formatDate(invoice.periodTo, lang)}</td>
             </tr>
           )}
-          {invoice.certificateNo && (
+          {invoice.equipmentName && (
             <tr>
-              <td style={{ color: labelColor, padding: '5px 8px' }}>{t('المستخلص', 'Certificate', lang)}</td>
-              <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.certificateNo}</td>
+              <td style={{ color: labelColor, padding: '5px 8px' }}>{t('المعدة', 'Equipment', lang)}</td>
+              <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{invoice.equipmentName}</td>
+            </tr>
+          )}
+          {invoice.totalHours != null && Number(invoice.totalHours) > 0 && (
+            <tr>
+              <td style={{ color: labelColor, padding: '5px 8px' }}>{t('عدد ساعات التشغيل', 'Operating Hours', lang)}</td>
+              <td colSpan={3} style={{ fontWeight: 600, padding: '5px 8px' }}>{formatNumber(invoice.totalHours, 0)} {t('ساعة', 'hrs', lang)}</td>
             </tr>
           )}
           <tr>
@@ -177,8 +212,8 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
             <tr key={i} style={{ borderBottom: border }}>
               <td style={{ padding: '8px 10px' }}>{it.description}</td>
               <td style={{ padding: '8px 10px', textAlign: 'center' }}>{it.qty ?? 1}</td>
-              <td style={{ padding: '8px 10px', textAlign: 'center' }}>{formatCurrency(it.unitPrice, lang)}</td>
-              <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>{formatCurrency(it.total, lang)}</td>
+              <td style={{ padding: '8px 10px', textAlign: 'center' }}><Money value={it.unitPrice} /></td>
+              <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}><Money value={it.total} /></td>
             </tr>
           ))}
         </tbody>
@@ -187,33 +222,37 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
       {/* الملخص المالي + QR */}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
         <div style={{ flex: 1 }}>
-          {qrPayload && (
+          {qrPayload ? (
             <div style={{ textAlign: 'center', display: 'inline-block' }}>
               <img src={zatcaQrImageUrl(qrPayload, 120)} alt="ZATCA QR" style={{ width: 120, height: 120, border }} />
               <div style={{ fontSize: 9, color: labelColor, marginTop: 4 }}>{t('رمز الاستجابة الضريبي', 'ZATCA QR', lang)}</div>
             </div>
-          )}
+          ) : settings.showQr !== false && !settings.vatNumber ? (
+            <div style={{ width: 120, height: 120, border: `1px dashed ${labelColor}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 10, color: labelColor, padding: 8 }}>
+              {t('أدخل الرقم الضريبي في الإعدادات لإظهار رمز QR', 'Add a VAT number in Settings to show the QR code', lang)}
+            </div>
+          ) : null}
         </div>
         <div style={{ width: 280 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: border }}>
             <span style={{ color: labelColor }}>{t('المبلغ قبل الضريبة', 'Subtotal', lang)}</span>
-            <span style={{ fontWeight: 600 }}>{formatCurrency(subtotal, lang)}</span>
+            <span style={{ fontWeight: 600 }}><Money value={subtotal} /></span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: border }}>
             <span style={{ color: labelColor }}>{t('ضريبة القيمة المضافة', 'VAT', lang)} (15%)</span>
-            <span style={{ fontWeight: 600 }}>{formatCurrency(vat, lang)}</span>
+            <span style={{ fontWeight: 600 }}><Money value={vat} /></span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderTop: `2px solid ${primary}`, marginTop: 2 }}>
             <span style={{ fontWeight: 700, fontSize: 15 }}>{t('الإجمالي', 'Total', lang)}</span>
-            <span style={{ fontWeight: 700, fontSize: 15, color: primary }}>{formatCurrency(total, lang)}</span>
+            <span style={{ fontWeight: 700, fontSize: 15, color: primary }}><Money value={total} symbolSize="1.25em" /></span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', color: labelColor }}>
             <span>{t('المدفوع', 'Paid', lang)}</span>
-            <span>{formatCurrency(paid, lang)}</span>
+            <span><Money value={paid} /></span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontWeight: 700, color: balance > 0 ? '#dc2626' : accent }}>
             <span>{t('المتبقي', 'Balance Due', lang)}</span>
-            <span>{formatCurrency(balance, lang)}</span>
+            <span><Money value={balance} /></span>
           </div>
         </div>
       </div>

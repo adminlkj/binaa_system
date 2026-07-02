@@ -15,8 +15,19 @@ export const RIYAL_SYMBOL = '\u20C1';
 
 export function formatCurrency(num, lang = 'ar') {
   const n = formatNumber(num);
-  // The Riyal symbol goes after the amount in both languages.
+  // The Riyal symbol goes after the amount in both languages, rendered slightly larger.
   return `${n}\u00A0${RIYAL_SYMBOL}`;
+}
+
+// نسخة JSX من رمز العملة مع تكبير رمز الريال قليلاً — للاستخدام في المستندات.
+export function currencyParts(num) {
+  return { amount: formatNumber(num), symbol: RIYAL_SYMBOL };
+}
+
+// توليد رقم فاتورة بصيغة INV-YYYY-0001 حسب سنة التاريخ وعدد الفواتير الحالي.
+export function genInvoiceNo(prefix, year, count) {
+  const y = year || new Date().getFullYear();
+  return `${prefix}-${y}-${String(count).padStart(4, '0')}`;
 }
 
 export function formatDate(dateStr, lang = 'ar') {

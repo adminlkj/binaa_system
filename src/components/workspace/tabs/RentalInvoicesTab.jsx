@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Printer } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, genCode, INVOICE_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, genInvoiceNo, INVOICE_STATUS } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
 
@@ -28,6 +29,11 @@ const computeTotal = (f) => {
 export default function RentalInvoicesTab({ equipmentId }) {
   const { lang } = useStore();
   const [printInvoice, setPrintInvoice] = useState(null);
+  const [contracts, setContracts] = useState([]);
+
+  useEffect(() => {
+    base44.entities.RentalContract.filter({ equipmentId }).then(setContracts).catch(() => setContracts([]));
+  }, [equipmentId]);
 
   return (
     <>
@@ -41,11 +47,15 @@ export default function RentalInvoicesTab({ equipmentId }) {
       filter={{ equipmentId }}
       defaults={(rows) => ({
         equipmentId,
-        invoiceNo: genCode('RINV', rows.length + 1),
+        invoiceNo: genInvoiceNo('RINV', new Date().getFullYear(), rows.length + 1),
+        rentalContractId: '',
+        contractNo: '',
+        equipmentName: '',
         clientName: '',
         date: new Date().toISOString().slice(0, 10),
         periodFrom: '',
         periodTo: '',
+        totalHours: 0,
         baseAmount: 0,
         extraCharges: 0,
         paidAmount: 0,
@@ -57,11 +67,15 @@ export default function RentalInvoicesTab({ equipmentId }) {
         const { vat, total } = computeTotal(f);
         return {
           equipmentId,
+          rentalContractId: f.rentalContractId || '',
+          contractNo: f.contractNo || '',
+          equipmentName: f.equipmentName || '',
           invoiceNo: f.invoiceNo,
           clientName: f.clientName,
           date: f.date || null,
           periodFrom: f.periodFrom || null,
           periodTo: f.periodTo || null,
+          totalHours: Number(f.totalHours) || 0,
           baseAmount: Number(f.baseAmount) || 0,
           extraCharges: Number(f.extraCharges) || 0,
           vatAmount: vat,
@@ -108,8 +122,32 @@ export default function RentalInvoicesTab({ equipmentId }) {
               <Input value={form.invoiceNo || ''} onChange={e => set('invoiceNo', e.target.value)} />
             </div>
             <div className="space-y-1.5">
+              <Label>{t('عقد التأجير', 'Rental Contract', lang)}</Label>
+              <Select
+                value={form.rentalContractId || 'none'}
+                onValueChange={v => {
+                  if (v === 'none') { set('rentalContractId', ''); set('contractNo', ''); return; }
+                  const c = contracts.find(x => x.id === v);
+                  set('rentalContractId', v);
+                  set('contractNo', c?.contractNo || '');
+                  set('equipmentName', c?.equipmentName || '');
+                  if (c?.clientName && !form.clientName) set('clientName', c.clientName);
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder={t('اختر عقداً (اختياري)', 'Select contract (optional)', lang)} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('بدون عقد', 'No contract', lang)}</SelectItem>
+                  {contracts.map(c => <SelectItem key={c.id} value={c.id}>{c.contractNo} — {c.clientName || ''}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>{t('العميل', 'Client', lang)}</Label>
               <Input value={form.clientName || ''} onChange={e => set('clientName', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('عدد ساعات التشغيل', 'Operating Hours', lang)}</Label>
+              <Input type="number" value={form.totalHours ?? 0} onChange={e => set('totalHours', e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>{t('التاريخ', 'Date', lang)}</Label>

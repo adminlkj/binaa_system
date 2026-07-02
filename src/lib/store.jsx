@@ -13,6 +13,13 @@ export function StoreProvider({ children }) {
   const [activeProjectName, setActiveProjectName] = useState(null);
   const [activeClientId, setActiveClientId] = useState(null);
   const [activeClientName, setActiveClientName] = useState(null);
+  const [activeEquipmentId, setActiveEquipmentId] = useState(null);
+  const [activeEquipmentName, setActiveEquipmentName] = useState(null);
+
+  const setEquipmentContext = (id, name) => {
+    setActiveEquipmentId(id);
+    setActiveEquipmentName(name);
+  };
 
   const setProjectContext = (id, name) => {
     setActiveProjectId(id);
@@ -47,6 +54,7 @@ export function StoreProvider({ children }) {
       // Context Engine
       activeProjectId, activeProjectName,
       activeClientId, activeClientName,
+      activeEquipmentId, activeEquipmentName, setEquipmentContext,
       setProjectContext, setClientContext, clearContext,
       // convenience aliases used by some pages
       setActiveProjectId, setActiveProjectName,

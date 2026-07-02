@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,12 @@ import { toast } from 'sonner';
 const emptyForm = { code: '', name: '', nameAr: '', type: '', brand: '', model: '', year: '', serialNumber: '', plateNumber: '', status: 'AVAILABLE', dailyRate: '', monthlyRate: '', hourlyRate: '', purchaseDate: '', purchaseCost: '', currentValue: '', notes: '' };
 
 export default function Equipment() {
-  const { lang } = useStore();
+  const { lang, setActiveItem, setEquipmentContext } = useStore();
+
+  const openWorkspace = (item) => {
+    setEquipmentContext(item.id, item.name);
+    setActiveItem('equipment-workspace');
+  };
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -120,7 +125,11 @@ export default function Equipment() {
                   return (
                     <TableRow key={item.id} className="hover:bg-muted/30">
                       <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>
+                        <button onClick={() => openWorkspace(item)} className="font-medium text-cyan-700 hover:underline text-start">
+                          {item.name}
+                        </button>
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{item.type || '—'}</TableCell>
                       <TableCell className="text-sm">{[item.brand, item.model].filter(Boolean).join(' / ') || '—'}</TableCell>
                       <TableCell className="text-sm">{item.plateNumber || '—'}</TableCell>
@@ -128,6 +137,7 @@ export default function Equipment() {
                       <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="size-8 text-cyan-700" title={t('مركز العمل', 'Workspace', lang)} onClick={() => openWorkspace(item)}><ArrowUpRight className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>

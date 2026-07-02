@@ -16,7 +16,7 @@ import { canAccess } from '@/lib/permissions';
 const READY_KEYS = new Set([
   'dashboard',
   'projects', 'project-workspace', 'contracts', 'sales', 'client-payments',
-  'equipment', 'rental-contracts', 'equipment-maintenance', 'fuel',
+  'equipment', 'equipment-workspace', 'rental-contracts', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors',
   'employees', 'payroll-runs',
   'chart-accounts', 'accounting', 'vat', 'reports', 'fiscal-years',

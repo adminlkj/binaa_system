@@ -18,6 +18,7 @@ import Dashboard from '@/pages/Dashboard';
 import Projects from '@/pages/Projects';
 import ProjectWorkspace from '@/pages/ProjectWorkspace';
 import Equipment from '@/pages/Equipment';
+import EquipmentWorkspace from '@/pages/EquipmentWorkspace';
 import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
 import Employees from '@/pages/Employees';
@@ -71,6 +72,7 @@ function MainApp() {
     'client-payments': <ComingSoon title="التحصيلات" titleEn="Client Collections" />,
     // Rental cycle
     equipment: <Equipment />,
+    'equipment-workspace': <EquipmentWorkspace />,
     'rental-contracts': <RentalContracts />,
     'delivery-orders': <ComingSoon title="أوامر التوصيل" titleEn="Delivery Orders" />,
     timesheets: <ComingSoon title="ساعات التشغيل" titleEn="Timesheets" />,

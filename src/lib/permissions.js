@@ -14,6 +14,7 @@ export const MODULES = [
   { key: 'boq', ar: 'جدول الكميات', en: 'BOQ', group: 'projects' },
   // Equipment
   { key: 'equipment', ar: 'سجل المعدات', en: 'Equipment', group: 'rental' },
+  { key: 'equipment-workspace', ar: 'مركز عمل المعدة', en: 'Equipment Workspace', group: 'rental' },
   { key: 'rental-contracts', ar: 'عقود التأجير', en: 'Rental Contracts', group: 'rental' },
   { key: 'timesheets', ar: 'ساعات التشغيل', en: 'Timesheets', group: 'rental' },
   { key: 'delivery-orders', ar: 'أوامر التوصيل', en: 'Delivery Orders', group: 'rental' },
@@ -110,7 +111,11 @@ export function resolveUserModules(user) {
 export function canAccess(user, moduleKey) {
   // dashboard is always accessible
   if (moduleKey === 'dashboard') return true;
-  return resolveUserModules(user).includes(moduleKey);
+  const modules = resolveUserModules(user);
+  // The equipment workspace is opened from the equipment registry — anyone who
+  // can access the registry can open a piece of equipment's workspace.
+  if (moduleKey === 'equipment-workspace') return modules.includes('equipment') || modules.includes('equipment-workspace');
+  return modules.includes(moduleKey);
 }
 
 export function isAdmin(user) {

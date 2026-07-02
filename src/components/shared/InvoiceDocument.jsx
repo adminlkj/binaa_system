@@ -6,8 +6,8 @@ import { buildZatcaQrPayload, zatcaQrImageUrl } from '@/lib/zatcaQr';
 function Money({ value, symbolSize = '1.35em' }) {
   return (
     <span style={{ whiteSpace: 'nowrap' }}>
-      {formatNumber(value)}
       <span style={{ fontSize: symbolSize, verticalAlign: '-0.05em', margin: '0 2px', fontFamily: "'saudi_riyal'" }}>{RIYAL_SYMBOL}</span>
+      {formatNumber(value)}
     </span>
   );
 }
@@ -66,6 +66,8 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
 
   const isMinimal = template === 'MINIMAL';
   const isClassic = template === 'CLASSIC';
+  // فاتورة التأجير تُختم وتُؤرشف — لا نُظهر فيها المدفوع/المتبقّي، ونضيف خانتَي ختم.
+  const isRental = invoice.invoiceType === 'RENTAL';
 
   const labelColor = '#6b7280';
   const border = '1px solid #e5e7eb';
@@ -262,16 +264,34 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
             <span style={{ fontWeight: 700, fontSize: 15 }}>{t('الإجمالي', 'Total', lang)}</span>
             <span style={{ fontWeight: 700, fontSize: 15, color: primary }}><Money value={total} symbolSize="1.25em" /></span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', color: labelColor }}>
-            <span>{t('المدفوع', 'Paid', lang)}</span>
-            <span><Money value={paid} /></span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontWeight: 700, color: balance > 0 ? '#dc2626' : accent }}>
-            <span>{t('المتبقي', 'Balance Due', lang)}</span>
-            <span><Money value={balance} /></span>
-          </div>
+          {!isRental && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', color: labelColor }}>
+                <span>{t('المدفوع', 'Paid', lang)}</span>
+                <span><Money value={paid} /></span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontWeight: 700, color: balance > 0 ? '#dc2626' : accent }}>
+                <span>{t('المتبقي', 'Balance Due', lang)}</span>
+                <span><Money value={balance} /></span>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      {/* خانتا الختم — للشركة وللعميل (فواتير التأجير المؤرشفة) */}
+      {isRental && (
+        <div style={{ display: 'flex', gap: 40, marginBottom: 16 }}>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: primary, marginBottom: 6 }}>{t('ختم واعتماد الشركة', 'Company Stamp & Approval', lang)}</div>
+            <div style={{ height: 90, border: `1px dashed ${labelColor}`, borderRadius: 8 }} />
+          </div>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: primary, marginBottom: 6 }}>{t('ختم واستلام العميل', 'Client Stamp & Receipt', lang)}</div>
+            <div style={{ height: 90, border: `1px dashed ${labelColor}`, borderRadius: 8 }} />
+          </div>
+        </div>
+      )}
 
       {/* البيانات البنكية والشروط */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>

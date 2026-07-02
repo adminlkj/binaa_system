@@ -7,6 +7,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { buildJEFromTemplate } from '@/lib/postingEngine';
+import { assertValid } from '@/lib/validationEngine';
 
 /**
  * يبني القيد من قالب الترحيل الدلالي إن وُجد (المحاسب يتحكم بالحسابات)،
@@ -235,6 +236,7 @@ export async function autoPostJE(jeData) {
 export const OperationEngine = {
 
   async createSalesInvoice(data, projects, clients) {
+    assertValid('SALES_INVOICE', data);
     const proj = projects.find(p => p.id === data.projectId);
     const cl   = clients.find(c => c.id === data.clientId);
     const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, parseFloat(data.vatRate) || VAT_RATE);
@@ -261,6 +263,7 @@ export const OperationEngine = {
   },
 
   async updateSalesInvoice(id, data, projects, clients) {
+    assertValid('SALES_INVOICE', data);
     const proj = projects.find(p => p.id === data.projectId);
     const cl   = clients.find(c => c.id === data.clientId);
     const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, parseFloat(data.vatRate) || VAT_RATE);
@@ -278,6 +281,7 @@ export const OperationEngine = {
   },
 
   async createPurchaseOrder(data, suppliers, projects) {
+    assertValid('PURCHASE_ORDER', data);
     const s = suppliers.find(s => s.id === data.supplierId);
     const p = projects.find(p => p.id === data.projectId);
     const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
@@ -303,6 +307,7 @@ export const OperationEngine = {
   },
 
   async updatePurchaseOrder(id, data, suppliers, projects) {
+    assertValid('PURCHASE_ORDER', data);
     const s = suppliers.find(s => s.id === data.supplierId);
     const p = projects.find(p => p.id === data.projectId);
     const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
@@ -327,6 +332,7 @@ export const OperationEngine = {
   },
 
   async createExpense(data, projects) {
+    assertValid('EXPENSE', data);
     const p = projects.find(p => p.id === data.projectId);
     const amt = parseFloat(data.amount) || 0;
     const vatEnabled = data._vatEnabled;
@@ -353,6 +359,7 @@ export const OperationEngine = {
   },
 
   async updateExpense(id, data, projects) {
+    assertValid('EXPENSE', data);
     const p = projects.find(p => p.id === data.projectId);
     const amt = parseFloat(data.amount) || 0;
     const vatEnabled = data._vatEnabled;
@@ -364,6 +371,7 @@ export const OperationEngine = {
   },
 
   async createRentalContract(data, equipment, clients) {
+    assertValid('RENTAL_CONTRACT', data);
     const eq = equipment.find(e => e.id === data.equipmentId);
     const cl = clients.find(c => c.id === data.clientId);
     const rate = parseFloat(data.rate) || 0;
@@ -396,6 +404,7 @@ export const OperationEngine = {
   },
 
   async updateRentalContract(id, data, equipment, clients) {
+    assertValid('RENTAL_CONTRACT', data);
     const eq = equipment.find(e => e.id === data.equipmentId);
     const cl = clients.find(c => c.id === data.clientId);
     const rate = parseFloat(data.rate) || 0;
@@ -423,6 +432,7 @@ export const OperationEngine = {
   },
 
   async createPayrollRun(data) {
+    assertValid('PAYROLL', data);
     const payroll = await base44.entities.PayrollRun.create(data);
     if (data.status === 'PAID') {
       const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
@@ -439,6 +449,7 @@ export const OperationEngine = {
   },
 
   async updatePayrollRun(id, data) {
+    assertValid('PAYROLL', data);
     const payroll = await base44.entities.PayrollRun.update(id, data);
     if (data.status === 'PAID') {
       const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];

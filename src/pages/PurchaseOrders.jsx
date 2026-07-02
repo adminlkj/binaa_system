@@ -91,7 +91,7 @@ export default function PurchaseOrders() {
         toast.success(msg);
       }
       setDialogOpen(false); load();
-    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
   };
 

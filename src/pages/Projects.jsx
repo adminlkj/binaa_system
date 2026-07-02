@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { validate } from '@/lib/validationEngine';
 import { toast } from 'sonner';
 
 const emptyForm = { code: '', name: '', nameAr: '', clientId: '', clientName: '', location: '', startDate: '', endDate: '', status: 'PLANNING', projectType: 'CONSTRUCTION', contractValue: '', description: '' };
@@ -52,9 +53,8 @@ export default function Projects() {
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
-    if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name are required', lang));
-    if (form.startDate && form.endDate && form.endDate < form.startDate)
-      return toast.error(t('تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء', 'End date must be after start date', lang));
+    const { valid, errors } = validate('PROJECT', form);
+    if (!valid) return toast.error(errors[0]);
     setSaving(true);
     try {
       const cl = clients.find(c => c.id === form.clientId);
@@ -62,7 +62,7 @@ export default function Projects() {
       if (editing) { await base44.entities.Project.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.Project.create(data); toast.success(t('تم إنشاء المشروع', 'Project created', lang)); }
       setDialogOpen(false); load();
-    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
   };
 

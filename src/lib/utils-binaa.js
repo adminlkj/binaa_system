@@ -6,7 +6,7 @@ export function t(ar, en, lang) {
 
 export function formatNumber(num, decimals = 2) {
   if (num === null || num === undefined) return '0';
-  return Number(num).toLocaleString('ar-SA', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return Number(num).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 export function formatCurrency(num, lang = 'ar') {
@@ -18,9 +18,7 @@ export function formatDate(dateStr, lang = 'ar') {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
-    if (lang === 'ar') {
-      return d.toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
-    }
+    // Always use Gregorian calendar with English (Latin) digits, in both languages.
     return d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
   } catch {
     return dateStr;

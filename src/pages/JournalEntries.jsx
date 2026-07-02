@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
@@ -30,9 +31,18 @@ export default function JournalEntries() {
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
+  const [accounts, setAccounts] = useState([]);
+
   const load = async () => {
     setLoading(true);
-    try { setItems(await base44.entities.JournalEntry.list('-date', 200)); }
+    try {
+      const [je, acc] = await Promise.all([
+        base44.entities.JournalEntry.list('-date', 200),
+        base44.entities.ChartAccount.list('code', 1000),
+      ]);
+      setItems(je);
+      setAccounts((acc || []).filter(a => a.isPostable !== false));
+    }
     catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -49,6 +59,10 @@ export default function JournalEntries() {
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const updateLine = (idx, field, val) => setForm(f => { const lines = [...f.lines]; lines[idx] = { ...lines[idx], [field]: val }; return { ...f, lines }; });
+  const pickAccount = (idx, code) => {
+    const acc = accounts.find(a => a.code === code);
+    setForm(f => { const lines = [...f.lines]; lines[idx] = { ...lines[idx], accountCode: code, accountName: acc?.name || '' }; return { ...f, lines }; });
+  };
   const addLine = () => setForm(f => ({ ...f, lines: [...f.lines, { ...emptyLine }] }));
   const removeLine = (idx) => { if (form.lines.length <= 2) return; setForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) })); };
 
@@ -181,8 +195,7 @@ export default function JournalEntries() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs">{t('كود الحساب', 'Account Code', lang)}</TableHead>
-                      <TableHead className="text-xs">{t('اسم الحساب', 'Account Name', lang)}</TableHead>
+                      <TableHead className="text-xs" colSpan={2}>{t('الحساب', 'Account', lang)}</TableHead>
                       <TableHead className="text-xs">{t('مدين', 'Debit', lang)}</TableHead>
                       <TableHead className="text-xs">{t('دائن', 'Credit', lang)}</TableHead>
                       <TableHead className="text-xs">{t('بيان', 'Note', lang)}</TableHead>
@@ -192,8 +205,25 @@ export default function JournalEntries() {
                   <TableBody>
                     {form.lines.map((line, idx) => (
                       <TableRow key={idx}>
-                        <TableCell className="p-1"><Input value={line.accountCode} onChange={e => updateLine(idx, 'accountCode', e.target.value)} className="h-8 text-xs" /></TableCell>
-                        <TableCell className="p-1"><Input value={line.accountName} onChange={e => updateLine(idx, 'accountName', e.target.value)} className="h-8 text-xs" /></TableCell>
+                        <TableCell className="p-1" colSpan={2}>
+                          {accounts.length > 0 ? (
+                            <Select value={line.accountCode} onValueChange={v => pickAccount(idx, v)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t('اختر الحساب', 'Select account', lang)} /></SelectTrigger>
+                              <SelectContent>
+                                {accounts.map(a => (
+                                  <SelectItem key={a.code} value={a.code} className="text-xs">
+                                    <span className="font-mono text-muted-foreground me-1">{a.code}</span> {a.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Input value={line.accountCode} onChange={e => updateLine(idx, 'accountCode', e.target.value)} className="h-8 text-xs w-20" placeholder={t('كود', 'Code', lang)} />
+                              <Input value={line.accountName} onChange={e => updateLine(idx, 'accountName', e.target.value)} className="h-8 text-xs" placeholder={t('اسم الحساب', 'Name', lang)} />
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="p-1"><Input type="number" value={line.debit} onChange={e => { updateLine(idx, 'debit', e.target.value); if (e.target.value) updateLine(idx, 'credit', ''); }} className="h-8 text-xs" /></TableCell>
                         <TableCell className="p-1"><Input type="number" value={line.credit} onChange={e => { updateLine(idx, 'credit', e.target.value); if (e.target.value) updateLine(idx, 'debit', ''); }} className="h-8 text-xs" /></TableCell>
                         <TableCell className="p-1"><Input value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} className="h-8 text-xs" /></TableCell>

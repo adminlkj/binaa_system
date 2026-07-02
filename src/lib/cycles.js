@@ -5,7 +5,7 @@ import {
   Building2, Truck, ShoppingCart, Users, Calculator, Settings,
   FileText, CreditCard, ReceiptText, ClipboardList,
   Wrench, Fuel, CalendarDays, DollarSign, HardHat, Wallet, HandCoins,
-  UsersRound, Package, Warehouse, ShieldCheck, Network, BookOpen, Shield, BarChart3, CalendarRange,
+  UsersRound, Package, Warehouse, ShieldCheck, Network, BookOpen, Shield, BarChart3, CalendarRange, Scale,
 } from 'lucide-react';
 
 // Keys that have a real screen wired in App.jsx. Others render a ComingSoon placeholder.
@@ -14,8 +14,8 @@ export const READY_TABS = new Set([
   'equipment', 'rental-contracts', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
   'employees', 'payroll-runs', 'attendance', 'advances',
-  'chart-accounts', 'accounting', 'vat', 'reports',
-  'clients', 'suppliers', 'users', 'settings',
+  'chart-accounts', 'accounting', 'trial-balance', 'vat', 'reports', 'fiscal-years',
+  'clients', 'suppliers', 'inventory', 'users', 'settings',
 ]);
 
 export const CYCLES = [
@@ -78,6 +78,7 @@ export const CYCLES = [
     tabs: [
       { key: 'chart-accounts', ar: 'الدليل المحاسبي',   en: 'Chart of Accounts', Icon: Network },
       { key: 'accounting',     ar: 'دفتر اليومية',      en: 'Journal Entries',   Icon: BookOpen },
+      { key: 'trial-balance',  ar: 'ميزان المراجعة',    en: 'Trial Balance',     Icon: Scale },
       { key: 'vat',            ar: 'ضريبة القيمة المضافة', en: 'VAT',            Icon: Shield },
       { key: 'reports',        ar: 'التقارير المالية',   en: 'Financial Reports', Icon: BarChart3 },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },

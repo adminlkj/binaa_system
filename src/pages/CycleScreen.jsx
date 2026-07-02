@@ -21,6 +21,9 @@ import Attendance from '@/pages/Attendance';
 import Advances from '@/pages/Advances';
 import ChartAccounts from '@/pages/ChartAccounts';
 import JournalEntries from '@/pages/JournalEntries';
+import TrialBalance from '@/pages/TrialBalance';
+import FiscalYears from '@/pages/FiscalYears';
+import Inventory from '@/pages/Inventory';
 import Reports from '@/pages/Reports';
 import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
@@ -50,12 +53,13 @@ const TAB_CONTENT = {
   advances: <Advances />,
   'chart-accounts': <ChartAccounts />,
   accounting: <JournalEntries />,
+  'trial-balance': <TrialBalance />,
   vat: <Reports />,
   reports: <Reports />,
-  'fiscal-years': <ComingSoon title="السنوات المالية" titleEn="Fiscal Years" />,
+  'fiscal-years': <FiscalYears />,
   clients: <Clients />,
   suppliers: <Suppliers />,
-  inventory: <ComingSoon title="المخزون والأصول" titleEn="Inventory" />,
+  inventory: <Inventory />,
   users: <Users />,
   settings: <Settings />,
 };

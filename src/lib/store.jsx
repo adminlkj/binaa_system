@@ -48,6 +48,9 @@ export function StoreProvider({ children }) {
       activeProjectId, activeProjectName,
       activeClientId, activeClientName,
       setProjectContext, setClientContext, clearContext,
+      // convenience aliases used by some pages
+      setActiveProjectId, setActiveProjectName,
+      setActiveClientId, setActiveClientName,
     }}>
       {children}
     </StoreContext.Provider>

@@ -111,14 +111,6 @@ export default function SalesInvoices() {
       subtitle={t('إدارة فواتير المشاريع والخدمات', 'Manage project invoices', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('فاتورة جديدة', 'New Invoice', lang)}</Button>}
     >
-      {/* Context Banner */}
-      {activeProjectName && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
-          <span className="font-semibold">{t('السياق النشط:', 'Active Context:', lang)}</span>
-          <span>{activeProjectName}</span>
-        </div>
-      )}
-
       {/* Status cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {Object.entries(INVOICE_STATUS).map(([s, cfg]) => (

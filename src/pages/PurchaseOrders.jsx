@@ -108,13 +108,6 @@ export default function PurchaseOrders() {
       subtitle={t('إدارة أوامر الشراء من الموردين', 'Manage purchase orders from suppliers', lang)}
       actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('أمر شراء جديد', 'New Order', lang)}</Button>}
     >
-      {activeProjectName && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-          <span className="font-semibold">{t('السياق النشط:', 'Active Context:', lang)}</span>
-          <span>{activeProjectName}</span>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

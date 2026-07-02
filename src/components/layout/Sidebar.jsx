@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Building2, Truck, Users, Package, Wrench,
   Calculator, Settings, ChevronDown, Globe, X,
-  FileText, TrendingUp, CreditCard, ShoppingCart,
+  FileText, CreditCard, ShoppingCart,
   UsersRound, Wallet, ReceiptText, HardHat,
   DollarSign, Warehouse, Fuel, CalendarDays, HandCoins,
-  ClipboardList, FilePlus, BookOpen, BarChart3, Shield,
-  PlayCircle, Box,
+  ClipboardList, BookOpen, BarChart3, Shield,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 

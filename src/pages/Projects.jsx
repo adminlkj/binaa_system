@@ -11,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa';
-import { FolderOpen } from 'lucide-react';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { toast } from 'sonner';
@@ -84,19 +83,6 @@ export default function Projects() {
         </Button>
       }
     >
-      {/* Context Bar */}
-      {activeProjectId && (
-        <div className="flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs">
-          <FolderOpen className="size-4 text-emerald-600 shrink-0" />
-          <span className="text-emerald-700 font-semibold flex-1">{t('السياق النشط — ستُطبَّق على الفواتير والمصروفات والمشتريات تلقائياً', 'Active context — auto-applied to invoices, expenses & purchases', lang)}</span>
-          <div className="flex gap-1">
-            <button onClick={() => setActiveItem('sales')} className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">{t('الفواتير', 'Invoices', lang)}</button>
-            <button onClick={() => setActiveItem('expenses')} className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">{t('المصروفات', 'Expenses', lang)}</button>
-            <button onClick={() => setActiveItem('purchase-orders')} className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">{t('المشتريات', 'Purchases', lang)}</button>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

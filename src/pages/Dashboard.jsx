@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2, Truck, Users, AlertTriangle, Clock,
   TrendingUp, TrendingDown, DollarSign, CreditCard,
-  ArrowRight, ArrowLeft, FileText, CheckCircle2, Bell,
-  Wallet, Package, RefreshCw, ChevronRight,
+  ArrowRight, ArrowLeft, FileText, Bell,
+  Package, RefreshCw, ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

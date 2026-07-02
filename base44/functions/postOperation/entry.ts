@@ -313,12 +313,18 @@ async function updatePurchaseOrder(base44, id, data, prevStatus) {
   const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
   const payload = { ...data, totalAmount: baseAmount, vatAmount };
   const po = await base44.asServiceRole.entities.PurchaseOrder.update(id, payload);
-  if (payload.status === 'RECEIVED') {
-    const je = await buildJE(base44, 'PURCHASE_ORDER',
-      { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
-      { base: baseAmount, vat: vatAmount, total: grandTotal },
-      () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }));
-    await autoPostJE(base44, je);
+  // القيد يُرحّل فقط عند أول انتقال إلى "مستلم". فشل القيد = فشل العملية: نُعيد الحالة السابقة.
+  if (payload.status === 'RECEIVED' && prevStatus !== 'RECEIVED') {
+    try {
+      const je = await buildJE(base44, 'PURCHASE_ORDER',
+        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
+        { base: baseAmount, vat: vatAmount, total: grandTotal },
+        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }));
+      await autoPostJE(base44, je);
+    } catch (e) {
+      await restoreStatus(base44, 'PurchaseOrder', id, prevStatus);
+      throw e;
+    }
   }
   return po;
 }
@@ -370,10 +376,6 @@ async function createRentalContract(base44, data) {
   const { vat: vatAmount, total: totalAmount } = calcVAT(base);
   const payload = { ...data, rate, deliveryFees: delivery, totalAmount, vatAmount };
   const contract = await base44.asServiceRole.entities.RentalContract.create(payload);
-  // أثر جانبي: تحديث حالة المعدة
-  if (data.equipmentId && payload.status === 'ACTIVE') {
-    try { await base44.asServiceRole.entities.Equipment.update(data.equipmentId, { status: 'RENTED' }); } catch { /* المعدة قد لا تكون موجودة */ }
-  }
   try {
     const je = await buildJE(base44, 'RENTAL_CONTRACT',
       { entryNo: `JE-RC-${payload.contractNo}`, date: payload.startDate || new Date().toISOString().slice(0, 10), description: `عقد تأجير ${payload.contractNo} — ${payload.clientName}`, sourceType: 'RentalContract' },
@@ -383,6 +385,10 @@ async function createRentalContract(base44, data) {
   } catch (e) {
     await rollback(base44, 'RentalContract', contract.id);
     throw e;
+  }
+  // الأثر الجانبي (حجز المعدة) يجري فقط بعد نجاح القيد — كي لا تبقى معدة محجوزة بلا عقد.
+  if (data.equipmentId && payload.status === 'ACTIVE') {
+    try { await base44.asServiceRole.entities.Equipment.update(data.equipmentId, { status: 'RENTED' }); } catch { /* المعدة قد لا تكون موجودة */ }
   }
   return contract;
 }
@@ -429,21 +435,33 @@ async function updatePayrollRun(base44, id, data, prevStatus) {
   assertValid('PAYROLL', data);
   assertTransition('PAYROLL', prevStatus, data.status);
   const payroll = await base44.asServiceRole.entities.PayrollRun.update(id, data);
-  if (data.status === 'PAID') {
+  // القيد يُرحّل فقط عند أول انتقال إلى "مدفوع". فشل القيد = فشل العملية: نُعيد الحالة السابقة.
+  if (data.status === 'PAID' && prevStatus !== 'PAID') {
     const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
     const payDate = `${data.year}-${String(data.month).padStart(2, '0')}-01`;
-    const je = await buildJE(base44, 'PAYROLL',
-      { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
-      { net: data.netAmount, base: data.netAmount, total: data.netAmount },
-      () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }));
-    await autoPostJE(base44, je);
+    try {
+      const je = await buildJE(base44, 'PAYROLL',
+        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
+        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
+        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }));
+      await autoPostJE(base44, je);
+    } catch (e) {
+      await restoreStatus(base44, 'PayrollRun', id, prevStatus);
+      throw e;
+    }
   }
   return payroll;
 }
 
-// تراجع: احذف السجل المصدر حين يفشل ترحيل القيد
+// تراجع (إنشاء): احذف السجل المصدر حين يفشل ترحيل القيد
 async function rollback(base44, entityName, id) {
   try { await base44.asServiceRole.entities[entityName].delete(id); } catch { /* السجل قد يكون حُذف */ }
+}
+
+// تراجع (تحديث): أعِد السجل لحالته السابقة حين يفشل ترحيل القيد بعد تغيير الحالة
+async function restoreStatus(base44, entityName, id, prevStatus) {
+  if (!prevStatus) return;
+  try { await base44.asServiceRole.entities[entityName].update(id, { status: prevStatus }); } catch { /* السجل قد يكون حُذف */ }
 }
 
 // ─── التوجيه ──────────────────────────────────────────────────────────────────

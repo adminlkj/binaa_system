@@ -83,20 +83,22 @@ export default function Dashboard() {
   const load = async () => {
     setLoading(true);
     // Load entities one at a time. Each request retries with backoff when the
-    // API rate limit is hit, so the dashboard loads reliably instead of crashing.
+    // API rate limit is hit; if a request still fails it falls back to an empty
+    // result so the dashboard always renders instead of crashing.
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const step = async (fn) => {
-      for (let attempt = 0; attempt < 4; attempt++) {
+    const step = async (fn, fallback = []) => {
+      for (let attempt = 0; attempt < 5; attempt++) {
         try {
           const r = await fn();
-          await sleep(250);
+          await sleep(300);
           return r;
         } catch (err) {
           const isRateLimit = String(err?.message || '').toLowerCase().includes('rate limit');
-          if (!isRateLimit || attempt === 3) throw err;
-          await sleep(1000 * (attempt + 1));
+          if (!isRateLimit || attempt === 4) return fallback;
+          await sleep(1500 * (attempt + 1));
         }
       }
+      return fallback;
     };
 
     const projects        = await step(() => base44.entities.Project.list('-created_date', 100));

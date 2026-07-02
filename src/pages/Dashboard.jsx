@@ -82,10 +82,22 @@ export default function Dashboard() {
 
   const load = async () => {
     setLoading(true);
-    // Load entities one at a time with a short pause between each request
-    // to stay well under the API rate limit on initial page load.
+    // Load entities one at a time. Each request retries with backoff when the
+    // API rate limit is hit, so the dashboard loads reliably instead of crashing.
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const step = async (fn) => { const r = await fn(); await sleep(250); return r; };
+    const step = async (fn) => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const r = await fn();
+          await sleep(250);
+          return r;
+        } catch (err) {
+          const isRateLimit = String(err?.message || '').toLowerCase().includes('rate limit');
+          if (!isRateLimit || attempt === 3) throw err;
+          await sleep(1000 * (attempt + 1));
+        }
+      }
+    };
 
     const projects        = await step(() => base44.entities.Project.list('-created_date', 100));
     const equipment       = await step(() => base44.entities.Equipment.list('-created_date', 100));
@@ -93,7 +105,7 @@ export default function Dashboard() {
     const invoices        = await step(() => base44.entities.SalesInvoice.list('-created_date', 100));
     const expenses        = await step(() => base44.entities.Expense.list('-created_date', 50));
     const purchaseOrders  = await step(() => base44.entities.PurchaseOrder.list('-created_date', 50));
-    const rentalContracts = await base44.entities.RentalContract.list('-created_date', 50);
+    const rentalContracts = await step(() => base44.entities.RentalContract.list('-created_date', 50));
 
     setData({ projects, equipment, employees, invoices, expenses, purchaseOrders, rentalContracts });
     setLoading(false);

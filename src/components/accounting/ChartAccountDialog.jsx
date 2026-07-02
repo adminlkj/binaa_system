@@ -14,14 +14,14 @@ const ACCOUNT_TYPES = [
   { key: 'EXPENSE', ar: 'مصروفات', en: 'Expense', nature: 'DEBIT' },
 ];
 
-const EMPTY = { code: '', name: '', nameEn: '', parentCode: '', accountType: 'EXPENSE', nature: 'DEBIT', semanticRole: '', isPostable: true, isActive: true };
+const EMPTY = { code: '', name: '', nameEn: '', parentCode: '', accountType: 'EXPENSE', nature: 'DEBIT', semanticRole: '', isPostable: true, isActive: true, openingBalance: 0 };
 
 export default function ChartAccountDialog({ open, onOpenChange, account, parents, onSave, lang }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (account) setForm({ ...EMPTY, ...account });
+    if (account) setForm({ ...EMPTY, ...account, openingBalance: 0 });
     else setForm(EMPTY);
   }, [account, open]);
 
@@ -32,10 +32,25 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
     setForm(prev => ({ ...prev, accountType: type, nature: def?.nature || prev.nature }));
   };
 
+  // اختيار حساب أب يورّث نوعه وطبيعته للحساب الفرعي (مثلاً حساب بنكي جديد تحت "البنوك" يصبح أصلاً).
+  const handleParent = (v) => {
+    const parentCode = v === 'none' ? '' : v;
+    const parent = (parents || []).find(p => p.code === parentCode);
+    setForm(prev => ({
+      ...prev,
+      parentCode,
+      ...(parent ? { accountType: parent.accountType, nature: parent.nature } : {}),
+    }));
+  };
+
   const handleSave = async () => {
     if (!form.code || !form.name) return;
     setSaving(true);
-    await onSave({ ...form, level: form.parentCode ? 2 : 1 });
+    const { openingBalance, ...rest } = form;
+    await onSave(
+      { ...rest, level: form.parentCode ? 2 : 1 },
+      account ? 0 : Number(openingBalance) || 0
+    );
     setSaving(false);
     onOpenChange(false);
   };
@@ -47,18 +62,34 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
           <DialogTitle>{account ? t('تعديل حساب', 'Edit Account', lang) : t('حساب جديد', 'New Account', lang)}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Label className="text-xs">{t('الحساب الأب', 'Parent Account', lang)}</Label>
+            <Select value={form.parentCode || 'none'} onValueChange={handleParent}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder={t('رئيسي', 'Top-level', lang)} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('حساب رئيسي (بدون أب)', 'Top-level (no parent)', lang)}</SelectItem>
+                {(parents || []).filter(p => p.code !== form.code).map(p => (
+                  <SelectItem key={p.code} value={p.code}>{p.code} — {lang === 'ar' ? p.name : (p.nameEn || p.name)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {t('اختر حساباً رئيسياً لإضافة حساب فرعي تحته (مثل حساب بنكي جديد تحت "البنوك")', 'Pick a parent to add a sub-account under it (e.g. a new bank under "Banks")', lang)}
+            </p>
+          </div>
           <div>
             <Label className="text-xs">{t('رقم الحساب', 'Account Code', lang)} *</Label>
-            <Input value={form.code} onChange={e => set('code', e.target.value)} placeholder="5110" className="mt-1" />
+            <Input value={form.code} onChange={e => set('code', e.target.value)} placeholder="1021" className="mt-1" />
           </div>
           <div>
             <Label className="text-xs">{t('نوع الحساب', 'Account Type', lang)} *</Label>
-            <Select value={form.accountType} onValueChange={handleType}>
+            <Select value={form.accountType} onValueChange={handleType} disabled={!!form.parentCode}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ACCOUNT_TYPES.map(a => <SelectItem key={a.key} value={a.key}>{lang === 'ar' ? a.ar : a.en}</SelectItem>)}
               </SelectContent>
             </Select>
+            {form.parentCode && <p className="text-[10px] text-muted-foreground mt-1">{t('موروث من الحساب الأب', 'Inherited from parent', lang)}</p>}
           </div>
           <div className="col-span-2">
             <Label className="text-xs">{t('الاسم بالعربية', 'Name (Arabic)', lang)} *</Label>
@@ -67,18 +98,6 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
           <div className="col-span-2">
             <Label className="text-xs">{t('الاسم بالإنجليزية', 'Name (English)', lang)}</Label>
             <Input value={form.nameEn} onChange={e => set('nameEn', e.target.value)} className="mt-1" />
-          </div>
-          <div>
-            <Label className="text-xs">{t('الحساب الأب', 'Parent Account', lang)}</Label>
-            <Select value={form.parentCode || 'none'} onValueChange={v => set('parentCode', v === 'none' ? '' : v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder={t('رئيسي', 'Top-level', lang)} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">{t('حساب رئيسي', 'Top-level', lang)}</SelectItem>
-                {(parents || []).filter(p => p.code !== form.code).map(p => (
-                  <SelectItem key={p.code} value={p.code}>{p.code} — {lang === 'ar' ? p.name : (p.nameEn || p.name)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div>
             <Label className="text-xs">{t('الطبيعة', 'Nature', lang)}</Label>
@@ -90,6 +109,13 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
               </SelectContent>
             </Select>
           </div>
+          {!account && (
+            <div>
+              <Label className="text-xs">{t('الرصيد الافتتاحي', 'Opening Balance', lang)}</Label>
+              <Input type="number" step="0.01" value={form.openingBalance} onChange={e => set('openingBalance', e.target.value)} placeholder="0.00" className="mt-1" />
+              <p className="text-[10px] text-muted-foreground mt-1">{t('يُنشئ قيد افتتاحي متوازن تلقائياً', 'Creates a balanced opening entry automatically', lang)}</p>
+            </div>
+          )}
           <div className="col-span-2">
             <Label className="text-xs">{t('الدور الدلالي (اختياري)', 'Semantic Role (optional)', lang)}</Label>
             <Input value={form.semanticRole} onChange={e => set('semanticRole', e.target.value.toUpperCase())} placeholder="EXPENSE_GENERAL" className="mt-1 font-mono text-xs" />

@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import { clearAccountsCache } from '@/lib/postingEngine';
+import { nextSerial } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ChartAccountDialog from '@/components/accounting/ChartAccountDialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
@@ -50,9 +51,41 @@ export default function ChartAccounts() {
         (a.semanticRole || '').toLowerCase().includes(search.toLowerCase()))
     : null;
 
-  const handleSave = async (data) => {
-    if (editing) await base44.entities.ChartAccount.update(editing.id, data);
-    else await base44.entities.ChartAccount.create(data);
+  // ينشئ قيداً افتتاحياً متوازناً: طرف الحساب الجديد حسب طبيعته، والطرف المقابل
+  // على حساب "رصيد افتتاحي — حقوق ملكية" ليبقى ميزان المراجعة متوازناً.
+  const postOpeningBalance = async (acc) => {
+    const equity = accounts.find(a => a.semanticRole === 'OPENING_BALANCE_EQUITY')
+      || accounts.find(a => a.accountType === 'EQUITY');
+    const equityCode = equity?.code || '3900';
+    const equityName = equity?.name || 'رصيد افتتاحي';
+    const amount = +Number(acc.openingBalance).toFixed(2);
+    const onDebit = acc.nature === 'DEBIT';
+    const desc = `رصيد افتتاحي — ${acc.name}`;
+    const entryNo = await nextSerial(base44.entities.JournalEntry, 'entryNo', 'OB');
+    await base44.entities.JournalEntry.create({
+      entryNo,
+      date: new Date().toISOString().slice(0, 10),
+      description: desc,
+      sourceType: 'OPENING_BALANCE',
+      isPosted: true,
+      totalDebit: amount,
+      totalCredit: amount,
+      lines: [
+        { accountCode: acc.code, accountName: acc.name, debit: onDebit ? amount : 0, credit: onDebit ? 0 : amount, description: desc },
+        { accountCode: equityCode, accountName: equityName, debit: onDebit ? 0 : amount, credit: onDebit ? amount : 0, description: desc },
+      ],
+    });
+  };
+
+  const handleSave = async (data, openingBalance = 0) => {
+    if (editing) {
+      await base44.entities.ChartAccount.update(editing.id, data);
+    } else {
+      await base44.entities.ChartAccount.create(data);
+      if (openingBalance && Math.abs(openingBalance) > 0.001) {
+        await postOpeningBalance({ ...data, openingBalance });
+      }
+    }
     clearAccountsCache();
     toast({ title: t('تم الحفظ', 'Saved', lang) });
     await load();
@@ -143,7 +176,7 @@ export default function ChartAccounts() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         account={editing}
-        parents={accounts.filter(a => !a.isPostable)}
+        parents={accounts}
         onSave={handleSave}
         lang={lang}
       />

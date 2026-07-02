@@ -8,6 +8,9 @@ import { CYCLE_BY_KEY, READY_TABS } from '@/lib/cycles';
 import Projects from '@/pages/Projects';
 import Contracts from '@/pages/Contracts';
 import SalesInvoices from '@/pages/SalesInvoices';
+import ClientPayments from '@/pages/ClientPayments';
+import BOQ from '@/pages/BOQ';
+import Timesheets from '@/pages/Timesheets';
 import Equipment from '@/pages/Equipment';
 import RentalContracts from '@/pages/RentalContracts';
 import PurchaseOrders from '@/pages/PurchaseOrders';
@@ -35,11 +38,11 @@ const TAB_CONTENT = {
   projects: <Projects />,
   contracts: <Contracts />,
   sales: <SalesInvoices />,
-  'client-payments': <ComingSoon title="التحصيلات" titleEn="Client Collections" />,
-  boq: <ComingSoon title="جدول الكميات BOQ" titleEn="Bill of Quantities (BOQ)" />,
+  'client-payments': <ClientPayments />,
+  boq: <BOQ />,
   equipment: <Equipment />,
   'rental-contracts': <RentalContracts />,
-  timesheets: <ComingSoon title="ساعات التشغيل" titleEn="Timesheets" />,
+  timesheets: <Timesheets />,
   'equipment-maintenance': <ComingSoon title="الصيانة" titleEn="Maintenance" />,
   fuel: <ComingSoon title="استهلاك الوقود" titleEn="Fuel Consumption" />,
   'purchase-orders': <PurchaseOrders />,

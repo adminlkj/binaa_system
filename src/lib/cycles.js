@@ -10,8 +10,8 @@ import {
 
 // Keys that have a real screen wired in App.jsx. Others render a ComingSoon placeholder.
 export const READY_TABS = new Set([
-  'projects', 'contracts', 'sales', 'client-payments',
-  'equipment', 'rental-contracts', 'equipment-maintenance', 'fuel',
+  'projects', 'contracts', 'sales', 'client-payments', 'boq',
+  'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
   'employees', 'payroll-runs', 'attendance', 'advances',
   'chart-accounts', 'accounting', 'trial-balance', 'vat', 'reports', 'fiscal-years',

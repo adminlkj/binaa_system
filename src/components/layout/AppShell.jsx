@@ -25,15 +25,17 @@ export default function AppShell({ children }) {
     : 'U';
 
   const handleLogout = () => {
-    // Remove every stored token key synchronously FIRST (do NOT call the SDK's
-    // logout(), which redirects to the hosted Base44 login page). Then force a
-    // clean reload onto the in-app login route so the auth flow sees no token.
+    // Clear the stored token keys synchronously, then do a FULL reload onto the
+    // login route with ?clear_access_token=true. The app-params loader handles
+    // that flag on boot and wipes the token before the SDK client initializes,
+    // so the reloaded app sees no session and renders the login screen.
+    // (We intentionally do NOT call base44.auth.logout() — it redirects to the
+    // hosted Base44 login page instead of our in-app one.)
     try {
-      Object.keys(localStorage)
-        .filter((k) => k.includes('access_token') || k === 'token' || k.startsWith('base44_'))
-        .forEach((k) => localStorage.removeItem(k));
+      localStorage.removeItem('base44_access_token');
+      localStorage.removeItem('token');
     } catch (e) { /* ignore */ }
-    window.location.replace('/login');
+    window.location.href = '/login?clear_access_token=true';
   };
 
   return (

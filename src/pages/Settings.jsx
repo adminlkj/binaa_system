@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import InvoiceSettingsCard from '@/components/settings/InvoiceSettingsCard';
 
 export default function Settings() {
   const { lang, toggleLang } = useStore();
@@ -14,7 +15,10 @@ export default function Settings() {
       title={t('إعدادات النظام', 'System Settings', lang)}
       subtitle={t('تكوين النظام والتفضيلات', 'System configuration and preferences', lang)}
     >
-      <div className="grid gap-5 max-w-2xl">
+      <div className="grid gap-5 max-w-3xl">
+        {/* Invoice / Company settings */}
+        <InvoiceSettingsCard />
+
         {/* Language */}
         <Card>
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Globe className="size-4" />{t('اللغة', 'Language', lang)}</CardTitle></CardHeader>

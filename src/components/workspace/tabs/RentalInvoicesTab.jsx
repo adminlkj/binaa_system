@@ -1,11 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Printer } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, genCode, INVOICE_STATUS } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
+import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
+
+// تحويل سجل فاتورة التأجير إلى الشكل الذي يتوقعه مستند الفاتورة الموحّد.
+const toInvoiceDoc = (r) => ({
+  ...r,
+  invoiceType: 'RENTAL',
+  subtotal: (Number(r.baseAmount) || 0) + (Number(r.extraCharges) || 0),
+});
 
 const computeTotal = (f) => {
   const base = Number(f.baseAmount) || 0;
@@ -17,10 +27,17 @@ const computeTotal = (f) => {
 
 export default function RentalInvoicesTab({ equipmentId }) {
   const { lang } = useStore();
+  const [printInvoice, setPrintInvoice] = useState(null);
 
   return (
+    <>
     <CrudTab
       entityName="RentalInvoice"
+      rowActions={(row) => (
+        <Button size="icon" variant="ghost" className="size-8 text-emerald-600 hover:text-emerald-700" onClick={() => setPrintInvoice(toInvoiceDoc(row))}>
+          <Printer className="size-3.5" />
+        </Button>
+      )}
       filter={{ equipmentId }}
       defaults={(rows) => ({
         equipmentId,
@@ -142,5 +159,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
         );
       }}
     />
+    <InvoicePrintDialog open={!!printInvoice} onOpenChange={(o) => !o && setPrintInvoice(null)} invoice={printInvoice} />
+    </>
   );
 }

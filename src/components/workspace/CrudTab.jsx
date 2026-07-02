@@ -25,7 +25,7 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog';
  *  - onChanged: () => void  — optional callback after any mutation
  */
 export default function CrudTab({
-  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged,
+  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions,
 }) {
   const { lang } = useStore();
   const { toast } = useToast();
@@ -140,6 +140,7 @@ export default function CrudTab({
                   {columns.map((c, i) => <TableCell key={i}>{c.cell(row)}</TableCell>)}
                   <TableCell className="text-end">
                     <div className="flex items-center justify-end gap-1">
+                      {rowActions?.(row)}
                       <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(row)}>
                         <Pencil className="size-3.5" />
                       </Button>

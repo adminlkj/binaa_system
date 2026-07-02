@@ -12,7 +12,7 @@ import {
 export const READY_TABS = new Set([
   'projects', 'contracts', 'sales', 'client-payments',
   'equipment', 'rental-contracts', 'equipment-maintenance', 'fuel',
-  'purchase-orders', 'expenses', 'subcontractors',
+  'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
   'employees', 'payroll-runs',
   'chart-accounts', 'accounting', 'vat', 'reports',
   'clients', 'suppliers', 'users', 'settings',

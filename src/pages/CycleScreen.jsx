@@ -13,6 +13,8 @@ import RentalContracts from '@/pages/RentalContracts';
 import PurchaseOrders from '@/pages/PurchaseOrders';
 import Expenses from '@/pages/Expenses';
 import Subcontractors from '@/pages/Subcontractors';
+import SupplierInvoices from '@/pages/SupplierInvoices';
+import SupplierPayments from '@/pages/SupplierPayments';
 import Employees from '@/pages/Employees';
 import PayrollRuns from '@/pages/PayrollRuns';
 import ChartAccounts from '@/pages/ChartAccounts';
@@ -38,8 +40,8 @@ const TAB_CONTENT = {
   'purchase-orders': <PurchaseOrders />,
   expenses: <Expenses />,
   subcontractors: <Subcontractors />,
-  'supplier-invoices': <ComingSoon title="فواتير الموردين" titleEn="Supplier Invoices" />,
-  'supplier-payments': <ComingSoon title="سداد الموردين" titleEn="Supplier Payments" />,
+  'supplier-invoices': <SupplierInvoices />,
+  'supplier-payments': <SupplierPayments />,
   employees: <Employees />,
   'payroll-runs': <PayrollRuns />,
   attendance: <ComingSoon title="الحضور والإجازات" titleEn="Attendance" />,

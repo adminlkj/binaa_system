@@ -8,6 +8,10 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import { StoreProvider, useStore } from '@/lib/store';
 import AppShell from '@/components/layout/AppShell';
+import { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
+import { canAccess } from '@/lib/permissions';
+import { ShieldAlert } from 'lucide-react';
 
 // Pages
 import Dashboard from '@/pages/Dashboard';
@@ -26,11 +30,33 @@ import JournalEntries from '@/pages/JournalEntries';
 import PayrollRuns from '@/pages/PayrollRuns';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
+import Users from '@/pages/Users';
+import Profile from '@/pages/Profile';
 import ComingSoon from '@/pages/ComingSoon';
+
+// Access-denied fallback for unauthorized modules
+function AccessDenied() {
+  const { lang } = useStore();
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+      <ShieldAlert className="size-14 text-amber-500 mb-4" />
+      <h2 className="text-lg font-bold">{lang === 'ar' ? 'لا تملك صلاحية الوصول' : 'Access Denied'}</h2>
+      <p className="text-sm text-muted-foreground mt-1 max-w-md">
+        {lang === 'ar' ? 'ليس لديك صلاحية للوصول إلى هذه الوحدة. تواصل مع مدير النظام.' : 'You don\'t have permission to access this module. Contact your administrator.'}
+      </p>
+    </div>
+  );
+}
 
 // Page map for sidebar navigation
 function MainApp() {
   const { activeItem } = useStore();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userLoaded, setUserLoaded] = useState(false);
+
+  useEffect(() => {
+    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {}).finally(() => setUserLoaded(true));
+  }, []);
 
   const pageMap = {
     dashboard: <Dashboard />,
@@ -75,10 +101,16 @@ function MainApp() {
     clients: <Clients />,
     suppliers: <Suppliers />,
     inventory: <ComingSoon title="المخزون" titleEn="Inventory" />,
+    users: <Users />,
+    profile: <Profile />,
     settings: <Settings />,
   };
 
-  const currentPage = pageMap[activeItem] || <Dashboard />;
+  const resolvedPage = pageMap[activeItem] || <Dashboard />;
+  // Always-allowed keys, plus permission check for the rest
+  const alwaysAllowed = activeItem === 'dashboard' || activeItem === 'profile';
+  const allowed = alwaysAllowed || !userLoaded || canAccess(currentUser, activeItem);
+  const currentPage = allowed ? resolvedPage : <AccessDenied />;
 
   return (
     <AppShell>

@@ -5,9 +5,10 @@ import {
   FileText, CreditCard, ShoppingCart,
   UsersRound, Wallet, ReceiptText, HardHat,
   DollarSign, Warehouse, Fuel, CalendarDays, HandCoins,
-  ClipboardList, BookOpen, BarChart3, Shield,
+  ClipboardList, BookOpen, BarChart3, Shield, ShieldCheck, CalendarRange,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { canAccess } from '@/lib/permissions';
 
 // Sidebar philosophy: Workspace-first, not table-first.
 // Groups = "What does the user want to DO?" not "What entity do they manage?"
@@ -18,8 +19,8 @@ const READY_KEYS = new Set([
   'equipment', 'rental-contracts', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors',
   'employees', 'payroll-runs',
-  'accounting', 'vat', 'reports',
-  'clients', 'suppliers', 'settings',
+  'accounting', 'vat', 'reports', 'fiscal-years',
+  'clients', 'suppliers', 'users', 'settings',
 ]);
 
 const navGroups = [
@@ -92,6 +93,7 @@ const navGroups = [
       { key: 'accounting', ar: 'دفتر اليومية',          en: 'Journal Entries',   Icon: BookOpen,   desc: { ar: 'القيود المحاسبية اليدوية', en: 'Manual journal entries' } },
       { key: 'vat',        ar: 'ضريبة القيمة المضافة',  en: 'VAT',               Icon: Shield,     desc: { ar: 'تقرير الضريبة للهيئة', en: 'VAT report for authority' } },
       { key: 'reports',    ar: 'التقارير المالية',       en: 'Financial Reports', Icon: BarChart3,  desc: { ar: 'أرباح، تدفقات، ميزانية', en: 'P&L, cash flow, balance' } },
+      { key: 'fiscal-years', ar: 'السنوات المالية',      en: 'Fiscal Years',      Icon: CalendarRange, desc: { ar: 'الفترات المالية والإقفال', en: 'Periods & closing' } },
     ],
   },
 
@@ -105,6 +107,7 @@ const navGroups = [
       { key: 'clients',   ar: 'العملاء',         en: 'Clients',        Icon: UsersRound, desc: { ar: 'بيانات العملاء الأساسية', en: 'Client master data' } },
       { key: 'suppliers', ar: 'الموردون',        en: 'Suppliers',      Icon: Package,    desc: { ar: 'بيانات الموردين الأساسية', en: 'Supplier master data' } },
       { key: 'inventory', ar: 'المخزون والأصول', en: 'Inventory',      Icon: Warehouse,  desc: { ar: 'مواد، أصول، مخزون', en: 'Materials & assets' } },
+      { key: 'users',     ar: 'المستخدمون والصلاحيات', en: 'Users & Permissions', Icon: ShieldCheck, desc: { ar: 'الحسابات والأدوار', en: 'Accounts & roles' } },
       { key: 'settings',  ar: 'إعدادات النظام',  en: 'System Settings', Icon: Settings,  desc: { ar: 'الشركة والفروع', en: 'Company & branches' } },
     ],
   },
@@ -117,9 +120,14 @@ function findCycleForItem(itemKey) {
   return null;
 }
 
-export default function Sidebar({ onClose }) {
+export default function Sidebar({ onClose, currentUser }) {
   const { lang, toggleLang, activeItem, setActiveItem } = useStore();
   const [openGroups, setOpenGroups] = useState(new Set());
+
+  // Filter groups/items by the current user's permissions
+  const visibleGroups = navGroups
+    .map(g => ({ ...g, items: g.items.filter(i => canAccess(currentUser, i.key)) }))
+    .filter(g => g.items.length > 0);
 
   const activeCycle = findCycleForItem(activeItem);
   const isExpanded = (gKey) => gKey === activeCycle || openGroups.has(gKey);
@@ -169,7 +177,7 @@ export default function Sidebar({ onClose }) {
 
       {/* Nav Groups */}
       <nav className="flex-1 px-3 py-2 space-y-0.5">
-        {navGroups.map(group => {
+        {visibleGroups.map(group => {
           const expanded = isExpanded(group.key);
           const isActive = group.key === activeCycle;
           const color = group.color;

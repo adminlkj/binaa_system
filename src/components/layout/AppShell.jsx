@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Bell, LogOut, User, ChevronDown } from 'lucide-react';
+import { Menu, LogOut, User, ChevronDown } from 'lucide-react';
 import Sidebar from './Sidebar';
 import ContextBar from '@/components/shared/ContextBar';
 import { useStore } from '@/lib/store';
 import { base44 } from '@/api/base44Client';
+import { t } from '@/lib/utils-binaa';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export default function AppShell({ children }) {
-  const { sidebarOpen, setSidebarOpen, lang } = useStore();
+  const { sidebarOpen, setSidebarOpen, lang, setActiveItem } = useStore();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function AppShell({ children }) {
     <div className="flex h-screen bg-background overflow-hidden" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex flex-shrink-0">
-        <Sidebar />
+        <Sidebar currentUser={user} />
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -37,7 +38,7 @@ export default function AppShell({ children }) {
             onClick={() => setSidebarOpen(false)}
           />
           <div className="fixed inset-y-0 start-0 z-50 lg:hidden">
-            <Sidebar onClose={() => setSidebarOpen(false)} />
+            <Sidebar onClose={() => setSidebarOpen(false)} currentUser={user} />
           </div>
         </>
       )}
@@ -72,6 +73,11 @@ export default function AppShell({ children }) {
                 <p className="text-xs font-medium">{user?.full_name || '—'}</p>
                 <p className="text-xs text-muted-foreground truncate">{user?.email || '—'}</p>
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setActiveItem('profile')} className="gap-2 cursor-pointer">
+                <User className="size-4" />
+                {t('ملفي الشخصي', 'My Profile', lang)}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-rose-600 gap-2 cursor-pointer">
                 <LogOut className="size-4" />

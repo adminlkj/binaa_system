@@ -6,9 +6,40 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { buildJEFromTemplate } from '@/lib/postingEngine';
+import { buildJEFromTemplate, isBalanced } from '@/lib/postingEngine';
 import { assertValid } from '@/lib/validationEngine';
 import { assertTransition } from '@/lib/workflowEngine';
+
+/**
+ * حارس سلامة القيد قبل الترحيل — يرفض أي قيد معطوب بنيوياً.
+ * يمنع كتابة قيود لا تحترم قاعدة القيد المزدوج في دفتر اليومية.
+ */
+export function assertJEIntegrity(je) {
+  if (!je) throw new Error('قيد فارغ — لا يوجد قيد لترحيله');
+  if (!Array.isArray(je.lines) || je.lines.length < 2) {
+    throw new Error(`القيد ${je.entryNo || ''} يجب أن يحتوي سطرين على الأقل (مدين ودائن)`);
+  }
+  // كل سطر يشير لحساب حقيقي
+  const badLine = je.lines.find(l => !l.accountCode || l.accountCode === '????');
+  if (badLine) {
+    throw new Error(`القيد ${je.entryNo || ''} يحتوي سطراً بحساب غير معرّف`);
+  }
+  // مجموع سطور المدين والدائن يطابق إجمالي القيد
+  const sumDebit  = +je.lines.reduce((s, l) => s + (+l.debit || 0), 0).toFixed(2);
+  const sumCredit = +je.lines.reduce((s, l) => s + (+l.credit || 0), 0).toFixed(2);
+  if (Math.abs(sumDebit - sumCredit) >= 0.01) {
+    throw new Error(`القيد ${je.entryNo || ''} غير متوازن: مدين ${sumDebit} ≠ دائن ${sumCredit}`);
+  }
+  // إجماليات القيد المعلنة تطابق مجموع السطور الفعلي
+  if (Math.abs((je.totalDebit || 0) - sumDebit) >= 0.01 || Math.abs((je.totalCredit || 0) - sumCredit) >= 0.01) {
+    throw new Error(`القيد ${je.entryNo || ''} إجمالياته لا تطابق سطوره`);
+  }
+  // فحص التوازن على مستوى الإجماليات كطبقة أخيرة
+  if (!isBalanced(je)) {
+    throw new Error(`القيد ${je.entryNo || ''} غير متوازن على مستوى الإجماليات`);
+  }
+  return true;
+}
 
 /**
  * يبني القيد من قالب الترحيل الدلالي إن وُجد (المحاسب يتحكم بالحسابات)،
@@ -235,17 +266,34 @@ export function buildRentalJE({ contractNo, date, clientName, base, vatAmount, t
   };
 }
 
-// ─── دالة Auto-Post: تنشئ قيد محاسبي تلقائياً إذا لم يكن موجوداً ─────────────
+// ─── دالة Auto-Post: تنشئ قيد محاسبي تلقائياً بعد التحقق من سلامته ───────────
+// لا تبتلع الأخطاء: القيد المعطوب يرفع استثناءً واضحاً بدل ترحيل قيد فاسد بصمت.
 export async function autoPostJE(jeData) {
+  // 1) حارس السلامة أولاً — قيد غير متوازن أو ناقص لا يُرحّل إطلاقاً.
+  assertJEIntegrity(jeData);
+  // 2) منع التكرار: نفس رقم القيد لا يُرحّل مرتين.
+  const existing = await base44.entities.JournalEntry.filter({ entryNo: jeData.entryNo });
+  if (existing && existing.length > 0) return existing[0];
+  // 3) الترحيل. أي فشل هنا (شبكة/صلاحية) يصعد للمستدعي بدل الابتلاع الصامت.
+  return await base44.entities.JournalEntry.create(jeData);
+}
+
+/**
+ * ترحيل قيد مرتبط بسجل مصدر بشكل ذرّي.
+ * إذا فشل ترحيل القيد، يُحذف السجل المصدر (rollback) كي لا تبقى معاملة مالية
+ * بلا قيد محاسبي مقابل — يمنع اختلال المطابقة بين السجلات والدفتر.
+ */
+async function postJEForRecord(entity, record, jeData) {
   try {
-    // تحقق إذا القيد موجود مسبقاً بنفس رقمه
-    const existing = await base44.entities.JournalEntry.filter({ entryNo: jeData.entryNo });
-    if (existing && existing.length > 0) return existing[0]; // تجنب التكرار
-    return await base44.entities.JournalEntry.create(jeData);
-  } catch (err) {
-    console.error('AutoPost JE failed:', err);
-    return null;
+    await autoPostJE(jeData);
+  } catch (jeErr) {
+    // تراجع: احذف السجل المصدر ثم أعد رفع الخطأ ليظهر للمستخدم.
+    try { await entity.delete(record.id); } catch { /* السجل قد يكون حُذف */ }
+    const err = new Error(`فشل ترحيل القيد المحاسبي — تم التراجع عن العملية: ${jeErr.message}`);
+    err.cause = jeErr;
+    throw err;
   }
+  return record;
 }
 
 // ─── Pipeline كامل لكل عملية ──────────────────────────────────────────────────
@@ -275,7 +323,7 @@ export const OperationEngine = {
       { base: subtotal, vat: vatAmount, total: totalAmount },
       () => buildSalesInvoiceJE({ ...payload, invoiceNo: payload.invoiceNo }),
     );
-    await autoPostJE(je);
+    await postJEForRecord(base44.entities.SalesInvoice, invoice, je);
     return invoice;
   },
 
@@ -319,7 +367,7 @@ export const OperationEngine = {
         { base: baseAmount, vat: vatAmount, total: grandTotal },
         () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
       );
-      await autoPostJE(je);
+      await postJEForRecord(base44.entities.PurchaseOrder, po, je);
     }
     return po;
   },
@@ -395,7 +443,7 @@ export const OperationEngine = {
       { base: amt, vat: vatAmount, total: totalAmount },
       () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole }),
     );
-    await autoPostJE(je);
+    await postJEForRecord(base44.entities.Expense, expense, je);
     return expense;
   },
 
@@ -434,7 +482,7 @@ export const OperationEngine = {
       { base, vat: vatAmount, total: totalAmount },
       () => buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientName: payload.clientName, base, vatAmount, totalAmount }),
     );
-    await autoPostJE(je);
+    await postJEForRecord(base44.entities.RentalContract, contract, je);
     return contract;
   },
 
@@ -479,7 +527,7 @@ export const OperationEngine = {
         { net: data.netAmount, base: data.netAmount, total: data.netAmount },
         () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }),
       );
-      await autoPostJE(je);
+      await postJEForRecord(base44.entities.PayrollRun, payroll, je);
     }
     return payroll;
   },

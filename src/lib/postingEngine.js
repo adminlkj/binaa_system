@@ -85,7 +85,11 @@ export async function buildJEFromTemplate(operationType, { entryNo, date, descri
   const template = (templates || [])[0];
   if (!template) return null;
 
-  const { lines, totalDebit, totalCredit } = buildLinesFromTemplate(template, amounts, accounts, { description });
+  const { lines, totalDebit, totalCredit, unmappedRoles } = buildLinesFromTemplate(template, amounts, accounts, { description });
+  // إذا وُجد دور دلالي بلا حساب مقابل في الدليل، لا يجوز بناء قيد معطوب.
+  if (unmappedRoles.length > 0) {
+    throw new Error(`أدوار محاسبية غير معرّفة في الدليل: ${unmappedRoles.join(', ')} — لا يمكن ترحيل القيد ${entryNo}`);
+  }
   return {
     entryNo,
     date,

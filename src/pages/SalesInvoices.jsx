@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, Printer } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Printer, CheckCircle2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,8 +86,26 @@ export default function SalesInvoices() {
   });
 
   const openNew  = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
-  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+  const openEdit = (item) => {
+    if (item.status !== 'DRAFT') return toast.error(t('لا يمكن تعديل فاتورة معتمدة', 'Cannot edit an approved invoice', lang));
+    setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true);
+  };
+  const askDelete = (item) => {
+    if (item.status !== 'DRAFT') return toast.error(t('لا يمكن حذف فاتورة معتمدة — قيدها مُرحّل', 'Cannot delete an approved invoice — its entry is posted', lang));
+    setDeleteId(item.id); setConfirmOpen(true);
+  };
+
+  // اعتماد الفاتورة: يرحّل قيد الإيراد ويحوّلها من مسودة إلى معتمدة.
+  const [approvingId, setApprovingId] = useState(null);
+  const approve = async (item) => {
+    setApprovingId(item.id);
+    try {
+      await OperationEngine.approveSalesInvoice(item.id);
+      toast.success(t('تم اعتماد الفاتورة وترحيل قيد الإيراد', 'Invoice approved & revenue posted', lang));
+      load();
+    } catch (e) { toast.error(e?.message || t('فشل الاعتماد', 'Approval failed', lang)); }
+    setApprovingId(null);
+  };
 
   // الحسابات تأتي من Business Engine — SSOT
   const { base: sub, vat: vatAmount, total: totalAmount } = calcVAT(form.subtotal, parseFloat(form.vatRate) || 0.15);
@@ -195,10 +213,15 @@ export default function SalesInvoices() {
                         <TableCell className="text-sm">{formatCurrency(item.paidAmount, lang)}</TableCell>
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 items-center">
+                            {item.status === 'DRAFT' && (
+                              <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" disabled={approvingId === item.id} onClick={() => approve(item)}>
+                                <CheckCircle2 className="size-3.5" />{approvingId === item.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => openPrint(item)}><Printer className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item)}><Trash2 className="size-3.5" /></Button>}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -275,10 +298,7 @@ export default function SalesInvoices() {
             <div className="space-y-1.5"><Label>{t('المبلغ المدفوع', 'Paid Amount', lang)}</Label><Input type="number" value={form.paidAmount} onChange={e => setForm(f => ({ ...f, paidAmount: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(INVOICE_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
             <div className="col-span-2 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
           </div>

@@ -37,6 +37,7 @@ const ACCOUNTS = {
   EXPENSE_ADMIN:        { code: '5230', name: 'مصروفات إدارية' },
   INVENTORY_MATERIALS:  { code: '1131', name: 'مخزون مواد البناء' },
   OPENING_BALANCE_EQUITY: { code: '3900', name: 'رصيد افتتاحي — حقوق ملكية' },
+  RETAINED_EARNINGS:    { code: '3200', name: 'الأرباح المحتجزة' },
   INVENTORY_LOSS:       { code: '5160', name: 'خسائر تلف وهدر المخزون' },
   INVENTORY_GAIN:       { code: '4910', name: 'فروقات جرد المخزون (زيادة)' },
   STAFF_RECEIVABLE:     { code: '1125', name: 'ذمم مدينة — تحميلات على الموظفين' },
@@ -696,9 +697,23 @@ function assertJEIntegrity(je) {
   if (Math.abs((je.totalDebit || 0) - sumDebit) >= 0.01 || Math.abs((je.totalCredit || 0) - sumCredit) >= 0.01) throw new Error(`القيد ${je.entryNo || ''} إجمالياته لا تطابق سطوره`);
 }
 
-// يرحّل القيد ذرّياً بصلاحية الخدمة، ويمنع التكرار بنفس رقم القيد
+// يرفض ترحيل قيد تاريخه يقع ضمن سنة مالية مغلقة (CLOSED) أو مقفلة (LOCKED).
+async function assertPeriodOpen(base44, date) {
+  if (!date) return;
+  const years = await base44.asServiceRole.entities.FiscalYear.filter({});
+  const locking = (years || []).find((y) =>
+    (y.status === 'CLOSED' || y.status === 'LOCKED') &&
+    y.startDate && y.endDate && date >= y.startDate && date <= y.endDate
+  );
+  if (locking) {
+    throw new Error(`لا يمكن الترحيل في فترة مقفلة — السنة المالية "${locking.name}" (${locking.status}) تشمل التاريخ ${date}`);
+  }
+}
+
+// يرحّل القيد ذرّياً بصلاحية الخدمة، ويمنع التكرار بنفس رقم القيد، ويرفض الفترة المقفلة.
 async function autoPostJE(base44, jeData) {
   assertJEIntegrity(jeData);
+  await assertPeriodOpen(base44, jeData.date);
   const existing = await base44.asServiceRole.entities.JournalEntry.filter({ entryNo: jeData.entryNo });
   if (existing && existing.length > 0) return existing[0];
   return await base44.asServiceRole.entities.JournalEntry.create(jeData);
@@ -714,11 +729,20 @@ async function createSalesInvoice(base44, data) {
   return await base44.asServiceRole.entities.SalesInvoice.create(payload);
 }
 
+// التعديل مسموح فقط ما دامت الفاتورة مسودة (DRAFT). بعد الاعتماد يُثبت القيد،
+// فلا يُعدَّل الماضي: التصحيح يكون بإلغاء/عكس ثم فاتورة جديدة.
+// الانتقال من DRAFT لأي حالة أعلى لا يتم عبر التعديل بل عبر مسار الاعتماد (approve)
+// الذي يرحّل قيد الإيراد أولاً — بذلك لا توجد فاتورة معترف بها بلا قيد.
 async function updateSalesInvoice(base44, id, data, prevStatus) {
   assertValid('SALES_INVOICE', data);
-  assertTransition('SALES_INVOICE', prevStatus, data.status);
+  if (prevStatus && prevStatus !== 'DRAFT') {
+    throw new Error('لا يمكن تعديل فاتورة معتمدة — استخدم الإلغاء/العكس ثم أنشئ فاتورة جديدة');
+  }
+  if (data.status && data.status !== 'DRAFT') {
+    throw new Error('لا يمكن تغيير حالة الفاتورة من التعديل — استخدم زر الاعتماد لترحيل القيد أولاً');
+  }
   const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, num(data.vatRate) || VAT_RATE);
-  const payload = { ...data, subtotal, vatRate: num(data.vatRate) || VAT_RATE, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
+  const payload = { ...data, status: 'DRAFT', subtotal, vatRate: num(data.vatRate) || VAT_RATE, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
   return await base44.asServiceRole.entities.SalesInvoice.update(id, payload);
 }
 
@@ -749,50 +773,26 @@ function buildOrderLines(data) {
   return { lines, baseInput };
 }
 
+// أمر الشراء مستند التزام مرجعي فقط ولا يُرحّل أي قيد محاسبي بذاته.
+// نقطة الاعتراف المحاسبي الوحيدة للمشتريات هي *سند الاستلام* (مخزون أصل مدين / ذمم المورد دائن)،
+// ثم صرف المخزون على المشروع يحوّل الأصل إلى مصروف. هذا يمنع ازدواج الاعتراف بين
+// أمر الشراء وحركة المخزون وفاتورة المورد.
 async function createPurchaseOrder(base44, data) {
   assertValid('PURCHASE_ORDER', data);
   const { lines, baseInput } = buildOrderLines(data);
-  const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(baseInput);
+  const { base: baseAmount, vat: vatAmount } = calcVAT(baseInput);
   const payload = { ...data, items: lines, totalAmount: baseAmount, vatAmount, receiptStatus: data.receiptStatus || 'PENDING' };
-  const po = await base44.asServiceRole.entities.PurchaseOrder.create(payload);
-  if (payload.status === 'RECEIVED') {
-    try {
-      const je = await buildJE(base44, 'PURCHASE_ORDER',
-        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
-        { base: baseAmount, vat: vatAmount, total: grandTotal },
-        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierId: payload.supplierId, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
-        { type: 'SUPPLIER', id: payload.supplierId, name: payload.supplierName });
-      await autoPostJE(base44, je);
-    } catch (e) {
-      await rollback(base44, 'PurchaseOrder', po.id);
-      throw e;
-    }
-  }
-  return po;
+  return await base44.asServiceRole.entities.PurchaseOrder.create(payload);
 }
 
 async function updatePurchaseOrder(base44, id, data, prevStatus) {
   assertValid('PURCHASE_ORDER', data);
   assertTransition('PURCHASE_ORDER', prevStatus, data.status);
   const { lines, baseInput } = buildOrderLines(data);
-  const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(baseInput);
+  const { base: baseAmount, vat: vatAmount } = calcVAT(baseInput);
   const payload = { ...data, items: lines, totalAmount: baseAmount, vatAmount };
-  const po = await base44.asServiceRole.entities.PurchaseOrder.update(id, payload);
-  // القيد يُرحّل فقط عند أول انتقال إلى "مستلم". فشل القيد = فشل العملية: نُعيد الحالة السابقة.
-  if (payload.status === 'RECEIVED' && prevStatus !== 'RECEIVED') {
-    try {
-      const je = await buildJE(base44, 'PURCHASE_ORDER',
-        { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
-        { base: baseAmount, vat: vatAmount, total: grandTotal },
-        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierId: payload.supplierId, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
-        { type: 'SUPPLIER', id: payload.supplierId, name: payload.supplierName });
-      await autoPostJE(base44, je);
-    } catch (e) {
-      await restoreStatus(base44, 'PurchaseOrder', id, prevStatus);
-      throw e;
-    }
-  }
-  return po;
+  // لا قيد هنا — الاعتراف يتم حصراً عند سند الاستلام.
+  return await base44.asServiceRole.entities.PurchaseOrder.update(id, payload);
 }
 
 function expenseAccountRole(expenseType) {
@@ -991,13 +991,36 @@ async function updateSupplierInvoice(base44, id, data) {
   return await base44.asServiceRole.entities.SupplierInvoice.update(id, payload);
 }
 
-// اعتماد فاتورة مورد: يرحّل قيد الالتزام ويحوّل الحالة إلى معتمدة.
+// اعتماد فاتورة مورد:
+//   • فاتورة مرتبطة بسند استلام: الذمة والمخزون أُثبتا سلفاً عند الاستلام —
+//     لا يُرحّل قيد ذمة جديد (منعاً للازدواج)، ويُثبت فرق الضريبة فقط إن وُجد.
+//   • فاتورة مباشرة (خدمات/بلا استلام): يُرحّل قيد الالتزام الكامل.
 async function approveSupplierInvoice(base44, id) {
   const inv = await base44.asServiceRole.entities.SupplierInvoice.get(id);
   if (!inv) throw new Error('الفاتورة غير موجودة');
   if (inv.status !== 'DRAFT') throw new Error('لا يمكن اعتماد إلا الفواتير التي في حالة مسودة');
   const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
-  await autoPostJE(base44, buildSupplierInvoiceJE(inv, accounts));
+
+  if (inv.goodsReceiptId) {
+    // الذمة والمخزون مُثبتان من سند الاستلام. نُثبت فقط ضريبة المدخلات المسترجعة
+    // (ضريبة مدفوعة مدين / ذمم المورد دائن) لأنها لم تُثبت في قيد الاستلام.
+    if (num(inv.vatAmount) > 0) {
+      const vatRec = resolveAccount('VAT_RECEIVABLE', accounts);
+      const payables = resolveAccount('PAYABLES', accounts);
+      await autoPostJE(base44, {
+        entryNo: `JE-SUPINV-VAT-${inv.invoiceNo}`, date: inv.date,
+        description: `ضريبة مدخلات فاتورة مورد ${inv.invoiceNo} — ${inv.supplierName || ''}`,
+        sourceType: 'SupplierInvoice', isPosted: true,
+        totalDebit: num(inv.vatAmount), totalCredit: num(inv.vatAmount),
+        lines: [
+          { accountCode: vatRec.code, accountName: vatRec.name, debit: num(inv.vatAmount), credit: 0, description: 'ضريبة قيمة مضافة مدفوعة' },
+          { accountCode: payables.code, accountName: payables.name, debit: 0, credit: num(inv.vatAmount), description: `مستحقات ${inv.supplierName || ''}`, partyType: 'SUPPLIER', partyId: inv.supplierId, partyName: inv.supplierName },
+        ],
+      });
+    }
+  } else {
+    await autoPostJE(base44, buildSupplierInvoiceJE(inv, accounts));
+  }
   return await base44.asServiceRole.entities.SupplierInvoice.update(id, { status: 'APPROVED' });
 }
 
@@ -1068,6 +1091,75 @@ async function approveRentalInvoice(base44, id) {
   return await base44.asServiceRole.entities.RentalInvoice.update(id, { status: 'APPROVED' });
 }
 
+// ─── الإقفال السنوي ───────────────────────────────────────────────────────────
+// يقفل السنة المالية: يولّد قيد إقفال ينقل صافي نتيجة حسابات الإيراد/المصروف
+// إلى الأرباح المحتجزة (حقوق الملكية)، ثم يحوّل حالة السنة إلى CLOSED.
+//   إيرادات (مدين لتصفيرها) / مصروفات (دائن لتصفيرها) / الأرباح المحتجزة (الفرق).
+async function closeFiscalYear(base44, id) {
+  const fy = await base44.asServiceRole.entities.FiscalYear.get(id);
+  if (!fy) throw new Error('السنة المالية غير موجودة');
+  if (fy.status === 'LOCKED') throw new Error('السنة مقفلة نهائياً');
+  if (fy.status === 'CLOSED') throw new Error('السنة مغلقة بالفعل');
+  if (!fy.startDate || !fy.endDate) throw new Error('حدود السنة المالية غير معرّفة');
+
+  const [accounts, entries] = await Promise.all([
+    base44.asServiceRole.entities.ChartAccount.list('code', 2000),
+    base44.asServiceRole.entities.JournalEntry.filter({ isPosted: true }),
+  ]);
+  const typeByCode = Object.fromEntries((accounts || []).map((a) => [a.code, a.accountType]));
+
+  // تجميع صافي كل حساب إيراد/مصروف ضمن حدود السنة.
+  const netByAccount = {};
+  for (const je of entries || []) {
+    if (!je.date || je.date < fy.startDate || je.date > fy.endDate) continue;
+    for (const l of je.lines || []) {
+      const type = typeByCode[l.accountCode];
+      if (type !== 'REVENUE' && type !== 'EXPENSE') continue;
+      if (!netByAccount[l.accountCode]) netByAccount[l.accountCode] = { name: l.accountName, type, debit: 0, credit: 0 };
+      netByAccount[l.accountCode].debit += num(l.debit);
+      netByAccount[l.accountCode].credit += num(l.credit);
+    }
+  }
+
+  const lines = [];
+  let revenueTotal = 0;
+  let expenseTotal = 0;
+  for (const [code, a] of Object.entries(netByAccount)) {
+    const net = +(a.credit - a.debit).toFixed(2); // موجب = رصيد دائن (إيراد)
+    if (Math.abs(net) < 0.01) continue;
+    if (a.type === 'REVENUE') {
+      revenueTotal += net;
+      lines.push({ accountCode: code, accountName: a.name, debit: +Math.abs(net).toFixed(2), credit: 0, description: 'إقفال إيراد' });
+    } else {
+      const cost = +(a.debit - a.credit).toFixed(2); // موجب = رصيد مدين (مصروف)
+      expenseTotal += cost;
+      lines.push({ accountCode: code, accountName: a.name, debit: 0, credit: +Math.abs(cost).toFixed(2), description: 'إقفال مصروف' });
+    }
+  }
+
+  if (lines.length > 0) {
+    const retained = resolveAccount('RETAINED_EARNINGS', accounts);
+    const netIncome = +(revenueTotal - expenseTotal).toFixed(2); // موجب = ربح
+    // الربح يُرحّل دائناً للأرباح المحتجزة، والخسارة مديناً.
+    lines.push({
+      accountCode: retained.code, accountName: retained.name,
+      debit: netIncome < 0 ? +Math.abs(netIncome).toFixed(2) : 0,
+      credit: netIncome > 0 ? netIncome : 0,
+      description: netIncome >= 0 ? 'ترحيل صافي الربح للأرباح المحتجزة' : 'ترحيل صافي الخسارة',
+    });
+    const totalDebit = +lines.reduce((s, l) => s + num(l.debit), 0).toFixed(2);
+    const totalCredit = +lines.reduce((s, l) => s + num(l.credit), 0).toFixed(2);
+    // نُرحّل قيد الإقفال بتاريخ آخر السنة قبل قفلها (assertPeriodOpen يمر لأنها ما تزال OPEN).
+    await autoPostJE(base44, {
+      entryNo: `JE-CLOSE-${fy.year}`, date: fy.endDate,
+      description: `قيد إقفال السنة المالية ${fy.name}`, sourceType: 'FiscalClose', isPosted: true,
+      totalDebit, totalCredit, lines,
+    });
+  }
+
+  return await base44.asServiceRole.entities.FiscalYear.update(id, { status: 'CLOSED' });
+}
+
 // تراجع (إنشاء): احذف السجل المصدر حين يفشل ترحيل القيد
 async function rollback(base44, entityName, id) {
   try { await base44.asServiceRole.entities[entityName].delete(id); } catch { /* السجل قد يكون حُذف */ }
@@ -1093,6 +1185,7 @@ const HANDLERS = {
   RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data), approve: (b, p) => approveRentalInvoice(b, p.id) },
   STOCK_MOVEMENT:  { create: (b, p) => createStockMovement(b, p.data) },
   GOODS_RECEIPT:   { create: (b, p) => createGoodsReceipt(b, p.data) },
+  FISCAL_YEAR:     { close: (b, p) => closeFiscalYear(b, p.id) },
 };
 
 Deno.serve(async (req) => {

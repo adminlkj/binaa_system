@@ -73,12 +73,16 @@ export default function SupplierInvoices() {
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = (item) => {
+    if (item.status !== 'DRAFT') return toast.error(t('لا يمكن تعديل فاتورة معتمدة — قيدها مُرحّل', 'Cannot edit an approved invoice — its entry is posted', lang));
     setEditing(item);
     const rate = item.baseAmount ? (item.vatAmount || 0) / item.baseAmount : 0.15;
     setForm({ ...empty, ...item, vatRate: String([0, 0.05, 0.15].find(r => Math.abs(r - rate) < 0.001) ?? 0.15) });
     setDialogOpen(true);
   };
-  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+  const askDelete = (item) => {
+    if (item.status !== 'DRAFT') return toast.error(t('لا يمكن حذف فاتورة معتمدة — قيدها مُرحّل', 'Cannot delete an approved invoice — its entry is posted', lang));
+    setDeleteId(item.id); setConfirmOpen(true);
+  };
 
   // سندات الاستلام المعلّقة (لم تُفوتر بعد) — منها تُنشأ الفاتورة عبر السلسلة.
   const pendingReceipts = receipts.filter(r => r.status === 'RECEIVED' && r.invoicedStatus !== 'INVOICED');
@@ -220,8 +224,8 @@ export default function SupplierInvoices() {
                                 <CheckCircle2 className="size-3.5" />{approvingId === item.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item)}><Trash2 className="size-3.5" /></Button>}
                           </div>
                         </TableCell>
                       </TableRow>

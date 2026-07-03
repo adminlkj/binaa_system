@@ -98,6 +98,11 @@ export const OperationEngine = {
     return await runOperation({ operation: 'SALES_INVOICE', mode: 'update', id, data: payload, prevStatus });
   },
 
+  // اعتماد فاتورة مبيعات → ترحيل قيد الإيراد وتحويلها إلى معتمدة.
+  async approveSalesInvoice(id) {
+    return await runOperation({ operation: 'SALES_INVOICE', mode: 'approve', id });
+  },
+
   async createPurchaseOrder(data, suppliers, projects, warehouses = []) {
     const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName), warehouseName: nameOf(warehouses, data.warehouseId, data.warehouseName) };
     return await runOperation({ operation: 'PURCHASE_ORDER', mode: 'create', data: payload });
@@ -205,6 +210,11 @@ export const OperationEngine = {
   // استلام بضاعة (السلسلة: أمر شراء ← استلام جزئي ← مخزون) — يزيد المخزون ويرحّل القيود خلف الكواليس.
   async createGoodsReceipt(data) {
     return await runOperation({ operation: 'GOODS_RECEIPT', mode: 'create', data });
+  },
+
+  // إقفال سنة مالية → يولّد قيد ترحيل الأرباح المحتجزة ويحوّل حالتها إلى مغلقة.
+  async closeFiscalYear(id) {
+    return await runOperation({ operation: 'FISCAL_YEAR', mode: 'close', id });
   },
 
   // حركة مخزنية (استلام / صرف / تحويل) — تُنشئ السجل وترحّل قيدها تلقائياً وتحدّث الأرصدة.

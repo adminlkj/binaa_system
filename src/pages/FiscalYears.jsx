@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
+import { OperationEngine } from '@/lib/businessEngine';
 import { useStore } from '@/lib/store';
 import { t, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
@@ -74,10 +75,21 @@ export default function FiscalYears() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const [closingId, setClosingId] = useState(null);
   const toggleStatus = async (item) => {
-    const next = item.status === 'OPEN' ? 'CLOSED' : 'OPEN';
-    try { await base44.entities.FiscalYear.update(item.id, { status: next }); toast.success(t('تم تحديث الحالة', 'Status updated', lang)); load(); }
-    catch { toast.error(t('فشل العملية', 'Operation failed', lang)); }
+    // الإغلاق يمرّ عبر المحرك ليولّد قيد ترحيل الأرباح المحتجزة؛ إعادة الفتح تغيير حالة مباشر.
+    if (item.status === 'OPEN') {
+      setClosingId(item.id);
+      try {
+        await OperationEngine.closeFiscalYear(item.id);
+        toast.success(t('تم إقفال السنة وترحيل الأرباح المحتجزة', 'Year closed & retained earnings posted', lang));
+        load();
+      } catch (e) { toast.error(e?.message || t('فشل الإقفال', 'Close failed', lang)); }
+      setClosingId(null);
+    } else {
+      try { await base44.entities.FiscalYear.update(item.id, { status: 'OPEN' }); toast.success(t('تم إعادة فتح السنة', 'Year re-opened', lang)); load(); }
+      catch { toast.error(t('فشل العملية', 'Operation failed', lang)); }
+    }
   };
 
   return (
@@ -120,7 +132,7 @@ export default function FiscalYears() {
                       <TableCell><span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}><st.Icon className="size-3" />{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {item.status !== 'LOCKED' && <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => toggleStatus(item)}>{item.status === 'OPEN' ? t('إغلاق', 'Close', lang) : t('فتح', 'Open', lang)}</Button>}
+                          {item.status !== 'LOCKED' && <Button variant="ghost" size="sm" className="h-8 text-xs" disabled={closingId === item.id} onClick={() => toggleStatus(item)}>{closingId === item.id ? t('جارٍ...', '...', lang) : item.status === 'OPEN' ? t('إقفال', 'Close', lang) : t('فتح', 'Open', lang)}</Button>}
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>

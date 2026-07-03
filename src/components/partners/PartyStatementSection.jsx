@@ -1,0 +1,184 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, RefreshCw, FileText } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { base44 } from '@/api/base44Client';
+import { useStore } from '@/lib/store';
+import { t, formatCurrency as fmt } from '@/lib/utils-binaa';
+import { buildPartyBalances, buildPartyStatement } from '@/lib/partyStatement';
+
+/**
+ * قسم الكشوفات ومتابعة الدفعات — مصدره الوحيد قيود اليومية المُرحّلة فقط.
+ * يُستخدم لكل من العملاء والموردين عبر خاصية type دون خلط بين البيانات.
+ *
+ * partyType: 'CLIENT' | 'SUPPLIER'
+ * parties:   قائمة العملاء أو الموردين (تُمرّر من الشاشة الأم)
+ */
+export default function PartyStatementSection({ partyType, parties = [] }) {
+  const { lang } = useStore();
+  const isSupplier = partyType === 'SUPPLIER';
+  const accent = isSupplier ? 'amber' : 'emerald';
+
+  const [entries, setEntries] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [je, acc] = await Promise.all([
+        base44.entities.JournalEntry.filter({ isPosted: true }, '-date', 5000),
+        base44.entities.ChartAccount.list('code', 1000),
+      ]);
+      setEntries(je || []);
+      setAccounts(acc || []);
+    } catch { /* الأرصدة تظهر صفراً إن تعذّر التحميل */ }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  // أرصدة كل الأطراف — مبنية من القيود المرحّلة فقط.
+  const { rows, totals } = useMemo(
+    () => buildPartyBalances(entries, accounts, parties, partyType),
+    [entries, accounts, parties, partyType]
+  );
+
+  const filtered = rows.filter(r =>
+    !search || r.name?.toLowerCase().includes(search.toLowerCase()) || r.code?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedParty = parties.find(p => p.id === selectedId);
+  const statement = useMemo(() => {
+    if (!selectedParty) return null;
+    return buildPartyStatement(entries, accounts, { id: selectedParty.id, name: selectedParty.name, type: partyType }, {});
+  }, [selectedParty, entries, accounts, partyType]);
+
+  const outstandingLabel = isSupplier
+    ? t('مستحق للمورد', 'Owed to Supplier', lang)
+    : t('مستحق على العميل', 'Owed by Client', lang);
+
+  const sourceLabel = (st) => {
+    const map = {
+      SalesInvoice: t('فاتورة مبيعات', 'Sales Invoice', lang),
+      RentalInvoice: t('فاتورة تأجير', 'Rental Invoice', lang),
+      RentalContract: t('عقد تأجير', 'Rental Contract', lang),
+      ClientPayment: t('تحصيل', 'Collection', lang),
+      SupplierInvoice: t('فاتورة مورد', 'Supplier Invoice', lang),
+      PurchaseOrder: t('أمر شراء', 'Purchase Order', lang),
+      SupplierPayment: t('سداد', 'Payment', lang),
+    };
+    return map[st] || st || '—';
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* شريط الملخّص */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">{isSupplier ? t('إجمالي الفواتير والأوامر', 'Total Invoices & Orders', lang) : t('إجمالي المستحقات', 'Total Billed', lang)}</p>
+          <p className="text-xl font-bold mt-1">{fmt(isSupplier ? totals.credit : totals.debit)}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">{isSupplier ? t('إجمالي المسدّد', 'Total Paid', lang) : t('إجمالي المُحصّل', 'Total Collected', lang)}</p>
+          <p className="text-xl font-bold mt-1">{fmt(isSupplier ? totals.debit : totals.credit)}</p>
+        </Card>
+        <Card className={`p-4 ${isSupplier ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+          <p className="text-xs text-muted-foreground">{t('صافي المتبقّي', 'Net Outstanding', lang)}</p>
+          <p className={`text-xl font-bold mt-1 ${isSupplier ? 'text-amber-700' : 'text-emerald-700'}`}>{fmt(totals.outstanding)}</p>
+        </Card>
+      </div>
+
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('بحث بالاسم أو الكود...', 'Search by name or code...', lang)} className="ps-9" />
+        </div>
+        <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
+      </div>
+
+      {/* جدول متابعة الأرصدة */}
+      <Card>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('الكود', 'Code', lang)}</TableHead>
+                <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
+                <TableHead className="text-center">{t('مدين', 'Debit', lang)}</TableHead>
+                <TableHead className="text-center">{t('دائن', 'Credit', lang)}</TableHead>
+                <TableHead className="text-center">{outstandingLabel}</TableHead>
+                <TableHead className="text-center">{t('الكشف', 'Statement', lang)}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 6 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">{t('لا توجد حركات مرحّلة', 'No posted movements', lang)}</TableCell></TableRow>
+                : filtered.map(r => (
+                  <TableRow key={r.id} className={`hover:bg-muted/30 ${selectedId === r.id ? (isSupplier ? 'bg-amber-50' : 'bg-emerald-50') : ''}`}>
+                    <TableCell className="font-mono text-xs font-medium">{r.code || '—'}</TableCell>
+                    <TableCell className="font-medium">{r.name}</TableCell>
+                    <TableCell className="text-center text-sm">{fmt(r.totalDebit)}</TableCell>
+                    <TableCell className="text-center text-sm">{fmt(r.totalCredit)}</TableCell>
+                    <TableCell className={`text-center text-sm font-semibold ${r.outstanding > 0 ? (isSupplier ? 'text-amber-700' : 'text-emerald-700') : 'text-muted-foreground'}`}>{fmt(r.outstanding)}</TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="ghost" size="sm" className="gap-1" onClick={() => setSelectedId(selectedId === r.id ? null : r.id)}>
+                        <FileText className="size-3.5" />{selectedId === r.id ? t('إخفاء', 'Hide', lang) : t('عرض', 'View', lang)}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+
+      {/* كشف الحساب التفصيلي للطرف المختار */}
+      {selectedParty && statement && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-lg">{t('كشف حساب', 'Statement of Account', lang)} — {selectedParty.name}</h3>
+            <span className="text-sm text-muted-foreground">{statement.rows.length} {t('حركة', 'movements', lang)}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('التاريخ', 'Date', lang)}</TableHead>
+                  <TableHead>{t('رقم القيد', 'Entry No.', lang)}</TableHead>
+                  <TableHead>{t('النوع', 'Type', lang)}</TableHead>
+                  <TableHead>{t('البيان', 'Description', lang)}</TableHead>
+                  <TableHead className="text-center">{t('مدين', 'Debit', lang)}</TableHead>
+                  <TableHead className="text-center">{t('دائن', 'Credit', lang)}</TableHead>
+                  <TableHead className="text-center">{t('الرصيد', 'Balance', lang)}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {statement.rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('لا توجد حركات مرحّلة لهذا الطرف', 'No posted movements for this party', lang)}</TableCell></TableRow>
+                  : statement.rows.map((m, i) => (
+                    <TableRow key={i} className="hover:bg-muted/30">
+                      <TableCell className="text-sm whitespace-nowrap" dir="ltr">{m.date}</TableCell>
+                      <TableCell className="font-mono text-xs">{m.entryNo}</TableCell>
+                      <TableCell className="text-sm">{sourceLabel(m.sourceType)}</TableCell>
+                      <TableCell className="text-sm">{m.description}</TableCell>
+                      <TableCell className="text-center text-sm">{m.debit ? fmt(m.debit) : '—'}</TableCell>
+                      <TableCell className="text-center text-sm">{m.credit ? fmt(m.credit) : '—'}</TableCell>
+                      <TableCell className="text-center text-sm font-semibold">{fmt(Math.abs(m.balance))}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex flex-wrap gap-6 justify-end mt-3 pt-3 border-t text-sm">
+            <span>{t('إجمالي مدين', 'Total Debit', lang)}: <strong>{fmt(statement.totalDebit)}</strong></span>
+            <span>{t('إجمالي دائن', 'Total Credit', lang)}: <strong>{fmt(statement.totalCredit)}</strong></span>
+            <span className={isSupplier ? 'text-amber-700' : 'text-emerald-700'}>{outstandingLabel}: <strong>{fmt(statement.outstanding)}</strong></span>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}

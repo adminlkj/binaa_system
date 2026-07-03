@@ -163,7 +163,10 @@ function resolveAccount(role, accounts) {
   return { code: '????', name: `دور غير معرّف: ${role}`, unmapped: true };
 }
 
-function buildLinesFromTemplate(template, amounts, accounts, description) {
+// أدوار الذمم التي تُوسم بالطرف (عميل/مورد) لبناء الكشوفات من القيود المرحّلة.
+const PARTY_ROLE_TYPE = { RECEIVABLES: 'CLIENT', PAYABLES: 'SUPPLIER' };
+
+function buildLinesFromTemplate(template, amounts, accounts, description, party) {
   const lines = [];
   const unmappedRoles = [];
   for (const tl of template.lines || []) {
@@ -171,59 +174,64 @@ function buildLinesFromTemplate(template, amounts, accounts, description) {
     if (tl.optional && amount <= 0) continue;
     const acc = resolveAccount(tl.semanticRole, accounts);
     if (acc.unmapped) unmappedRoles.push(tl.semanticRole);
-    lines.push({
+    const line = {
       accountCode: acc.code, accountName: acc.name,
       debit: tl.side === 'DEBIT' ? amount : 0,
       credit: tl.side === 'CREDIT' ? amount : 0,
       description: tl.description || description || '',
-    });
+    };
+    // وسم سطر الذمم بالطرف المطابق لدوره الدلالي (عميل لذمم مدينة، مورد لذمم دائنة).
+    if (party && PARTY_ROLE_TYPE[tl.semanticRole] === party.type) {
+      line.partyType = party.type; line.partyId = party.id; line.partyName = party.name;
+    }
+    lines.push(line);
   }
   const totalDebit = +lines.reduce((s, l) => s + l.debit, 0).toFixed(2);
   const totalCredit = +lines.reduce((s, l) => s + l.credit, 0).toFixed(2);
   return { lines, totalDebit, totalCredit, unmappedRoles };
 }
 
-async function buildJEFromTemplate(base44, operationType, meta, amounts) {
+async function buildJEFromTemplate(base44, operationType, meta, amounts, party) {
   const [accounts, templates] = await Promise.all([
     base44.asServiceRole.entities.ChartAccount.list('code', 1000),
     base44.asServiceRole.entities.PostingTemplate.filter({ operationType, isActive: true }),
   ]);
   const template = (templates || [])[0];
   if (!template) return null;
-  const { lines, totalDebit, totalCredit, unmappedRoles } = buildLinesFromTemplate(template, amounts, accounts || [], meta.description);
+  const { lines, totalDebit, totalCredit, unmappedRoles } = buildLinesFromTemplate(template, amounts, accounts || [], meta.description, party);
   if (unmappedRoles.length > 0) {
     throw new Error(`أدوار محاسبية غير معرّفة في الدليل: ${unmappedRoles.join(', ')} — لا يمكن ترحيل القيد ${meta.entryNo}`);
   }
   return { entryNo: meta.entryNo, date: meta.date, description: meta.description, sourceType: meta.sourceType, isPosted: true, totalDebit, totalCredit, lines };
 }
 
-async function buildJE(base44, operationType, meta, amounts, fallbackBuilder) {
-  const fromTemplate = await buildJEFromTemplate(base44, operationType, meta, amounts);
+async function buildJE(base44, operationType, meta, amounts, fallbackBuilder, party) {
+  const fromTemplate = await buildJEFromTemplate(base44, operationType, meta, amounts, party);
   return fromTemplate || fallbackBuilder();
 }
 
 // ─── بناة القيود الثابتة ──────────────────────────────────────────────────────
-function buildSalesInvoiceJE({ invoiceNo, date, clientName, subtotal, vatAmount, totalAmount, invoiceType }) {
+function buildSalesInvoiceJE({ invoiceNo, date, clientId, clientName, subtotal, vatAmount, totalAmount, invoiceType }) {
   const rev = invoiceType === 'RENTAL' ? ACCOUNTS.REVENUE_RENTAL : invoiceType === 'SERVICE' ? ACCOUNTS.REVENUE_SERVICE : ACCOUNTS.REVENUE_CONSTRUCTION;
   return {
     entryNo: `JE-SINV-${invoiceNo}`, date, description: `فاتورة مبيعات ${invoiceNo} — ${clientName}`, sourceType: 'SalesInvoice', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,
     lines: [
-      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}` },
+      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName },
       { accountCode: rev.code, accountName: rev.name, debit: 0, credit: subtotal, description: 'الإيراد الأساسي' },
       ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
     ],
   };
 }
 
-function buildPurchaseOrderJE({ orderNo, date, supplierName, baseAmount, vatAmount, grandTotal }) {
+function buildPurchaseOrderJE({ orderNo, date, supplierId, supplierName, baseAmount, vatAmount, grandTotal }) {
   return {
     entryNo: `JE-PO-${orderNo}`, date, description: `أمر شراء ${orderNo} — ${supplierName}`, sourceType: 'PurchaseOrder', isPosted: true,
     totalDebit: grandTotal, totalCredit: grandTotal,
     lines: [
       { accountCode: ACCOUNTS.EXPENSE_PURCHASE.code, accountName: ACCOUNTS.EXPENSE_PURCHASE.name, debit: baseAmount, credit: 0, description: 'مواد وبضاعة' },
       ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_RECEIVABLE.code, accountName: ACCOUNTS.VAT_RECEIVABLE.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
-      { accountCode: ACCOUNTS.PAYABLES.code, accountName: ACCOUNTS.PAYABLES.name, debit: 0, credit: grandTotal, description: `مستحقات ${supplierName}` },
+      { accountCode: ACCOUNTS.PAYABLES.code, accountName: ACCOUNTS.PAYABLES.name, debit: 0, credit: grandTotal, description: `مستحقات ${supplierName}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName },
     ],
   };
 }
@@ -279,12 +287,12 @@ function buildPayrollPaymentJE({ code, month, year, netAmount, paymentDate, paym
   };
 }
 
-function buildRentalJE({ contractNo, date, clientName, base, vatAmount, totalAmount }) {
+function buildRentalJE({ contractNo, date, clientId, clientName, base, vatAmount, totalAmount }) {
   return {
     entryNo: `JE-RC-${contractNo}`, date: date || new Date().toISOString().slice(0, 10), description: `عقد تأجير ${contractNo} — ${clientName}`, sourceType: 'RentalContract', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,
     lines: [
-      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `عقد ${contractNo}` },
+      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `عقد ${contractNo}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName },
       { accountCode: ACCOUNTS.REVENUE_RENTAL.code, accountName: ACCOUNTS.REVENUE_RENTAL.name, debit: 0, credit: base, description: 'إيراد التأجير' },
       ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
     ],
@@ -292,7 +300,7 @@ function buildRentalJE({ contractNo, date, clientName, base, vatAmount, totalAmo
 }
 
 // تحصيل من عميل: من ح/ النقدية المختارة (مدين) إلى ح/ ذمم العملاء (دائن)
-function buildClientPaymentJE({ paymentNo, date, clientName, amount, cashAccountCode, cashAccountName }, accounts) {
+function buildClientPaymentJE({ paymentNo, date, clientId, clientName, amount, cashAccountCode, cashAccountName }, accounts) {
   const receivables = resolveAccount('RECEIVABLES', accounts);
   const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
   const ref = paymentNo || `${date}-${clientName || ''}`;
@@ -301,13 +309,13 @@ function buildClientPaymentJE({ paymentNo, date, clientName, amount, cashAccount
     totalDebit: amount, totalCredit: amount,
     lines: [
       { accountCode: cash.code, accountName: cash.name, debit: amount, credit: 0, description: `تحصيل في ${cash.name}` },
-      { accountCode: receivables.code, accountName: receivables.name, debit: 0, credit: amount, description: `سداد ذمة ${clientName || ''}` },
+      { accountCode: receivables.code, accountName: receivables.name, debit: 0, credit: amount, description: `سداد ذمة ${clientName || ''}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName },
     ],
   };
 }
 
 // سداد لمورد: من ح/ ذمم الموردين (مدين) إلى ح/ النقدية المختارة (دائن)
-function buildSupplierPaymentJE({ paymentNo, date, supplierName, amount, cashAccountCode, cashAccountName }, accounts) {
+function buildSupplierPaymentJE({ paymentNo, date, supplierId, supplierName, amount, cashAccountCode, cashAccountName }, accounts) {
   const payables = resolveAccount('PAYABLES', accounts);
   const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
   const ref = paymentNo || `${date}-${supplierName || ''}`;
@@ -315,14 +323,14 @@ function buildSupplierPaymentJE({ paymentNo, date, supplierName, amount, cashAcc
     entryNo: `JE-PMT-${ref}`, date, description: `سداد إلى ${supplierName || 'مورد'}`, sourceType: 'SupplierPayment', isPosted: true,
     totalDebit: amount, totalCredit: amount,
     lines: [
-      { accountCode: payables.code, accountName: payables.name, debit: amount, credit: 0, description: `سداد ذمة ${supplierName || ''}` },
+      { accountCode: payables.code, accountName: payables.name, debit: amount, credit: 0, description: `سداد ذمة ${supplierName || ''}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName },
       { accountCode: cash.code, accountName: cash.name, debit: 0, credit: amount, description: `دفع من ${cash.name}` },
     ],
   };
 }
 
 // فاتورة مورد (التزام): من ح/ مشتريات + ضريبة مدفوعة (مدين) إلى ح/ ذمم الموردين (دائن)
-function buildSupplierInvoiceJE({ invoiceNo, date, supplierName, baseAmount, vatAmount, totalAmount }, accounts) {
+function buildSupplierInvoiceJE({ invoiceNo, date, supplierId, supplierName, baseAmount, vatAmount, totalAmount }, accounts) {
   const purchase = resolveAccount('EXPENSE_PURCHASE', accounts);
   const vatRec = resolveAccount('VAT_RECEIVABLE', accounts);
   const payables = resolveAccount('PAYABLES', accounts);
@@ -332,13 +340,13 @@ function buildSupplierInvoiceJE({ invoiceNo, date, supplierName, baseAmount, vat
     lines: [
       { accountCode: purchase.code, accountName: purchase.name, debit: baseAmount, credit: 0, description: 'مشتريات ومواد' },
       ...(vatAmount > 0 ? [{ accountCode: vatRec.code, accountName: vatRec.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
-      { accountCode: payables.code, accountName: payables.name, debit: 0, credit: totalAmount, description: `مستحقات ${supplierName || ''}` },
+      { accountCode: payables.code, accountName: payables.name, debit: 0, credit: totalAmount, description: `مستحقات ${supplierName || ''}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName },
     ],
   };
 }
 
 // فاتورة تأجير (إيراد): من ح/ ذمم العملاء (مدين) إلى ح/ إيراد التأجير + ضريبة محصلة (دائن)
-function buildRentalInvoiceJE({ invoiceNo, date, clientName, baseAmount, vatAmount, totalAmount }, accounts) {
+function buildRentalInvoiceJE({ invoiceNo, date, clientId, clientName, baseAmount, vatAmount, totalAmount }, accounts) {
   const receivables = resolveAccount('RECEIVABLES', accounts);
   const revenue = resolveAccount('REVENUE_RENTAL', accounts);
   const vatPay = resolveAccount('VAT_PAYABLE', accounts);
@@ -346,7 +354,7 @@ function buildRentalInvoiceJE({ invoiceNo, date, clientName, baseAmount, vatAmou
     entryNo: `JE-RINV-${invoiceNo}`, date, description: `فاتورة تأجير ${invoiceNo} — ${clientName || ''}`, sourceType: 'RentalInvoice', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,
     lines: [
-      { accountCode: receivables.code, accountName: receivables.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}` },
+      { accountCode: receivables.code, accountName: receivables.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName },
       { accountCode: revenue.code, accountName: revenue.name, debit: 0, credit: baseAmount, description: 'إيراد التأجير' },
       ...(vatAmount > 0 ? [{ accountCode: vatPay.code, accountName: vatPay.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
     ],
@@ -383,7 +391,8 @@ async function createSalesInvoice(base44, data) {
     const je = await buildJE(base44, 'SALES_INVOICE',
       { entryNo: `JE-SINV-${payload.invoiceNo}`, date: payload.date, description: `فاتورة مبيعات ${payload.invoiceNo} — ${payload.clientName}`, sourceType: 'SalesInvoice' },
       { base: subtotal, vat: vatAmount, total: totalAmount },
-      () => buildSalesInvoiceJE({ ...payload }));
+      () => buildSalesInvoiceJE({ ...payload }),
+      { type: 'CLIENT', id: payload.clientId, name: payload.clientName });
     await autoPostJE(base44, je);
   } catch (e) {
     await rollback(base44, 'SalesInvoice', invoice.id);
@@ -410,7 +419,8 @@ async function createPurchaseOrder(base44, data) {
       const je = await buildJE(base44, 'PURCHASE_ORDER',
         { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
         { base: baseAmount, vat: vatAmount, total: grandTotal },
-        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }));
+        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierId: payload.supplierId, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
+        { type: 'SUPPLIER', id: payload.supplierId, name: payload.supplierName });
       await autoPostJE(base44, je);
     } catch (e) {
       await rollback(base44, 'PurchaseOrder', po.id);
@@ -432,7 +442,8 @@ async function updatePurchaseOrder(base44, id, data, prevStatus) {
       const je = await buildJE(base44, 'PURCHASE_ORDER',
         { entryNo: `JE-PO-${payload.orderNo}`, date: payload.date, description: `أمر شراء ${payload.orderNo} — ${payload.supplierName}`, sourceType: 'PurchaseOrder' },
         { base: baseAmount, vat: vatAmount, total: grandTotal },
-        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }));
+        () => buildPurchaseOrderJE({ orderNo: payload.orderNo, date: payload.date, supplierId: payload.supplierId, supplierName: payload.supplierName, baseAmount, vatAmount, grandTotal }),
+        { type: 'SUPPLIER', id: payload.supplierId, name: payload.supplierName });
       await autoPostJE(base44, je);
     } catch (e) {
       await restoreStatus(base44, 'PurchaseOrder', id, prevStatus);
@@ -504,7 +515,8 @@ async function createRentalContract(base44, data) {
     const je = await buildJE(base44, 'RENTAL_CONTRACT',
       { entryNo: `JE-RC-${payload.contractNo}`, date: payload.startDate || new Date().toISOString().slice(0, 10), description: `عقد تأجير ${payload.contractNo} — ${payload.clientName}`, sourceType: 'RentalContract' },
       { base, vat: vatAmount, total: totalAmount },
-      () => buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientName: payload.clientName, base, vatAmount, totalAmount }));
+      () => buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientId: payload.clientId, clientName: payload.clientName, base, vatAmount, totalAmount }),
+      { type: 'CLIENT', id: payload.clientId, name: payload.clientName });
     await autoPostJE(base44, je);
   } catch (e) {
     await rollback(base44, 'RentalContract', contract.id);

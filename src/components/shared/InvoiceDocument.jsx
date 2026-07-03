@@ -1,4 +1,5 @@
 import React from 'react';
+import { Phone, Mail, Globe, MapPin } from 'lucide-react';
 import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
 import { buildZatcaQrPayload, zatcaQrImageUrl } from '@/lib/zatcaQr';
 
@@ -232,19 +233,8 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
           </div>
         </div>
 
-        {/* QR */}
-        <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {qrPayload ? (
-            <img src={zatcaQrImageUrl(qrPayload, 130)} alt="ZATCA QR" style={{ width: 130, height: 130 }} />
-          ) : settings.showQr !== false && !settings.vatNumber ? (
-            <div style={{ width: 130, height: 130, border: `1px dashed ${labelColor}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 10, color: labelColor, padding: 8 }}>
-              {t('أدخل الرقم الضريبي في الإعدادات لإظهار رمز QR', 'Add a VAT number in Settings to show the QR code', lang)}
-            </div>
-          ) : null}
-        </div>
-
-        {/* شكر وتعليمات QR */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
+        {/* شكر وتعليمات QR — يمين الرمز (يسبقه في تدفّق RTL) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12, textAlign: 'start' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 800, color: accent }}>{'شكراً لتعاملكم معنا'}</div>
             <div style={{ fontSize: 10, color: labelColor }}>Thank you for your business</div>
@@ -254,6 +244,17 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
             <div style={{ fontSize: 9.5, color: labelColor }}>{'للدفع أو التحقق من الفاتورة'}</div>
             <div style={{ fontSize: 9, color: '#9ca3af' }}>Scan QR Code to pay or verify invoice</div>
           </div>
+        </div>
+
+        {/* QR */}
+        <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {qrPayload ? (
+            <img src={zatcaQrImageUrl(qrPayload, 130)} alt="ZATCA QR" style={{ width: 130, height: 130 }} />
+          ) : settings.showQr !== false && !settings.vatNumber ? (
+            <div style={{ width: 130, height: 130, border: `1px dashed ${labelColor}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 10, color: labelColor, padding: 8 }}>
+              {t('أدخل الرقم الضريبي في الإعدادات لإظهار رمز QR', 'Add a VAT number in Settings to show the QR code', lang)}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -308,11 +309,27 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
       {settings.footerImageUrl ? (
         <img src={settings.footerImageUrl} alt="footer" style={{ width: '100%', display: 'block', marginTop: 8 }} />
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', alignItems: 'center', borderTop: `2px solid ${primary}`, paddingTop: 12, fontSize: 10.5, color: '#374151' }}>
-          {settings.phone && <span dir="ltr" style={{ fontWeight: 600 }}>{settings.phone}</span>}
-          {settings.email && <span dir="ltr">{settings.email}</span>}
-          {settings.website && <span dir="ltr">{settings.website}</span>}
-          {(settings.address || settings.city) && <span>{[settings.address, settings.city].filter(Boolean).join('، ')}</span>}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'center', alignItems: 'center', borderTop: `2px solid ${primary}`, paddingTop: 12, fontSize: 10.5, color: '#374151' }}>
+          {settings.phone && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Phone size={13} style={{ color: primary }} /><span dir="ltr" style={{ fontWeight: 600 }}>{settings.phone}</span>
+            </span>
+          )}
+          {settings.email && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Mail size={13} style={{ color: primary }} /><span dir="ltr">{settings.email}</span>
+            </span>
+          )}
+          {settings.website && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Globe size={13} style={{ color: primary }} /><span dir="ltr">{settings.website}</span>
+            </span>
+          )}
+          {(settings.address || settings.city) && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <MapPin size={13} style={{ color: primary }} /><span>{[settings.address, settings.city].filter(Boolean).join('، ')}</span>
+            </span>
+          )}
         </div>
       )}
     </div>

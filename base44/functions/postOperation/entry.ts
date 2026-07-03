@@ -845,10 +845,15 @@ function buildSupplierInvoicePayload(data) {
 }
 
 // الإنشاء يحفظ الفاتورة كمسودة فقط بلا قيد — القيد يُرحّل عند الاعتماد.
+// السلسلة: إن أُنشئت الفاتورة من سند استلام، يُوسم السند "تمت الفوترة" تلقائياً.
 async function createSupplierInvoice(base44, data) {
   assertValid('SUPPLIER_INVOICE', data);
   const payload = { ...buildSupplierInvoicePayload(data), status: 'DRAFT' };
-  return await base44.asServiceRole.entities.SupplierInvoice.create(payload);
+  const inv = await base44.asServiceRole.entities.SupplierInvoice.create(payload);
+  if (payload.goodsReceiptId) {
+    try { await base44.asServiceRole.entities.GoodsReceipt.update(payload.goodsReceiptId, { invoicedStatus: 'INVOICED' }); } catch { /* السند قد لا يكون موجوداً */ }
+  }
+  return inv;
 }
 
 async function updateSupplierInvoice(base44, id, data) {

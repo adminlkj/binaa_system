@@ -202,6 +202,11 @@ export const OperationEngine = {
     return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'approve', id });
   },
 
+  // استلام بضاعة (السلسلة: أمر شراء ← استلام جزئي ← مخزون) — يزيد المخزون ويرحّل القيود خلف الكواليس.
+  async createGoodsReceipt(data) {
+    return await runOperation({ operation: 'GOODS_RECEIPT', mode: 'create', data });
+  },
+
   // حركة مخزنية (استلام / صرف / تحويل) — تُنشئ السجل وترحّل قيدها تلقائياً وتحدّث الأرصدة.
   async createStockMovement(data, refs = {}) {
     const { items = [], warehouses = [], projects = [], suppliers = [], employees = [] } = refs;

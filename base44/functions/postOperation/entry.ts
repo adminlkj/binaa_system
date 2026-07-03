@@ -77,7 +77,7 @@ const RULES = {
     { m: 'رقم الأمر مطلوب', t: (d) => !isBlank(d.orderNo) },
     { m: 'اختيار المورد مطلوب', t: (d) => !isBlank(d.supplierId) },
     { m: 'تاريخ الأمر مطلوب', t: (d) => !isBlank(d.date) },
-    { m: 'قيمة الأمر يجب أن تكون أكبر من صفر', t: (d) => num(d.totalAmount) > 0 },
+    { m: 'قيمة الأمر يجب أن تكون أكبر من صفر — أضف بنوداً أو مبلغاً', t: (d) => num(d.totalAmount) > 0 || (Array.isArray(d.items) && d.items.some((l) => num(l.orderedQty) * num(l.unitPrice) > 0)) },
     { m: 'تاريخ التسليم المتوقع لا يمكن أن يسبق تاريخ الأمر', t: (d) => isBlank(d.expectedDelivery) || isBlank(d.date) || d.expectedDelivery >= d.date },
   ],
   EXPENSE: [
@@ -571,6 +571,120 @@ async function createStockMovement(base44, data) {
   return rec;
 }
 
+// ─── سندات الاستلام (السلسلة: أمر شراء ← استلام جزئي على دفعات ← مخزون) ────────
+// المستخدم يؤكد فقط الكمية المستلمة من كل بند من أمر الشراء. خلف الكواليس:
+//   • لكل بند بكمية مستلمة > 0 → حركة استلام مخزنية تزيد رصيد المخزون وترحّل قيدها.
+//   • تتراكم الكمية المستلمة على بنود الأمر، وتُحدَّث حالة الاستلام (جزئي/مكتمل).
+//   • كل ذلك في ترانسكشن واحد مع تراجع كامل عند أي فشل.
+
+// يزيد رصيد صنف في مخزن بالمطابقة على الاسم (بنود أمر الشراء ليست بالضرورة أصناف مخزون معرّفة مسبقاً).
+async function receiveStockByName(base44, { name, unit, warehouseId, warehouseName, quantity, unitCost }) {
+  if (!warehouseId || !(quantity > 0)) return;
+  const existing = (await base44.asServiceRole.entities.InventoryItem.filter({ name, warehouseId })) || [];
+  if (existing.length > 0) {
+    const rec = existing[0];
+    const newQty = +(num(rec.quantity) + quantity).toFixed(3);
+    await base44.asServiceRole.entities.InventoryItem.update(rec.id, { quantity: newQty, unitCost: num(unitCost) || rec.unitCost });
+  } else {
+    await base44.asServiceRole.entities.InventoryItem.create({
+      code: `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name, unit: unit || '', category: 'MATERIAL',
+      quantity: +quantity.toFixed(3), unitCost: num(unitCost),
+      warehouseId, warehouseName, isActive: true,
+    });
+  }
+}
+
+// يقارن كميتين بتسامح كسري صغير لتفادي أخطاء العشرية.
+function qtyReached(received, ordered) {
+  return num(received) >= num(ordered) - 0.001;
+}
+
+async function createGoodsReceipt(base44, data) {
+  if (isBlank(data.receiptNo)) throw new Error('رقم السند مطلوب');
+  if (isBlank(data.date)) throw new Error('تاريخ السند مطلوب');
+  if (isBlank(data.purchaseOrderId)) throw new Error('اختر أمر الشراء أولاً');
+
+  const po = await base44.asServiceRole.entities.PurchaseOrder.get(data.purchaseOrderId);
+  if (!po) throw new Error('أمر الشراء غير موجود');
+  if (isBlank(po.warehouseId)) throw new Error('أمر الشراء بلا مخزن وجهة — لا يمكن إدخال المخزون');
+
+  // البنود المستلمة في هذه الدفعة: [{ boqItemId | description, receivingQty }]
+  const incoming = Array.isArray(data.lines) ? data.lines : [];
+  const orderLines = Array.isArray(po.items) ? po.items.map((l) => ({ ...l })) : [];
+  const matched = [];
+  for (const inc of incoming) {
+    const recvQty = num(inc.receivingQty);
+    if (recvQty <= 0) continue;
+    const idx = orderLines.findIndex((ol) => (inc.boqItemId && ol.boqItemId === inc.boqItemId) || (!inc.boqItemId && ol.description === inc.description));
+    if (idx < 0) continue;
+    const ol = orderLines[idx];
+    const remaining = +(num(ol.orderedQty) - num(ol.receivedQty)).toFixed(3);
+    if (recvQty > remaining + 0.001) throw new Error(`الكمية المستلمة من "${ol.description}" تتجاوز المتبقي (${remaining})`);
+    matched.push({ idx, recvQty, line: ol });
+  }
+  if (matched.length === 0) throw new Error('لم تُدخل أي كمية مستلمة');
+
+  const receivedAmount = +matched.reduce((s, m) => s + m.recvQty * num(m.line.unitPrice), 0).toFixed(2);
+  const receiptItems = matched.map((m) => ({
+    boqItemId: m.line.boqItemId || '', description: m.line.description, unit: m.line.unit || '',
+    receivedQty: m.recvQty, unitPrice: num(m.line.unitPrice),
+  }));
+
+  const payload = {
+    receiptNo: data.receiptNo, date: data.date,
+    purchaseOrderId: po.id, orderNo: po.orderNo,
+    supplierId: po.supplierId, supplierName: po.supplierName,
+    projectId: po.projectId, projectName: po.projectName,
+    warehouseId: po.warehouseId, warehouseName: po.warehouseName,
+    receivedAmount, items: receiptItems, status: 'RECEIVED', invoicedStatus: 'PENDING',
+    description: data.notes || '', notes: data.notes || '',
+  };
+  const receipt = await base44.asServiceRole.entities.GoodsReceipt.create(payload);
+
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    let seq = 0;
+    for (const m of matched) {
+      seq += 1;
+      const quantity = m.recvQty;
+      const unitCost = num(m.line.unitPrice);
+      const totalCost = +(quantity * unitCost).toFixed(2);
+      const movementNo = `GRN-${payload.receiptNo}-${seq}`;
+      // 1) سجل الحركة المخزنية.
+      const mv = await base44.asServiceRole.entities.StockMovement.create({
+        movementNo, date: payload.date, type: 'RECEIVE', sourceType: 'SUPPLIER',
+        itemName: m.line.description, itemCode: m.line.itemNo || '', unit: m.line.unit || '',
+        quantity, unitCost, totalCost,
+        toWarehouseId: po.warehouseId, toWarehouseName: po.warehouseName,
+        supplierId: po.supplierId, supplierName: po.supplierName,
+        reference: payload.receiptNo, journalEntryNo: `JE-STK-${movementNo}`,
+      });
+      // 2) القيد المحاسبي (المخزون مدين / ذمم المورد دائن).
+      if (totalCost > 0) {
+        await autoPostJE(base44, buildStockMovementJE(mv, accounts));
+      }
+      // 3) زيادة رصيد المخزون بالمطابقة على الاسم.
+      await receiveStockByName(base44, {
+        name: m.line.description, unit: m.line.unit, warehouseId: po.warehouseId, warehouseName: po.warehouseName,
+        quantity, unitCost,
+      });
+      // 4) تراكم الكمية المستلمة على بند الأمر.
+      orderLines[m.idx].receivedQty = +(num(orderLines[m.idx].receivedQty) + quantity).toFixed(3);
+    }
+    const allDone = orderLines.every((ol) => qtyReached(ol.receivedQty, ol.orderedQty));
+    const anyReceived = orderLines.some((ol) => num(ol.receivedQty) > 0);
+    const receiptStatus = allDone ? 'RECEIVED' : anyReceived ? 'PARTIAL' : 'PENDING';
+    await base44.asServiceRole.entities.PurchaseOrder.update(po.id, {
+      items: orderLines, receiptStatus, status: allDone ? 'RECEIVED' : po.status,
+    });
+  } catch (e) {
+    await rollback(base44, 'GoodsReceipt', receipt.id);
+    throw e;
+  }
+  return receipt;
+}
+
 // ─── حارس سلامة القيد ─────────────────────────────────────────────────────────
 function assertJEIntegrity(je) {
   if (!je) throw new Error('قيد فارغ — لا يوجد قيد لترحيله');
@@ -622,10 +736,24 @@ async function approveSalesInvoice(base44, id) {
   return await base44.asServiceRole.entities.SalesInvoice.update(id, { status: 'APPROVED' });
 }
 
+// يبني بنود الأمر من الحمولة ويحسب الإجمالي منها (البنود هي الأساس).
+function buildOrderLines(data) {
+  const lines = (Array.isArray(data.items) ? data.items : []).map((l) => ({
+    boqItemId: l.boqItemId || '', itemNo: l.itemNo || '', description: l.description || '',
+    unit: l.unit || '', orderedQty: num(l.orderedQty), unitPrice: num(l.unitPrice),
+    receivedQty: num(l.receivedQty),
+  }));
+  const linesTotal = +lines.reduce((s, l) => s + l.orderedQty * l.unitPrice, 0).toFixed(2);
+  // إن وُجدت بنود يُحسب الإجمالي منها، وإلا يُستخدم المبلغ المُدخل مباشرةً (توافق للخلف).
+  const baseInput = lines.length > 0 ? linesTotal : num(data.totalAmount);
+  return { lines, baseInput };
+}
+
 async function createPurchaseOrder(base44, data) {
   assertValid('PURCHASE_ORDER', data);
-  const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
-  const payload = { ...data, totalAmount: baseAmount, vatAmount };
+  const { lines, baseInput } = buildOrderLines(data);
+  const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(baseInput);
+  const payload = { ...data, items: lines, totalAmount: baseAmount, vatAmount, receiptStatus: data.receiptStatus || 'PENDING' };
   const po = await base44.asServiceRole.entities.PurchaseOrder.create(payload);
   if (payload.status === 'RECEIVED') {
     try {
@@ -646,8 +774,9 @@ async function createPurchaseOrder(base44, data) {
 async function updatePurchaseOrder(base44, id, data, prevStatus) {
   assertValid('PURCHASE_ORDER', data);
   assertTransition('PURCHASE_ORDER', prevStatus, data.status);
-  const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(data.totalAmount);
-  const payload = { ...data, totalAmount: baseAmount, vatAmount };
+  const { lines, baseInput } = buildOrderLines(data);
+  const { base: baseAmount, vat: vatAmount, total: grandTotal } = calcVAT(baseInput);
+  const payload = { ...data, items: lines, totalAmount: baseAmount, vatAmount };
   const po = await base44.asServiceRole.entities.PurchaseOrder.update(id, payload);
   // القيد يُرحّل فقط عند أول انتقال إلى "مستلم". فشل القيد = فشل العملية: نُعيد الحالة السابقة.
   if (payload.status === 'RECEIVED' && prevStatus !== 'RECEIVED') {
@@ -963,6 +1092,7 @@ const HANDLERS = {
   SUBCONTRACTOR_INVOICE: { create: (b, p) => createSubcontractorInvoice(b, p.data), update: (b, p) => updateSubcontractorInvoice(b, p.id, p.data), approve: (b, p) => approveSubcontractorInvoice(b, p.id) },
   RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data), approve: (b, p) => approveRentalInvoice(b, p.id) },
   STOCK_MOVEMENT:  { create: (b, p) => createStockMovement(b, p.data) },
+  GOODS_RECEIPT:   { create: (b, p) => createGoodsReceipt(b, p.data) },
 };
 
 Deno.serve(async (req) => {

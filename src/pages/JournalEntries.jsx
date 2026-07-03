@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle, XCircle, Undo2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,12 +84,42 @@ export default function JournalEntries() {
     setSaving(false);
   };
 
+  // القيود المرحّلة لا يُلغى ترحيلها ولا تُعدّل — يُسمح فقط بترحيل المسودة.
   const togglePost = async (item) => {
+    if (item.isPosted) return;
     try {
-      await base44.entities.JournalEntry.update(item.id, { isPosted: !item.isPosted });
-      toast.success(item.isPosted ? t('تم إلغاء الترحيل', 'Unposted', lang) : t('تم الترحيل', 'Posted', lang));
+      await base44.entities.JournalEntry.update(item.id, { isPosted: true });
+      toast.success(t('تم الترحيل', 'Posted', lang));
       load();
     } catch { toast.error(t('فشل العملية', 'Operation failed', lang)); }
+  };
+
+  // عكس القيد المرحّل: إنشاء قيد مضاد (مدين↔دائن) بدل تعديل القيد الأصلي أو حذفه.
+  const [reversing, setReversing] = useState(false);
+  const [reverseTarget, setReverseTarget] = useState(null);
+  const reverseEntry = async () => {
+    const item = reverseTarget;
+    if (!item) return;
+    setReversing(true);
+    try {
+      const lines = (item.lines || []).map(l => ({
+        accountCode: l.accountCode, accountName: l.accountName,
+        debit: l.credit || 0, credit: l.debit || 0,
+        description: t('عكس', 'Reversal', lang) + (l.description ? ` — ${l.description}` : ''),
+      }));
+      await base44.entities.JournalEntry.create({
+        entryNo: `${item.entryNo}-REV`,
+        date: new Date().toISOString().slice(0, 10),
+        description: t('عكس القيد', 'Reversal of', lang) + ` ${item.entryNo}`,
+        sourceType: 'Reversal', isPosted: true,
+        totalDebit: item.totalCredit || 0, totalCredit: item.totalDebit || 0,
+        lines,
+      });
+      toast.success(t('تم عكس القيد', 'Entry reversed', lang));
+      setReverseTarget(null);
+      load();
+    } catch { toast.error(t('فشل عكس القيد', 'Reversal failed', lang)); }
+    setReversing(false);
   };
 
   const remove = async () => {
@@ -165,8 +195,20 @@ export default function JournalEntries() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)} disabled={item.isPosted}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)} disabled={item.isPosted}><Trash2 className="size-3.5" /></Button>
+                        {item.isPosted ? (
+                          item.sourceType === 'Reversal' ? (
+                            <span className="text-xs text-muted-foreground px-2">{t('قيد عكسي', 'Reversal', lang)}</span>
+                          ) : (
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-amber-600 hover:text-amber-700" onClick={() => setReverseTarget(item)}>
+                              <Undo2 className="size-3.5" />{t('عكس', 'Reverse', lang)}
+                            </Button>
+                          )
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -258,6 +300,11 @@ export default function JournalEntries() {
         title={t('حذف القيد', 'Delete Entry', lang)}
         description={t('سيتم حذف القيد المحاسبي نهائياً.', 'This journal entry will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <ConfirmDialog open={!!reverseTarget} onOpenChange={(o) => !o && setReverseTarget(null)}
+        title={t('عكس القيد', 'Reverse Entry', lang)}
+        description={t('سيتم إنشاء قيد عكسي مضاد للقيد المرحّل دون تعديل الأصل. متابعة؟', 'A reversing entry will be created against the posted entry without altering the original. Continue?', lang)}
+        onConfirm={reverseEntry} confirmLabel={reversing ? t('جاري...', 'Working...', lang) : t('عكس', 'Reverse', lang)} />
     </ModuleLayout>
   );
 }

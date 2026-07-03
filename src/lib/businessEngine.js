@@ -146,4 +146,36 @@ export const OperationEngine = {
   async updatePayrollRun(id, data, prevStatus) {
     return await runOperation({ operation: 'PAYROLL', mode: 'update', id, data, prevStatus });
   },
+
+  async createClientPayment(data) {
+    return await runOperation({ operation: 'CLIENT_PAYMENT', mode: 'create', data });
+  },
+
+  async updateClientPayment(id, data) {
+    return await runOperation({ operation: 'CLIENT_PAYMENT', mode: 'update', id, data });
+  },
+
+  async createSupplierPayment(data) {
+    return await runOperation({ operation: 'SUPPLIER_PAYMENT', mode: 'create', data });
+  },
+
+  async updateSupplierPayment(id, data) {
+    return await runOperation({ operation: 'SUPPLIER_PAYMENT', mode: 'update', id, data });
+  },
+
+  async createSupplierInvoice(data) {
+    return await runOperation({ operation: 'SUPPLIER_INVOICE', mode: 'create', data });
+  },
+
+  async updateSupplierInvoice(id, data) {
+    return await runOperation({ operation: 'SUPPLIER_INVOICE', mode: 'update', id, data });
+  },
+
+  async createRentalInvoice(data) {
+    return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'create', data });
+  },
+
+  async updateRentalInvoice(id, data) {
+    return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'update', id, data });
+  },
 };

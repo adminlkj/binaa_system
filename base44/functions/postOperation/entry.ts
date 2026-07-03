@@ -94,6 +94,30 @@ const RULES = {
     { m: 'لا يمكن اعتماد مسير مدفوع دون تحديد طريقة الدفع (الحساب النقدي)', t: (d) => d.status !== 'PAID' || !isBlank(d.paymentAccountCode) },
     { m: 'لا يمكن اعتماد مسير مدفوع دون تحديد تاريخ الدفع', t: (d) => d.status !== 'PAID' || !isBlank(d.paymentDate) },
   ],
+  CLIENT_PAYMENT: [
+    { m: 'اختيار العميل مطلوب', t: (d) => !isBlank(d.clientId) },
+    { m: 'تاريخ السند مطلوب', t: (d) => !isBlank(d.date) },
+    { m: 'المبلغ يجب أن يكون أكبر من صفر', t: (d) => num(d.amount) > 0 },
+    { m: 'اختيار الحساب النقدي (صندوق/بنك) مطلوب — لا يمكن تحصيل بلا حساب', t: (d) => !isBlank(d.cashAccountCode) },
+  ],
+  SUPPLIER_PAYMENT: [
+    { m: 'اختيار المورد مطلوب', t: (d) => !isBlank(d.supplierId) },
+    { m: 'تاريخ السند مطلوب', t: (d) => !isBlank(d.date) },
+    { m: 'المبلغ يجب أن يكون أكبر من صفر', t: (d) => num(d.amount) > 0 },
+    { m: 'اختيار الحساب النقدي (صندوق/بنك) مطلوب — لا يمكن الصرف بلا حساب', t: (d) => !isBlank(d.cashAccountCode) },
+  ],
+  SUPPLIER_INVOICE: [
+    { m: 'رقم الفاتورة مطلوب', t: (d) => !isBlank(d.invoiceNo) },
+    { m: 'اختيار المورد مطلوب', t: (d) => !isBlank(d.supplierId) },
+    { m: 'تاريخ الفاتورة مطلوب', t: (d) => !isBlank(d.date) },
+    { m: 'المبلغ الأساسي يجب أن يكون أكبر من صفر', t: (d) => num(d.baseAmount) > 0 },
+    { m: 'تاريخ الاستحقاق لا يمكن أن يسبق تاريخ الفاتورة', t: (d) => isBlank(d.dueDate) || isBlank(d.date) || d.dueDate >= d.date },
+  ],
+  RENTAL_INVOICE: [
+    { m: 'رقم الفاتورة مطلوب', t: (d) => !isBlank(d.invoiceNo) },
+    { m: 'تاريخ الفاتورة مطلوب', t: (d) => !isBlank(d.date) },
+    { m: 'قيمة الفاتورة يجب أن تكون أكبر من صفر', t: (d) => num(d.baseAmount) + num(d.extraCharges) > 0 },
+  ],
 };
 
 function assertValid(operationType, data) {
@@ -263,6 +287,68 @@ function buildRentalJE({ contractNo, date, clientName, base, vatAmount, totalAmo
       { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `عقد ${contractNo}` },
       { accountCode: ACCOUNTS.REVENUE_RENTAL.code, accountName: ACCOUNTS.REVENUE_RENTAL.name, debit: 0, credit: base, description: 'إيراد التأجير' },
       ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
+    ],
+  };
+}
+
+// تحصيل من عميل: من ح/ النقدية المختارة (مدين) إلى ح/ ذمم العملاء (دائن)
+function buildClientPaymentJE({ paymentNo, date, clientName, amount, cashAccountCode, cashAccountName }, accounts) {
+  const receivables = resolveAccount('RECEIVABLES', accounts);
+  const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
+  const ref = paymentNo || `${date}-${clientName || ''}`;
+  return {
+    entryNo: `JE-RCPT-${ref}`, date, description: `تحصيل من ${clientName || 'عميل'}`, sourceType: 'ClientPayment', isPosted: true,
+    totalDebit: amount, totalCredit: amount,
+    lines: [
+      { accountCode: cash.code, accountName: cash.name, debit: amount, credit: 0, description: `تحصيل في ${cash.name}` },
+      { accountCode: receivables.code, accountName: receivables.name, debit: 0, credit: amount, description: `سداد ذمة ${clientName || ''}` },
+    ],
+  };
+}
+
+// سداد لمورد: من ح/ ذمم الموردين (مدين) إلى ح/ النقدية المختارة (دائن)
+function buildSupplierPaymentJE({ paymentNo, date, supplierName, amount, cashAccountCode, cashAccountName }, accounts) {
+  const payables = resolveAccount('PAYABLES', accounts);
+  const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
+  const ref = paymentNo || `${date}-${supplierName || ''}`;
+  return {
+    entryNo: `JE-PMT-${ref}`, date, description: `سداد إلى ${supplierName || 'مورد'}`, sourceType: 'SupplierPayment', isPosted: true,
+    totalDebit: amount, totalCredit: amount,
+    lines: [
+      { accountCode: payables.code, accountName: payables.name, debit: amount, credit: 0, description: `سداد ذمة ${supplierName || ''}` },
+      { accountCode: cash.code, accountName: cash.name, debit: 0, credit: amount, description: `دفع من ${cash.name}` },
+    ],
+  };
+}
+
+// فاتورة مورد (التزام): من ح/ مشتريات + ضريبة مدفوعة (مدين) إلى ح/ ذمم الموردين (دائن)
+function buildSupplierInvoiceJE({ invoiceNo, date, supplierName, baseAmount, vatAmount, totalAmount }, accounts) {
+  const purchase = resolveAccount('EXPENSE_PURCHASE', accounts);
+  const vatRec = resolveAccount('VAT_RECEIVABLE', accounts);
+  const payables = resolveAccount('PAYABLES', accounts);
+  return {
+    entryNo: `JE-SUPINV-${invoiceNo}`, date, description: `فاتورة مورد ${invoiceNo} — ${supplierName || ''}`, sourceType: 'SupplierInvoice', isPosted: true,
+    totalDebit: totalAmount, totalCredit: totalAmount,
+    lines: [
+      { accountCode: purchase.code, accountName: purchase.name, debit: baseAmount, credit: 0, description: 'مشتريات ومواد' },
+      ...(vatAmount > 0 ? [{ accountCode: vatRec.code, accountName: vatRec.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
+      { accountCode: payables.code, accountName: payables.name, debit: 0, credit: totalAmount, description: `مستحقات ${supplierName || ''}` },
+    ],
+  };
+}
+
+// فاتورة تأجير (إيراد): من ح/ ذمم العملاء (مدين) إلى ح/ إيراد التأجير + ضريبة محصلة (دائن)
+function buildRentalInvoiceJE({ invoiceNo, date, clientName, baseAmount, vatAmount, totalAmount }, accounts) {
+  const receivables = resolveAccount('RECEIVABLES', accounts);
+  const revenue = resolveAccount('REVENUE_RENTAL', accounts);
+  const vatPay = resolveAccount('VAT_PAYABLE', accounts);
+  return {
+    entryNo: `JE-RINV-${invoiceNo}`, date, description: `فاتورة تأجير ${invoiceNo} — ${clientName || ''}`, sourceType: 'RentalInvoice', isPosted: true,
+    totalDebit: totalAmount, totalCredit: totalAmount,
+    lines: [
+      { accountCode: receivables.code, accountName: receivables.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}` },
+      { accountCode: revenue.code, accountName: revenue.name, debit: 0, credit: baseAmount, description: 'إيراد التأجير' },
+      ...(vatAmount > 0 ? [{ accountCode: vatPay.code, accountName: vatPay.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
     ],
   };
 }
@@ -493,6 +579,108 @@ async function updatePayrollRun(base44, id, data, prevStatus) {
   return payroll;
 }
 
+// ─── تحصيلات العملاء ──────────────────────────────────────────────────────────
+async function createClientPayment(base44, data) {
+  assertValid('CLIENT_PAYMENT', data);
+  const payload = { ...data, amount: num(data.amount) };
+  const rec = await base44.asServiceRole.entities.ClientPayment.create(payload);
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    await autoPostJE(base44, buildClientPaymentJE({ ...payload, id: rec.id }, accounts));
+  } catch (e) {
+    await rollback(base44, 'ClientPayment', rec.id);
+    throw e;
+  }
+  return rec;
+}
+
+async function updateClientPayment(base44, id, data) {
+  assertValid('CLIENT_PAYMENT', data);
+  const payload = { ...data, amount: num(data.amount) };
+  return await base44.asServiceRole.entities.ClientPayment.update(id, payload);
+}
+
+// ─── سداد الموردين ────────────────────────────────────────────────────────────
+async function createSupplierPayment(base44, data) {
+  assertValid('SUPPLIER_PAYMENT', data);
+  const payload = { ...data, amount: num(data.amount) };
+  const rec = await base44.asServiceRole.entities.SupplierPayment.create(payload);
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    await autoPostJE(base44, buildSupplierPaymentJE({ ...payload, id: rec.id }, accounts));
+  } catch (e) {
+    await rollback(base44, 'SupplierPayment', rec.id);
+    throw e;
+  }
+  return rec;
+}
+
+async function updateSupplierPayment(base44, id, data) {
+  assertValid('SUPPLIER_PAYMENT', data);
+  const payload = { ...data, amount: num(data.amount) };
+  return await base44.asServiceRole.entities.SupplierPayment.update(id, payload);
+}
+
+// ─── فواتير الموردين ──────────────────────────────────────────────────────────
+function buildSupplierInvoicePayload(data) {
+  const baseAmount = num(data.baseAmount);
+  const vatAmount = num(data.vatAmount);
+  const totalAmount = +(baseAmount + vatAmount).toFixed(2);
+  return { ...data, baseAmount, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
+}
+
+async function createSupplierInvoice(base44, data) {
+  assertValid('SUPPLIER_INVOICE', data);
+  const payload = buildSupplierInvoicePayload(data);
+  const inv = await base44.asServiceRole.entities.SupplierInvoice.create(payload);
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    await autoPostJE(base44, buildSupplierInvoiceJE(payload, accounts));
+  } catch (e) {
+    await rollback(base44, 'SupplierInvoice', inv.id);
+    throw e;
+  }
+  return inv;
+}
+
+async function updateSupplierInvoice(base44, id, data) {
+  assertValid('SUPPLIER_INVOICE', data);
+  const payload = buildSupplierInvoicePayload(data);
+  return await base44.asServiceRole.entities.SupplierInvoice.update(id, payload);
+}
+
+// ─── فواتير التأجير ───────────────────────────────────────────────────────────
+function buildRentalInvoicePayload(data) {
+  const baseAmount = num(data.baseAmount);
+  const extraCharges = num(data.extraCharges);
+  const net = +(baseAmount + extraCharges).toFixed(2);
+  const vatAmount = +(net * VAT_RATE).toFixed(2);
+  const totalAmount = +(net + vatAmount).toFixed(2);
+  return { ...data, baseAmount, extraCharges, net, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
+}
+
+async function createRentalInvoice(base44, data) {
+  assertValid('RENTAL_INVOICE', data);
+  const p = buildRentalInvoicePayload(data);
+  const payload = { ...p }; delete payload.net;
+  const inv = await base44.asServiceRole.entities.RentalInvoice.create(payload);
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    await autoPostJE(base44, buildRentalInvoiceJE({ ...payload, baseAmount: p.net }, accounts));
+  } catch (e) {
+    await rollback(base44, 'RentalInvoice', inv.id);
+    throw e;
+  }
+  return inv;
+}
+
+async function updateRentalInvoice(base44, id, data) {
+  assertValid('RENTAL_INVOICE', data);
+  const p = buildRentalInvoicePayload(data);
+  const payload = { ...p }; delete payload.net;
+  return await base44.asServiceRole.entities.RentalInvoice.update(id, payload);
+}
+
 // تراجع (إنشاء): احذف السجل المصدر حين يفشل ترحيل القيد
 async function rollback(base44, entityName, id) {
   try { await base44.asServiceRole.entities[entityName].delete(id); } catch { /* السجل قد يكون حُذف */ }
@@ -511,6 +699,10 @@ const HANDLERS = {
   EXPENSE:         { create: (b, p) => createExpense(b, p.data), update: (b, p) => updateExpense(b, p.id, p.data) },
   RENTAL_CONTRACT: { create: (b, p) => createRentalContract(b, p.data), update: (b, p) => updateRentalContract(b, p.id, p.data, p.prevStatus, p.prevEquipmentStatus) },
   PAYROLL:         { create: (b, p) => createPayrollRun(b, p.data), update: (b, p) => updatePayrollRun(b, p.id, p.data, p.prevStatus) },
+  CLIENT_PAYMENT:  { create: (b, p) => createClientPayment(b, p.data), update: (b, p) => updateClientPayment(b, p.id, p.data) },
+  SUPPLIER_PAYMENT:{ create: (b, p) => createSupplierPayment(b, p.data), update: (b, p) => updateSupplierPayment(b, p.id, p.data) },
+  SUPPLIER_INVOICE:{ create: (b, p) => createSupplierInvoice(b, p.data), update: (b, p) => updateSupplierInvoice(b, p.id, p.data) },
+  RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data) },
 };
 
 Deno.serve(async (req) => {

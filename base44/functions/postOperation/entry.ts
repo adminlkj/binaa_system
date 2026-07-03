@@ -15,25 +15,26 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 const VAT_RATE = 0.15;
 
 // خريطة الحسابات الافتراضية حسب الدور (تُستخدم كخطة بديلة إن لم يوجد حساب في الدليل)
+// خطة بديلة تطابق الشجرة القياسية الحالية — تُستخدم فقط إن لم يوجد الدور في الدليل.
 const ACCOUNTS = {
-  CASH:                 { code: '1010', name: 'الصندوق' },
-  BANK:                 { code: '1020', name: 'البنك' },
-  RECEIVABLES:          { code: '1100', name: 'الذمم المدينة - عملاء' },
-  PAYABLES:             { code: '2100', name: 'الذمم الدائنة - موردون' },
-  VAT_PAYABLE:          { code: '2300', name: 'ضريبة القيمة المضافة المحصلة' },
-  VAT_RECEIVABLE:       { code: '1300', name: 'ضريبة القيمة المضافة المدفوعة' },
-  ACCRUED_SALARIES:     { code: '2200', name: 'رواتب مستحقة الدفع' },
+  CASH:                 { code: '1111', name: 'الصندوق' },
+  BANK:                 { code: '1112', name: 'البنك' },
+  RECEIVABLES:          { code: '1121', name: 'ذمم العملاء' },
+  PAYABLES:             { code: '2110', name: 'ذمم الموردين' },
+  VAT_PAYABLE:          { code: '2160', name: 'ضريبة القيمة المضافة المحصلة' },
+  VAT_RECEIVABLE:       { code: '1140', name: 'ضريبة القيمة المضافة المدفوعة' },
+  ACCRUED_SALARIES:     { code: '2140', name: 'رواتب مستحقة الدفع' },
   REVENUE_CONSTRUCTION: { code: '4100', name: 'إيرادات أعمال المقاولات' },
-  REVENUE_RENTAL:       { code: '4200', name: 'إيرادات التأجير' },
+  REVENUE_RENTAL:       { code: '4200', name: 'إيرادات تأجير المعدات' },
   REVENUE_SERVICE:      { code: '4300', name: 'إيرادات الخدمات' },
-  EXPENSE_GENERAL:      { code: '5100', name: 'المصروفات العمومية' },
-  EXPENSE_SALARIES:     { code: '5200', name: 'مصروف الرواتب والأجور' },
-  EXPENSE_PURCHASE:     { code: '5300', name: 'مشتريات ومواد' },
-  EXPENSE_PROJECT:      { code: '5400', name: 'مصروفات المشاريع' },
-  EXPENSE_EQUIPMENT:    { code: '5500', name: 'مصروفات المعدات' },
-  EXPENSE_EMPLOYEE:     { code: '5600', name: 'مصروفات الموظفين' },
-  EXPENSE_GOVERNMENT:   { code: '5700', name: 'رسوم ومصروفات حكومية' },
-  EXPENSE_ADMIN:        { code: '5800', name: 'مصروفات إدارية' },
+  EXPENSE_GENERAL:      { code: '5250', name: 'المصروفات العمومية' },
+  EXPENSE_SALARIES:     { code: '5210', name: 'الرواتب والأجور الإدارية' },
+  EXPENSE_PURCHASE:     { code: '5110', name: 'مواد ومشتريات المشاريع' },
+  EXPENSE_PROJECT:      { code: '5120', name: 'مصروفات المشاريع' },
+  EXPENSE_EQUIPMENT:    { code: '5150', name: 'مصروفات المعدات' },
+  EXPENSE_EMPLOYEE:     { code: '5220', name: 'مصروفات الموظفين' },
+  EXPENSE_GOVERNMENT:   { code: '5240', name: 'رسوم ومصروفات حكومية' },
+  EXPENSE_ADMIN:        { code: '5230', name: 'مصروفات إدارية' },
 };
 
 const EXPENSE_TYPE_ACCOUNTS = {
@@ -89,7 +90,9 @@ const RULES = {
     { m: 'كود المسير مطلوب', t: (d) => !isBlank(d.code) },
     { m: 'الشهر مطلوب (1-12)', t: (d) => num(d.month) >= 1 && num(d.month) <= 12 },
     { m: 'السنة مطلوبة', t: (d) => num(d.year) >= 2000 },
-    { m: 'صافي المسير يجب أن يكون أكبر من صفر عند الاعتماد', t: (d) => d.status !== 'PAID' || num(d.netAmount) > 0 },
+    { m: 'صافي المسير يجب أن يكون أكبر من صفر', t: (d) => num(d.netAmount) > 0 },
+    { m: 'لا يمكن اعتماد مسير مدفوع دون تحديد طريقة الدفع (الحساب النقدي)', t: (d) => d.status !== 'PAID' || !isBlank(d.paymentAccountCode) },
+    { m: 'لا يمكن اعتماد مسير مدفوع دون تحديد تاريخ الدفع', t: (d) => d.status !== 'PAID' || !isBlank(d.paymentDate) },
   ],
 };
 
@@ -217,16 +220,37 @@ function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, ref
   };
 }
 
-function buildPayrollJE({ code, month, year, netAmount }) {
-  const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-  const monthName = monthNames[(month || 1) - 1];
+const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+// قيد الاستحقاق: يُنشأ لكل مسير (مدفوعاً كان أو لا) — يثبت التزام الرواتب على الشركة.
+//   من ح/ مصروف الرواتب (مدين)  إلى ح/ رواتب مستحقة الدفع (دائن)
+function buildPayrollAccrualJE({ code, month, year, netAmount }, accounts) {
+  const monthName = AR_MONTHS[(month || 1) - 1];
   const date = `${year}-${String(month).padStart(2, '0')}-01`;
+  const salaryExp = resolveAccount('EXPENSE_SALARIES', accounts);
+  const accrued = resolveAccount('ACCRUED_SALARIES', accounts);
   return {
-    entryNo: `JE-PAY-${code}`, date, description: `مسير رواتب ${monthName} ${year}`, sourceType: 'PayrollRun', isPosted: true,
+    entryNo: `JE-PAY-${code}`, date, description: `استحقاق رواتب ${monthName} ${year}`, sourceType: 'PayrollRun', isPosted: true,
     totalDebit: netAmount, totalCredit: netAmount,
     lines: [
-      { accountCode: ACCOUNTS.EXPENSE_SALARIES.code, accountName: ACCOUNTS.EXPENSE_SALARIES.name, debit: netAmount, credit: 0, description: `رواتب ${monthName}` },
-      { accountCode: ACCOUNTS.ACCRUED_SALARIES.code, accountName: ACCOUNTS.ACCRUED_SALARIES.name, debit: 0, credit: netAmount, description: 'مستحقات مدفوعة' },
+      { accountCode: salaryExp.code, accountName: salaryExp.name, debit: netAmount, credit: 0, description: `مصروف رواتب ${monthName}` },
+      { accountCode: accrued.code, accountName: accrued.name, debit: 0, credit: netAmount, description: 'رواتب مستحقة الدفع' },
+    ],
+  };
+}
+
+// قيد السداد: يُنشأ فقط عند الدفع — يُنقص الالتزام والنقدية.
+//   من ح/ رواتب مستحقة الدفع (مدين)  إلى ح/ النقدية المختارة (دائن)
+function buildPayrollPaymentJE({ code, month, year, netAmount, paymentDate, paymentAccountCode, paymentAccountName }, accounts) {
+  const monthName = AR_MONTHS[(month || 1) - 1];
+  const accrued = resolveAccount('ACCRUED_SALARIES', accounts);
+  const cash = { code: paymentAccountCode, name: paymentAccountName || 'النقدية' };
+  return {
+    entryNo: `JE-PAYPAID-${code}`, date: paymentDate, description: `سداد رواتب ${monthName} ${year}`, sourceType: 'PayrollRun', isPosted: true,
+    totalDebit: netAmount, totalCredit: netAmount,
+    lines: [
+      { accountCode: accrued.code, accountName: accrued.name, debit: netAmount, credit: 0, description: 'سداد رواتب مستحقة' },
+      { accountCode: cash.code, accountName: cash.name, debit: 0, credit: netAmount, description: `دفع من ${cash.name}` },
     ],
   };
 }
@@ -425,22 +449,29 @@ async function updateRentalContract(base44, id, data, prevStatus, prevEquipmentS
   return contract;
 }
 
+// يرحّل قيدي المسير: الاستحقاق دائماً، والسداد عند الدفع فقط. يُعيد قائمة القيود المُنشأة.
+async function postPayrollEntries(base44, data) {
+  const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+  const posted = [];
+  // 1) قيد الاستحقاق — يُنشأ لكل مسير مهما كانت حالته
+  const accrualJE = buildPayrollAccrualJE(data, accounts);
+  posted.push(await autoPostJE(base44, accrualJE));
+  // 2) قيد السداد — عند الدفع فقط (طريقة الدفع والتاريخ مضمونان بالتحقق)
+  if (data.status === 'PAID') {
+    const paymentJE = buildPayrollPaymentJE(data, accounts);
+    posted.push(await autoPostJE(base44, paymentJE));
+  }
+  return posted;
+}
+
 async function createPayrollRun(base44, data) {
   assertValid('PAYROLL', data);
   const payroll = await base44.asServiceRole.entities.PayrollRun.create(data);
-  if (data.status === 'PAID') {
-    const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-    const payDate = `${data.year}-${String(data.month).padStart(2, '0')}-01`;
-    try {
-      const je = await buildJE(base44, 'PAYROLL',
-        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
-        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
-        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }));
-      await autoPostJE(base44, je);
-    } catch (e) {
-      await rollback(base44, 'PayrollRun', payroll.id);
-      throw e;
-    }
+  try {
+    await postPayrollEntries(base44, data);
+  } catch (e) {
+    await rollback(base44, 'PayrollRun', payroll.id);
+    throw e;
   }
   return payroll;
 }
@@ -449,16 +480,11 @@ async function updatePayrollRun(base44, id, data, prevStatus) {
   assertValid('PAYROLL', data);
   assertTransition('PAYROLL', prevStatus, data.status);
   const payroll = await base44.asServiceRole.entities.PayrollRun.update(id, data);
-  // القيد يُرحّل فقط عند أول انتقال إلى "مدفوع". فشل القيد = فشل العملية: نُعيد الحالة السابقة.
+  // قيد السداد يُرحّل فقط عند أول انتقال إلى "مدفوع". قيد الاستحقاق مُنشأ سلفاً (autoPostJE يمنع التكرار).
   if (data.status === 'PAID' && prevStatus !== 'PAID') {
-    const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-    const payDate = `${data.year}-${String(data.month).padStart(2, '0')}-01`;
     try {
-      const je = await buildJE(base44, 'PAYROLL',
-        { entryNo: `JE-PAY-${data.code}`, date: payDate, description: `مسير رواتب ${monthNames[(data.month || 1) - 1]} ${data.year}`, sourceType: 'PayrollRun' },
-        { net: data.netAmount, base: data.netAmount, total: data.netAmount },
-        () => buildPayrollJE({ code: data.code, month: data.month, year: data.year, netAmount: data.netAmount }));
-      await autoPostJE(base44, je);
+      const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+      await autoPostJE(base44, buildPayrollPaymentJE(data, accounts));
     } catch (e) {
       await restoreStatus(base44, 'PayrollRun', id, prevStatus);
       throw e;

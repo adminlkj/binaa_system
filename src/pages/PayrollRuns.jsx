@@ -12,6 +12,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
+import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import PayrollRunDocument from '@/components/shared/PayrollRunDocument';
@@ -21,7 +22,7 @@ import { toast } from 'sonner';
 
 const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, APPROVED: { ar: 'موافق', en: 'Approved', color: 'bg-blue-100 text-blue-700' }, PAID: { ar: 'مدفوع', en: 'Paid', color: 'bg-emerald-100 text-emerald-700' } };
 const MONTHS = { 1: 'يناير / January', 2: 'فبراير / February', 3: 'مارس / March', 4: 'أبريل / April', 5: 'مايو / May', 6: 'يونيو / June', 7: 'يوليو / July', 8: 'أغسطس / August', 9: 'سبتمبر / September', 10: 'أكتوبر / October', 11: 'نوفمبر / November', 12: 'ديسمبر / December' };
-const empty = { code: '', month: '', year: new Date().getFullYear(), totalSalaries: '', totalAllowances: '', totalDeductions: '', netAmount: '', status: 'DRAFT', notes: '' };
+const empty = { code: '', month: '', year: new Date().getFullYear(), totalSalaries: '', totalAllowances: '', totalDeductions: '', netAmount: '', status: 'DRAFT', paymentAccountCode: '', paymentAccountName: '', paymentDate: '', notes: '' };
 
 export default function PayrollRuns() {
   const { lang } = useStore();
@@ -30,6 +31,7 @@ export default function PayrollRuns() {
   const printRef = useRef(null);
   const [items, setItems] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [cashAccounts, setCashAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,8 +44,8 @@ export default function PayrollRuns() {
   const load = async () => {
     setLoading(true);
     try {
-      const [p, e] = await Promise.all([base44.entities.PayrollRun.list('-created_date', 100), base44.entities.Employee.filter({ status: 'ACTIVE' })]);
-      setItems(p); setEmployees(e);
+      const [p, e, accs] = await Promise.all([base44.entities.PayrollRun.list('-created_date', 100), base44.entities.Employee.filter({ status: 'ACTIVE' }), loadAccounts(true)]);
+      setItems(p); setEmployees(e); setCashAccounts(selectCashAccounts(accs));
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -74,6 +76,9 @@ export default function PayrollRuns() {
     // منع تكرار مسيّر لنفس الشهر والسنة
     const dup = items.find(i => i.month === m && i.year === y && i.id !== editing?.id);
     if (dup) return toast.error(t(`يوجد مسيّر لهذا الشهر بالفعل (${dup.code})`, `A payroll run already exists for this month (${dup.code})`, lang));
+    if (netAmount <= 0) return toast.error(t('صافي المسير يجب أن يكون أكبر من صفر', 'Net amount must be greater than zero', lang));
+    if (form.status === 'PAID' && !form.paymentAccountCode) return toast.error(t('لا يمكن اعتماد مسير مدفوع دون تحديد طريقة الدفع', 'A paid run requires a payment method', lang));
+    if (form.status === 'PAID' && !form.paymentDate) return toast.error(t('لا يمكن اعتماد مسير مدفوع دون تحديد تاريخ الدفع', 'A paid run requires a payment date', lang));
     setSaving(true);
     try {
       const data = { ...form, month: m, year: y, totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
@@ -83,8 +88,8 @@ export default function PayrollRuns() {
       } else {
         await OperationEngine.createPayrollRun(data);
         const msg = data.status === 'PAID'
-          ? t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang)
-          : t('تمت الإضافة', 'Added', lang);
+          ? t('تمت الإضافة + قيد استحقاق + قيد سداد', 'Added + accrual & payment entries', lang)
+          : t('تمت الإضافة + قيد الاستحقاق', 'Added + accrual entry', lang);
         toast.success(msg);
       }
       setDialogOpen(false); load();
@@ -209,6 +214,26 @@ export default function PayrollRuns() {
             <div className="space-y-1.5"><Label>{t('إجمالي البدلات', 'Total Allowances', lang)}</Label><Input type="number" value={form.totalAllowances} onChange={e => setForm(f => ({ ...f, totalAllowances: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('إجمالي الخصومات', 'Total Deductions', lang)}</Label><Input type="number" value={form.totalDeductions} onChange={e => setForm(f => ({ ...f, totalDeductions: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('صافي الراتب (محسوب)', 'Net Amount (auto)', lang)}</Label><Input readOnly value={netAmount.toFixed(2)} className="bg-muted font-bold text-emerald-700" /></div>
+
+            {form.status === 'PAID' && (
+              <div className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 -mt-1">
+                <p className="text-xs font-medium text-emerald-800 mb-2">{t('بيانات السداد (إلزامية للمسير المدفوع)', 'Payment details (required for paid run)', lang)}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>{t('طريقة الدفع', 'Payment Method', lang)} *</Label>
+                    <Select value={form.paymentAccountCode} onValueChange={v => { const a = cashAccounts.find(x => x.code === v); setForm(f => ({ ...f, paymentAccountCode: v, paymentAccountName: a?.name || '' })); }}>
+                      <SelectTrigger><SelectValue placeholder={t('اختر الحساب النقدي', 'Select cash account', lang)} /></SelectTrigger>
+                      <SelectContent>{cashAccounts.map(a => <SelectItem key={a.code} value={a.code}>{a.code} — {a.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>{t('تاريخ الدفع', 'Payment Date', lang)} *</Label>
+                    <Input type="date" value={form.paymentDate} onChange={e => setForm(f => ({ ...f, paymentDate: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>

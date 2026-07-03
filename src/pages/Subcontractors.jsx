@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', specialty: '', phone: '', email: '', taxNumber: '', contactPerson: '', totalContracts: '', totalPaid: '', notes: '' };
@@ -62,11 +63,25 @@ export default function Subcontractors() {
 
   const fields = [['code', t('الكود', 'Code', lang)], ['name', t('الاسم', 'Name', lang)], ['specialty', t('التخصص', 'Specialty', lang)], ['phone', t('الهاتف', 'Phone', lang)], ['email', t('البريد', 'Email', lang)], ['taxNumber', t('الرقم الضريبي', 'Tax No.', lang)], ['contactPerson', t('شخص التواصل', 'Contact', lang)]];
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الاسم', en: 'Name' }, value: (r) => r.name },
+    { header: { ar: 'التخصص', en: 'Specialty' }, value: (r) => r.specialty },
+    { header: { ar: 'الهاتف', en: 'Phone' }, value: (r) => r.phone },
+    { header: { ar: 'إجمالي العقود', en: 'Total Contracts' }, value: (r) => r.totalContracts || 0 },
+    { header: { ar: 'إجمالي المدفوع', en: 'Total Paid' }, value: (r) => r.totalPaid || 0 },
+  ];
+
   return (
     <ModuleLayout
       title={t('مقاولو الباطن', 'Subcontractors', lang)}
       subtitle={t('إدارة بيانات مقاولي الباطن', 'Manage subcontractor records', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-orange-600 hover:bg-orange-700"><Plus className="size-4" />{t('مقاول جديد', 'New Subcontractor', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'مقاولو الباطن', en: 'Subcontractors' }} />
+          <Button onClick={openNew} className="gap-2 bg-orange-600 hover:bg-orange-700"><Plus className="size-4" />{t('مقاول جديد', 'New Subcontractor', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex gap-3">
         <div className="relative flex-1">

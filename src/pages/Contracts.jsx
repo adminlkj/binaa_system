@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, CONTRACT_STATUS } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const empty = { contractNo: '', projectId: '', projectName: '', clientId: '', clientName: '', totalValue: '', startDate: '', endDate: '', status: 'DRAFT', description: '', notes: '' };
@@ -72,11 +73,26 @@ export default function Contracts() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const exportColumns = [
+    { header: { ar: 'رقم العقد', en: 'Contract No' }, value: (r) => r.contractNo },
+    { header: { ar: 'المشروع', en: 'Project' }, value: (r) => r.projectName },
+    { header: { ar: 'العميل', en: 'Client' }, value: (r) => r.clientName },
+    { header: { ar: 'القيمة', en: 'Value' }, value: (r) => r.totalValue || 0 },
+    { header: { ar: 'تاريخ البدء', en: 'Start' }, value: (r) => r.startDate },
+    { header: { ar: 'تاريخ الانتهاء', en: 'End' }, value: (r) => r.endDate },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = CONTRACT_STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('العقود', 'Contracts', lang)}
       subtitle={t('عقود المشاريع مع العملاء', 'Project contracts with clients', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('عقد جديد', 'New Contract', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'العقود', en: 'Contracts' }} />
+          <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('عقد جديد', 'New Contract', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

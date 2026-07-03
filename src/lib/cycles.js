@@ -5,7 +5,7 @@ import {
   Building2, Truck, ShoppingCart, Users, Calculator, Settings,
   FileText, CreditCard, ReceiptText, ClipboardList,
   Wrench, Fuel, CalendarDays, DollarSign, HardHat, Wallet, HandCoins,
-  UsersRound, Package, Warehouse, ShieldCheck, Network, BookOpen, Shield, BarChart3, CalendarRange, Scale,
+  UsersRound, Package, Warehouse, Boxes, ShieldCheck, Network, BookOpen, Shield, BarChart3, CalendarRange, Scale,
   GitPullRequestArrow, AlertTriangle, TrendingUp, PieChart, Landmark, Waves, ShieldQuestion,
 } from 'lucide-react';
 
@@ -139,14 +139,22 @@ export const CYCLES = [
     ],
   },
   {
+    key: 'inventory-cycle',
+    label: { ar: 'إدارة المخازن', en: 'Inventory Management' },
+    Icon: Boxes,
+    color: { text: 'text-lime-600', border: 'border-lime-500', light: 'bg-lime-50', bg: 'bg-lime-600' },
+    tabs: [
+      { key: 'warehouses',      ar: 'المخازن',          en: 'Warehouses',      Icon: Warehouse },
+      { key: 'stock-movements', ar: 'الحركات المخزنية', en: 'Stock Movements', Icon: GitPullRequestArrow },
+      { key: 'inventory',       ar: 'المخزون والأصول',  en: 'Inventory',       Icon: Package },
+    ],
+  },
+  {
     key: 'settings-cycle',
     label: { ar: 'الإعدادات والبيانات', en: 'Settings & Master Data' },
     Icon: Settings,
     color: { text: 'text-slate-600', border: 'border-slate-500', light: 'bg-slate-50', bg: 'bg-slate-600' },
     tabs: [
-      { key: 'warehouses',      ar: 'المخازن',          en: 'Warehouses',      Icon: Warehouse },
-      { key: 'stock-movements', ar: 'الحركات المخزنية', en: 'Stock Movements', Icon: GitPullRequestArrow },
-      { key: 'inventory',       ar: 'المخزون والأصول',  en: 'Inventory',       Icon: Package },
       { key: 'settings',        ar: 'إعدادات النظام',   en: 'System Settings', Icon: Settings },
     ],
   },

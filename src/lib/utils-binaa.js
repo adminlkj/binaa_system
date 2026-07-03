@@ -34,11 +34,11 @@ export function formatDate(dateStr, lang = 'ar') {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
-    // Format as YYYY/MMM/DD (e.g. 2026/MAR/01) — Gregorian, uppercase English month, Latin digits.
+    // Format as DD/MMM/YYYY (e.g. 01/MAR/2026) — day number, uppercase English month, year number.
     const year = d.getFullYear();
     const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
     const day = String(d.getDate()).padStart(2, '0');
-    return `${year}/${month}/${day}`;
+    return `${day}/${month}/${year}`;
   } catch {
     return dateStr;
   }

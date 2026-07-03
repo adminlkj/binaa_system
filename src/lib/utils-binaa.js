@@ -34,6 +34,8 @@ export function formatDate(dateStr, lang = 'ar') {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
+    // Invalid dates ("bad input") don't throw — guard so we return the dash instead of NaN/NaN/NaN.
+    if (isNaN(d.getTime())) return '—';
     // Format as DD/MMM/YYYY (e.g. 01/MAR/2026) — day number, uppercase English month, year number.
     const year = d.getFullYear();
     const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();

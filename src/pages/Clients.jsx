@@ -79,14 +79,27 @@ export default function Clients() {
   return (
     <ModuleLayout
       title={t('العملاء', 'Clients', lang)}
-      subtitle={t('إدارة بيانات العملاء', 'Manage client records', lang)}
-      actions={
+      subtitle={t('إدارة بيانات العملاء والكشوفات', 'Manage client records & statements', lang)}
+      actions={view === 'records' ? (
         <div className="flex items-center gap-2">
           <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'العملاء', en: 'Clients' }} />
           <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('عميل جديد', 'New Client', lang)}</Button>
         </div>
-      }
+      ) : null}
     >
+      <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
+        <button onClick={() => setView('records')} className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition ${view === 'records' ? 'bg-background shadow text-emerald-700' : 'text-muted-foreground hover:text-foreground'}`}>
+          <Users className="size-4" />{t('بيانات العملاء', 'Client Records', lang)}
+        </button>
+        <button onClick={() => setView('statements')} className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition ${view === 'statements' ? 'bg-background shadow text-emerald-700' : 'text-muted-foreground hover:text-foreground'}`}>
+          <FileText className="size-4" />{t('الكشوفات والتحصيل', 'Statements & Collections', lang)}
+        </button>
+      </div>
+
+      {view === 'statements' ? (
+        <PartyStatementSection partyType="CLIENT" parties={items} />
+      ) : (
+      <>
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -158,6 +171,8 @@ export default function Clients() {
         title={t('حذف العميل', 'Delete Client', lang)}
         description={t('سيتم حذف العميل نهائياً.', 'This client will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+      </>
+      )}
     </ModuleLayout>
   );
 }

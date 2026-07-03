@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Truck, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import PartyStatementSection from '@/components/partners/PartyStatementSection';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', nameAr: '', phone: '', email: '', address: '', taxNumber: '', contactPerson: '', notes: '' };
@@ -27,6 +28,7 @@ export default function Suppliers() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [view, setView] = useState('records'); // 'records' | 'statements'
 
   const load = async () => {
     setLoading(true);
@@ -67,9 +69,22 @@ export default function Suppliers() {
   return (
     <ModuleLayout
       title={t('الموردون', 'Suppliers', lang)}
-      subtitle={t('إدارة بيانات الموردين', 'Manage supplier records', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('مورد جديد', 'New Supplier', lang)}</Button>}
+      subtitle={t('إدارة بيانات الموردين والكشوفات', 'Manage supplier records & statements', lang)}
+      actions={view === 'records' ? <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('مورد جديد', 'New Supplier', lang)}</Button> : null}
     >
+      <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
+        <button onClick={() => setView('records')} className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition ${view === 'records' ? 'bg-background shadow text-amber-700' : 'text-muted-foreground hover:text-foreground'}`}>
+          <Truck className="size-4" />{t('بيانات الموردين', 'Supplier Records', lang)}
+        </button>
+        <button onClick={() => setView('statements')} className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition ${view === 'statements' ? 'bg-background shadow text-amber-700' : 'text-muted-foreground hover:text-foreground'}`}>
+          <FileText className="size-4" />{t('الكشوفات والسداد', 'Statements & Payments', lang)}
+        </button>
+      </div>
+
+      {view === 'statements' ? (
+        <PartyStatementSection partyType="SUPPLIER" parties={items} />
+      ) : (
+      <>
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -136,6 +151,8 @@ export default function Suppliers() {
         title={t('حذف المورد', 'Delete Supplier', lang)}
         description={t('سيتم حذف المورد نهائياً.', 'This supplier will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+      </>
+      )}
     </ModuleLayout>
   );
 }

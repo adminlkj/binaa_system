@@ -30,7 +30,8 @@ export const MODULES = [
   { key: 'inventory', ar: 'المخزون والأصول', en: 'Inventory', group: 'costs' },
   // HR
   { key: 'employees', ar: 'الموظفون', en: 'Employees', group: 'hr' },
-  { key: 'payroll-runs', ar: 'الرواتب', en: 'Payroll', group: 'hr' },
+  { key: 'payroll-runs', ar: 'مسيرات الرواتب', en: 'Payroll Runs', group: 'hr' },
+  { key: 'payroll-sheets', ar: 'كشوفات الرواتب', en: 'Payroll Sheets', group: 'hr' },
   { key: 'attendance', ar: 'الحضور', en: 'Attendance', group: 'hr' },
   { key: 'advances', ar: 'السلف', en: 'Advances', group: 'hr' },
   // Accounting
@@ -79,7 +80,7 @@ export const APP_ROLES = {
     color: 'bg-teal-100 text-teal-700 border border-teal-200',
     modules: ['sales', 'client-payments', 'purchase-orders', 'expenses', 'supplier-invoices',
       'supplier-payments', 'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers',
-      'vat', 'reports', 'fiscal-years', 'payroll-runs', 'clients', 'suppliers'],
+      'vat', 'reports', 'fiscal-years', 'payroll-runs', 'payroll-sheets', 'clients', 'suppliers'],
   },
   PROJECT_MANAGER: {
     ar: 'مدير مشاريع', en: 'Project Manager',
@@ -96,7 +97,7 @@ export const APP_ROLES = {
   HR: {
     ar: 'موارد بشرية', en: 'Human Resources',
     color: 'bg-blue-100 text-blue-700 border border-blue-200',
-    modules: ['employees', 'payroll-runs', 'attendance', 'advances'],
+    modules: ['employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances'],
   },
   OPERATOR: {
     ar: 'مشغّل معدات', en: 'Equipment Operator',

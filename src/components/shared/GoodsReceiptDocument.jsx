@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
+import { DocumentHeader, DocumentFooter } from '@/components/shared/DocumentChrome';
 
 // سند استلام بضاعة مطبوع — يعرض بيانات السند وبنوده المستلمة.
 const money = (n) => `${formatNumber(n || 0)}\u00A0${RIYAL_SYMBOL}`;
@@ -15,19 +16,7 @@ export default function GoodsReceiptDocument({ receipt, lines = [], settings, la
 
   return (
     <div ref={innerRef} style={{ direction: lang === 'ar' ? 'rtl' : 'ltr', color: '#111827' }}>
-      <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 12, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {settings.logoUrl && <img src={settings.logoUrl} alt="logo" style={{ height: 54, objectFit: 'contain' }} />}
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{lang === 'ar' ? settings.companyName : (settings.companyNameEn || settings.companyName)}</div>
-            {settings.vatNumber && <div style={{ fontSize: 11, color: '#6b7280' }}>{t('الرقم الضريبي', 'VAT No', lang)}: {settings.vatNumber}</div>}
-          </div>
-        </div>
-        <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-          <div style={{ fontWeight: 800, fontSize: 20, color: primary }}>{t('سند استلام بضاعة', 'Goods Receipt', lang)}</div>
-          <div style={{ fontSize: 13, fontFamily: 'monospace' }}>{receipt.receiptNo}</div>
-        </div>
-      </div>
+      <DocumentHeader settings={settings} lang={lang} title={t('سند استلام بضاعة', 'Goods Receipt', lang)} docNo={receipt.receiptNo} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16, fontSize: 13 }}>
         {infoRow(t('التاريخ', 'Date', lang), formatDate(receipt.date, lang))}
@@ -73,6 +62,8 @@ export default function GoodsReceiptDocument({ receipt, lines = [], settings, la
         <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #9ca3af', paddingTop: 6, width: 170 }}>{t('أمين المخزن', 'Storekeeper', lang)}</div></div>
         <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #9ca3af', paddingTop: 6, width: 170 }}>{t('المستلم', 'Received by', lang)}</div></div>
       </div>
+
+      <DocumentFooter settings={settings} lang={lang} />
     </div>
   );
 }

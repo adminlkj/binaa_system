@@ -158,6 +158,16 @@ function buildPrintHtml({ party, statement, partyType, settings, lang, labels, o
 
   const infoRow = (label, val) => val ? `<div style="margin-bottom:3px"><span style="color:#6b7280;font-size:11px">${label}:</span> <strong>${val}</strong></div>` : '';
 
+  const contactBits = [
+    settings.address && [settings.address, settings.city].filter(Boolean).join('، '),
+    settings.phone && `${t('هاتف', 'Tel', lang)}: ${settings.phone}`,
+    settings.email,
+    settings.website,
+    settings.vatNumber && `${t('الرقم الضريبي', 'VAT', lang)}: ${settings.vatNumber}`,
+    settings.crNumber && `${t('السجل التجاري', 'CR', lang)}: ${settings.crNumber}`,
+  ].filter(Boolean);
+  const companyName = lang === 'ar' ? (settings.companyName || settings.companyNameEn || '') : (settings.companyNameEn || settings.companyName || '');
+
   const bodyRows = rows.map(m => `
     <tr style="border-top:1px solid #e5e7eb">
       <td style="padding:7px 10px;white-space:nowrap;color:#6b7280" dir="ltr">${m.date}</td>
@@ -170,20 +180,19 @@ function buildPrintHtml({ party, statement, partyType, settings, lang, labels, o
 
   return `
     <div style="max-width:900px;margin:0 auto">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid ${primary};padding-bottom:14px;margin-bottom:16px">
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          ${settings.logoUrl ? `<img src="${settings.logoUrl}" style="height:56px;width:56px;object-fit:contain" />` : ''}
-          <div>
-            <div style="font-weight:700;font-size:16px">${lang === 'ar' ? settings.companyName : (settings.companyNameEn || settings.companyName)}</div>
-            ${settings.vatNumber ? `<div style="font-size:11px;color:#6b7280">${t('الرقم الضريبي', 'VAT No.', lang)}: ${settings.vatNumber}</div>` : ''}
-            ${settings.phone ? `<div style="font-size:11px;color:#6b7280">${settings.phone}</div>` : ''}
-            ${settings.address ? `<div style="font-size:11px;color:#6b7280">${settings.address}</div>` : ''}
+      ${settings.headerImageUrl ? `<img src="${settings.headerImageUrl}" style="display:block;width:100%;object-fit:cover;margin-bottom:12px" />` : ''}
+      <div style="border-bottom:3px solid ${primary};padding-bottom:14px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+          <div style="display:flex;gap:12px;align-items:center">
+            ${settings.logoUrl ? `<img src="${settings.logoUrl}" style="height:60px;width:60px;object-fit:contain" />` : ''}
+            <div style="font-weight:800;font-size:19px;color:${primary}">${companyName}</div>
+          </div>
+          <div style="text-align:end">
+            <div style="font-weight:800;font-size:18px;color:${primary}">${t('كشف حساب', 'Statement of Account', lang)}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:4px">${t('الفترة', 'Period', lang)}: <span dir="ltr">${dateRange}</span></div>
           </div>
         </div>
-        <div style="text-align:end">
-          <div style="font-weight:700;font-size:18px;color:${primary}">${t('كشف حساب', 'Statement of Account', lang)}</div>
-          <div style="font-size:11px;color:#6b7280;margin-top:4px">${t('الفترة', 'Period', lang)}: <span dir="ltr">${dateRange}</span></div>
-        </div>
+        ${contactBits.length ? `<div style="font-size:10.5px;color:#475569;margin-top:10px;line-height:1.7">${contactBits.join('  •  ')}</div>` : ''}
       </div>
 
       <div style="display:flex;justify-content:space-between;gap:20px;font-size:12px;margin-bottom:16px">
@@ -222,8 +231,10 @@ function buildPrintHtml({ party, statement, partyType, settings, lang, labels, o
         </tfoot>
       </table>
 
-      <div style="margin-top:24px;font-size:10px;color:#9ca3af;text-align:center;border-top:1px solid #e5e7eb;padding-top:10px">
-        ${t('تم إصدار هذا الكشف آلياً بتاريخ', 'Generated automatically on', lang)} ${new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB')}
+      ${settings.footerImageUrl ? `<img src="${settings.footerImageUrl}" style="display:block;width:100%;object-fit:cover;margin-top:24px" />` : ''}
+      <div style="margin-top:24px;border-top:2px solid ${primary};padding-top:8px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#64748b">
+        <span>${companyName}</span>
+        <span>${t('تم إصدار هذا الكشف آلياً بتاريخ', 'Generated automatically on', lang)} ${new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB')}</span>
       </div>
     </div>`;
 }

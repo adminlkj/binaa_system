@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
+import { DocumentHeader, DocumentFooter } from '@/components/shared/DocumentChrome';
 
 // سند مالي موحّد (قبض / صرف) — يُستخدم لسندات تحصيل العملاء وسداد الموردين.
 // kind: 'RECEIPT' (قبض) | 'PAYMENT' (صرف)
@@ -12,28 +13,6 @@ const METHOD_LABELS = {
   CHEQUE: { ar: 'شيك', en: 'Cheque' },
   CARD: { ar: 'بطاقة', en: 'Card' },
 };
-
-// تحويل الرقم إلى تفقيط عربي مبسّط (اختياري للعرض)
-function DocHeader({ settings, lang, primary, title, voucherNo }) {
-  return (
-    <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 12, marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {settings.logoUrl && <img src={settings.logoUrl} alt="logo" style={{ height: 54, objectFit: 'contain' }} />}
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{lang === 'ar' ? settings.companyName : (settings.companyNameEn || settings.companyName)}</div>
-            {settings.vatNumber && <div style={{ fontSize: 11, color: '#6b7280' }}>{t('الرقم الضريبي', 'VAT No', lang)}: {settings.vatNumber}</div>}
-            {settings.crNumber && <div style={{ fontSize: 11, color: '#6b7280' }}>{t('السجل التجاري', 'CR No', lang)}: {settings.crNumber}</div>}
-          </div>
-        </div>
-        <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-          <div style={{ fontWeight: 800, fontSize: 20, color: primary }}>{title}</div>
-          {voucherNo && <div style={{ fontSize: 13, color: '#374151', fontFamily: 'monospace' }}>{voucherNo}</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function VoucherDocument({ kind, voucher, settings, lang, innerRef }) {
   const primary = settings.primaryColor || (kind === 'RECEIPT' ? '#059669' : '#dc2626');
@@ -51,7 +30,7 @@ export default function VoucherDocument({ kind, voucher, settings, lang, innerRe
 
   return (
     <div ref={innerRef} style={{ direction: lang === 'ar' ? 'rtl' : 'ltr', color: '#111827' }}>
-      <DocHeader settings={settings} lang={lang} primary={primary} title={title} voucherNo={voucher.paymentNo} />
+      <DocumentHeader settings={settings} lang={lang} title={title} docNo={voucher.paymentNo} />
 
       <table style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
         <tbody>
@@ -86,6 +65,8 @@ export default function VoucherDocument({ kind, voucher, settings, lang, innerRe
           <div style={{ borderTop: '1px solid #9ca3af', paddingTop: 6, width: 170 }}>{t('الاعتماد', 'Approved by', lang)}</div>
         </div>
       </div>
+
+      <DocumentFooter settings={settings} lang={lang} />
     </div>
   );
 }

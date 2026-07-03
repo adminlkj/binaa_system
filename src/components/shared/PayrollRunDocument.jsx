@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
+import { DocumentHeader, DocumentFooter } from '@/components/shared/DocumentChrome';
 
 const MONTHS_AR = { 1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'أبريل', 5: 'مايو', 6: 'يونيو', 7: 'يوليو', 8: 'أغسطس', 9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر' };
 const MONTHS_EN = { 1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December' };
@@ -19,20 +20,7 @@ export default function PayrollRunDocument({ run, settings, lang, innerRef }) {
 
   return (
     <div ref={innerRef} style={{ direction: lang === 'ar' ? 'rtl' : 'ltr', color: '#111827' }}>
-      <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 12, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {settings.logoUrl && <img src={settings.logoUrl} alt="logo" style={{ height: 54, objectFit: 'contain' }} />}
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{lang === 'ar' ? settings.companyName : (settings.companyNameEn || settings.companyName)}</div>
-            {settings.vatNumber && <div style={{ fontSize: 11, color: '#6b7280' }}>{t('الرقم الضريبي', 'VAT No', lang)}: {settings.vatNumber}</div>}
-          </div>
-        </div>
-        <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: primary }}>{t('مسيّر رواتب', 'Payroll Run', lang)}</div>
-          <div style={{ fontSize: 12 }}>{run.code}</div>
-          <div style={{ fontSize: 12, color: '#374151' }}>{period}</div>
-        </div>
-      </div>
+      <DocumentHeader settings={settings} lang={lang} title={t('مسيّر رواتب', 'Payroll Run', lang)} docNo={run.code} subtitle={period} />
 
       <table style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
         <tbody>
@@ -55,6 +43,8 @@ export default function PayrollRunDocument({ run, settings, lang, innerRef }) {
         <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #9ca3af', paddingTop: 6, width: 160 }}>{t('مراجعة', 'Reviewed by', lang)}</div></div>
         <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #9ca3af', paddingTop: 6, width: 160 }}>{t('اعتماد', 'Approved by', lang)}</div></div>
       </div>
+
+      <DocumentFooter settings={settings} lang={lang} />
     </div>
   );
 }

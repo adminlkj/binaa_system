@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
+import { DocumentHeader, DocumentFooter } from '@/components/shared/DocumentChrome';
 
 const MONTHS_AR = { 1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'أبريل', 5: 'مايو', 6: 'يونيو', 7: 'يوليو', 8: 'أغسطس', 9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر' };
 const MONTHS_EN = { 1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December' };
@@ -14,26 +15,15 @@ export function empNet(e) {
   return salary + allowances - deductions;
 }
 
-// رأس المستند: بيانات الشركة والفترة
-function DocHeader({ settings, lang, primary, title, subtitle }) {
+// رأس المستند: يستخدم الترويسة الموحّدة مع سطر الفترة وتاريخ الطباعة
+function DocHeader({ settings, lang, title, subtitle }) {
   return (
-    <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 12, marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {settings.logoUrl && <img src={settings.logoUrl} alt="logo" style={{ height: 54, objectFit: 'contain' }} />}
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 18 }}>{lang === 'ar' ? settings.companyName : (settings.companyNameEn || settings.companyName)}</div>
-            {settings.vatNumber && <div style={{ fontSize: 11, color: '#6b7280' }}>{t('الرقم الضريبي', 'VAT No', lang)}: {settings.vatNumber}</div>}
-            {settings.crNumber && <div style={{ fontSize: 11, color: '#6b7280' }}>{t('السجل التجاري', 'CR No', lang)}: {settings.crNumber}</div>}
-          </div>
-        </div>
-        <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: primary }}>{title}</div>
-          <div style={{ fontSize: 12, color: '#374151' }}>{subtitle}</div>
-          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{t('تاريخ الطباعة', 'Print date', lang)}: {formatDate(new Date().toISOString(), lang)}</div>
-        </div>
-      </div>
-    </div>
+    <DocumentHeader
+      settings={settings}
+      lang={lang}
+      title={title}
+      subtitle={`${subtitle} — ${t('تاريخ الطباعة', 'Print date', lang)}: ${formatDate(new Date().toISOString(), lang)}`}
+    />
   );
 }
 
@@ -51,7 +41,7 @@ function GroupSheet({ employees, settings, lang, primary, period }) {
 
   return (
     <>
-      <DocHeader settings={settings} lang={lang} primary={primary}
+      <DocHeader settings={settings} lang={lang}
         title={t('كشف رواتب جماعي', 'Group Payroll Sheet', lang)} subtitle={period} />
       <table>
         <thead>
@@ -116,7 +106,7 @@ function Payslip({ employee: e, settings, lang, primary, period }) {
   );
   return (
     <>
-      <DocHeader settings={settings} lang={lang} primary={primary}
+      <DocHeader settings={settings} lang={lang}
         title={t('بطاقة راتب', 'Payslip', lang)} subtitle={period} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16, fontSize: 13 }}>
@@ -166,6 +156,7 @@ export default function PayrollDocument({ mode, employees, settings, lang, month
             </div>
           ))
         : <GroupSheet employees={employees} settings={settings} lang={lang} primary={primary} period={period} />}
+      <DocumentFooter settings={settings} lang={lang} />
     </div>
   );
 }

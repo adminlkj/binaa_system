@@ -13,7 +13,9 @@ import BOQ from '@/pages/BOQ';
 import Timesheets from '@/pages/Timesheets';
 import Equipment from '@/pages/Equipment';
 import RentalContracts from '@/pages/RentalContracts';
+import PurchaseRequests from '@/pages/PurchaseRequests';
 import PurchaseOrders from '@/pages/PurchaseOrders';
+import GoodsReceipts from '@/pages/GoodsReceipts';
 import Expenses from '@/pages/Expenses';
 import Subcontractors from '@/pages/Subcontractors';
 import SupplierInvoices from '@/pages/SupplierInvoices';
@@ -57,9 +59,10 @@ const TAB_CONTENT = {
   timesheets: <Timesheets />,
   'equipment-maintenance': <ComingSoon title="الصيانة" titleEn="Maintenance" />,
   fuel: <ComingSoon title="استهلاك الوقود" titleEn="Fuel Consumption" />,
+  'purchase-requests': <PurchaseRequests />,
   'purchase-orders': <PurchaseOrders />,
+  'goods-receipts': <GoodsReceipts />,
   expenses: <Expenses />,
-  subcontractors: <Subcontractors />,
   'supplier-invoices': <SupplierInvoices />,
   'supplier-payments': <SupplierPayments />,
   employees: <Employees />,

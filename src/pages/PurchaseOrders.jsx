@@ -24,7 +24,8 @@ const STATUSES = {
   CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700' },
 };
 const empty = {
-  orderNo: '', supplierId: '', supplierName: '', projectId: '', projectName: '',
+  orderNo: '', purchaseRequestId: '', requestNo: '', supplierId: '', supplierName: '',
+  projectId: '', projectName: '', warehouseId: '', warehouseName: '',
   date: '', expectedDelivery: '', totalAmount: '', status: 'DRAFT', description: '', notes: '',
 };
 
@@ -33,6 +34,8 @@ export default function PurchaseOrders() {
   const [items, setItems]         = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [projects, setProjects]   = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [requests, setRequests]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -46,12 +49,14 @@ export default function PurchaseOrders() {
   const load = async () => {
     setLoading(true);
     try {
-      const [o, s, p] = await Promise.all([
+      const [o, s, p, w, r] = await Promise.all([
         base44.entities.PurchaseOrder.list('-created_date', 200),
         base44.entities.Supplier.list(),
         base44.entities.Project.list(),
+        base44.entities.Warehouse.list(),
+        base44.entities.PurchaseRequest.list('-created_date', 200),
       ]);
-      setItems(o); setSuppliers(s); setProjects(p);
+      setItems(o); setSuppliers(s); setProjects(p); setWarehouses(w); setRequests(r);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -81,10 +86,10 @@ export default function PurchaseOrders() {
     setSaving(true);
     try {
       if (editing) {
-        await OperationEngine.updatePurchaseOrder(editing.id, form, suppliers, projects, editing.status);
+        await OperationEngine.updatePurchaseOrder(editing.id, form, suppliers, projects, editing.status, warehouses);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
-        await OperationEngine.createPurchaseOrder(form, suppliers, projects);
+        await OperationEngine.createPurchaseOrder(form, suppliers, projects, warehouses);
         const msg = form.status === 'RECEIVED'
           ? t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang)
           : t('تمت الإضافة', 'Added', lang);
@@ -185,10 +190,30 @@ export default function PurchaseOrders() {
               </Select>
             </div>
             <div className="space-y-1.5">
+              <Label>{t('طلب الشراء', 'Purchase Request', lang)}</Label>
+              <Select value={form.purchaseRequestId || 'none'} onValueChange={v => { const r = requests.find(r => r.id === v); setForm(f => ({ ...f, purchaseRequestId: v === 'none' ? '' : v, requestNo: r?.requestNo || '', projectId: r?.projectId || f.projectId, projectName: r?.projectName || f.projectName, description: f.description || r?.description || '' })); }}>
+                <SelectTrigger><SelectValue placeholder={t('اختياري', 'Optional', lang)} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('بدون', 'None', lang)}</SelectItem>
+                  {requests.map(r => <SelectItem key={r.id} value={r.id}>{r.requestNo}{r.description ? ` — ${r.description.slice(0, 30)}` : ''}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>{t('المشروع', 'Project', lang)}</Label>
               <Select value={form.projectId} onValueChange={v => { const p = projects.find(p => p.id === v); setForm(f => ({ ...f, projectId: v, projectName: p?.name || '' })); }}>
                 <SelectTrigger><SelectValue placeholder={t('اختر مشروع', 'Select project', lang)} /></SelectTrigger>
                 <SelectContent>{projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('مخزن الوجهة', 'Destination Warehouse', lang)}</Label>
+              <Select value={form.warehouseId || 'none'} onValueChange={v => { if (v === 'none') { setForm(f => ({ ...f, warehouseId: '', warehouseName: '' })); return; } const w = warehouses.find(w => w.id === v); setForm(f => ({ ...f, warehouseId: v, warehouseName: w?.name || '', projectId: w?.projectId || f.projectId, projectName: w?.projectName || f.projectName })); }}>
+                <SelectTrigger><SelectValue placeholder={t('بدون', 'None', lang)} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('بدون', 'None', lang)}</SelectItem>
+                  {warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}{w.projectName ? ` — ${w.projectName}` : ''}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>

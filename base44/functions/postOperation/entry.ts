@@ -356,15 +356,17 @@ function buildSupplierPaymentJE({ paymentNo, date, supplierId, supplierName, amo
 }
 
 // فاتورة مورد (التزام): من ح/ مشتريات + ضريبة مدفوعة (مدين) إلى ح/ ذمم الموردين (دائن)
-function buildSupplierInvoiceJE({ invoiceNo, date, supplierId, supplierName, baseAmount, vatAmount, totalAmount }, accounts) {
+// مركز التكلفة = المشروع (فتقع التكلفة على المشروع) وإلا المخزن.
+function buildSupplierInvoiceJE({ invoiceNo, date, supplierId, supplierName, baseAmount, vatAmount, totalAmount, projectName, warehouseName }, accounts) {
   const purchase = resolveAccount('EXPENSE_PURCHASE', accounts);
   const vatRec = resolveAccount('VAT_RECEIVABLE', accounts);
   const payables = resolveAccount('PAYABLES', accounts);
+  const costCenter = projectName || warehouseName || '';
   return {
     entryNo: `JE-SUPINV-${invoiceNo}`, date, description: `فاتورة مورد ${invoiceNo} — ${supplierName || ''}`, sourceType: 'SupplierInvoice', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,
     lines: [
-      { accountCode: purchase.code, accountName: purchase.name, debit: baseAmount, credit: 0, description: 'مشتريات ومواد' },
+      { accountCode: purchase.code, accountName: purchase.name, debit: baseAmount, credit: 0, description: `مشتريات ومواد${projectName ? ` — ${projectName}` : ''}`, costCenter },
       ...(vatAmount > 0 ? [{ accountCode: vatRec.code, accountName: vatRec.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
       { accountCode: payables.code, accountName: payables.name, debit: 0, credit: totalAmount, description: `مستحقات ${supplierName || ''}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName },
     ],

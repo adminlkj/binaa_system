@@ -13,7 +13,8 @@ import {
 export const READY_TABS = new Set([
   'projects', 'contracts', 'sales', 'client-payments', 'boq',
   'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
-  'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
+  'purchase-requests', 'purchase-orders', 'goods-receipts', 'supplier-invoices', 'supplier-payments',
+  'expenses',
   'employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances',
   'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'audit',
   'clients', 'suppliers', 'inventory', 'warehouses', 'stock-movements', 'users', 'settings',
@@ -51,16 +52,25 @@ export const CYCLES = [
     ],
   },
   {
-    key: 'costs-cycle',
-    label: { ar: 'المشتريات والتكاليف', en: 'Procurement & Costs' },
+    key: 'procurement-cycle',
+    label: { ar: 'المشتريات', en: 'Procurement' },
     Icon: ShoppingCart,
     color: { text: 'text-amber-600', border: 'border-amber-500', light: 'bg-amber-50', bg: 'bg-amber-600' },
     tabs: [
-      { key: 'purchase-orders',   ar: 'أوامر الشراء',       en: 'Purchase Orders',    Icon: ClipboardList },
-      { key: 'expenses',          ar: 'المصروفات التشغيلية', en: 'Operating Expenses', Icon: DollarSign },
-      { key: 'subcontractors',    ar: 'مقاولو الباطن',       en: 'Subcontractors',     Icon: HardHat },
-      { key: 'supplier-invoices', ar: 'فواتير الموردين',     en: 'Supplier Invoices',  Icon: ReceiptText },
-      { key: 'supplier-payments', ar: 'سداد الموردين',       en: 'Supplier Payments',  Icon: Wallet },
+      { key: 'purchase-requests', ar: 'طلبات الشراء',    en: 'Purchase Requests', Icon: ClipboardList },
+      { key: 'purchase-orders',   ar: 'أوامر الشراء',    en: 'Purchase Orders',   Icon: ShoppingCart },
+      { key: 'goods-receipts',    ar: 'الاستلام',        en: 'Goods Receipts',    Icon: Package },
+      { key: 'supplier-invoices', ar: 'فواتير الموردين', en: 'Supplier Invoices', Icon: ReceiptText },
+      { key: 'supplier-payments', ar: 'سداد الموردين',   en: 'Supplier Payments', Icon: Wallet },
+    ],
+  },
+  {
+    key: 'costs-cycle',
+    label: { ar: 'المصروفات التشغيلية', en: 'Operating Costs' },
+    Icon: DollarSign,
+    color: { text: 'text-rose-600', border: 'border-rose-500', light: 'bg-rose-50', bg: 'bg-rose-600' },
+    tabs: [
+      { key: 'expenses', ar: 'المصروفات التشغيلية', en: 'Operating Expenses', Icon: DollarSign },
     ],
   },
   {

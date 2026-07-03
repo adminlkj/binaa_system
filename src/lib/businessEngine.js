@@ -98,13 +98,13 @@ export const OperationEngine = {
     return await runOperation({ operation: 'SALES_INVOICE', mode: 'update', id, data: payload, prevStatus });
   },
 
-  async createPurchaseOrder(data, suppliers, projects) {
-    const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName) };
+  async createPurchaseOrder(data, suppliers, projects, warehouses = []) {
+    const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName), warehouseName: nameOf(warehouses, data.warehouseId, data.warehouseName) };
     return await runOperation({ operation: 'PURCHASE_ORDER', mode: 'create', data: payload });
   },
 
-  async updatePurchaseOrder(id, data, suppliers, projects, prevStatus) {
-    const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName) };
+  async updatePurchaseOrder(id, data, suppliers, projects, prevStatus, warehouses = []) {
+    const payload = { ...data, supplierName: nameOf(suppliers, data.supplierId, data.supplierName), projectName: nameOf(projects, data.projectId, data.projectName), warehouseName: nameOf(warehouses, data.warehouseId, data.warehouseName) };
     return await runOperation({ operation: 'PURCHASE_ORDER', mode: 'update', id, data: payload, prevStatus });
   },
 

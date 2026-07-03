@@ -26,7 +26,8 @@ const STATUS = {
 };
 
 const empty = {
-  invoiceNo: '', supplierId: '', supplierName: '', purchaseOrderId: '',
+  invoiceNo: '', supplierId: '', supplierName: '', purchaseOrderId: '', orderNo: '',
+  goodsReceiptId: '', receiptNo: '', warehouseId: '', warehouseName: '',
   projectId: '', projectName: '', date: '', dueDate: '',
   baseAmount: '', vatRate: '0.15', paidAmount: '', status: 'DRAFT',
   description: '', notes: '',
@@ -38,6 +39,7 @@ export default function SupplierInvoices() {
   const [suppliers, setSuppliers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -51,13 +53,14 @@ export default function SupplierInvoices() {
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, s, p, po] = await Promise.all([
+      const [inv, s, p, po, gr] = await Promise.all([
         base44.entities.SupplierInvoice.list('-created_date', 200),
         base44.entities.Supplier.list(),
         base44.entities.Project.list(),
         base44.entities.PurchaseOrder.list('-created_date', 200),
+        base44.entities.GoodsReceipt.list('-created_date', 200),
       ]);
-      setItems(inv); setSuppliers(s); setProjects(p); setOrders(po);
+      setItems(inv); setSuppliers(s); setProjects(p); setOrders(po); setReceipts(gr);
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -77,6 +80,30 @@ export default function SupplierInvoices() {
   };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
+  // سندات الاستلام المعلّقة (لم تُفوتر بعد) — منها تُنشأ الفاتورة عبر السلسلة.
+  const pendingReceipts = receipts.filter(r => r.status === 'RECEIVED' && r.invoicedStatus !== 'INVOICED');
+
+  // اختيار سند الاستلام يملأ المورد وأمر الشراء والمشروع والمخزن والقيمة تلقائياً.
+  const onReceipt = (v) => {
+    if (v === 'none') { setForm(f => ({ ...f, goodsReceiptId: '', receiptNo: '' })); return; }
+    const r = receipts.find(x => x.id === v);
+    setForm(f => ({
+      ...f,
+      goodsReceiptId: v,
+      receiptNo: r?.receiptNo || '',
+      purchaseOrderId: r?.purchaseOrderId || '',
+      orderNo: r?.orderNo || '',
+      supplierId: r?.supplierId || '',
+      supplierName: r?.supplierName || '',
+      projectId: r?.projectId || '',
+      projectName: r?.projectName || '',
+      warehouseId: r?.warehouseId || '',
+      warehouseName: r?.warehouseName || '',
+      baseAmount: f.baseAmount || r?.receivedAmount || '',
+      description: f.description || r?.description || '',
+    }));
+  };
+
   const base = parseFloat(form.baseAmount) || 0;
   const vatAmount = base * (parseFloat(form.vatRate) || 0);
   const totalAmount = base + vatAmount;
@@ -95,7 +122,12 @@ export default function SupplierInvoices() {
       };
       delete data.vatRate;
       if (editing) { await OperationEngine.updateSupplierInvoice(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await OperationEngine.createSupplierInvoice(data); toast.success(t('تمت الإضافة + قيد الالتزام', 'Added + liability entry', lang)); }
+      else {
+        await OperationEngine.createSupplierInvoice(data);
+        // وسم سند الاستلام كمفوتَر لإغلاق حلقة السلسلة.
+        if (data.goodsReceiptId) await base44.entities.GoodsReceipt.update(data.goodsReceiptId, { invoicedStatus: 'INVOICED' });
+        toast.success(t('تمت الإضافة كمسودة', 'Added as draft', lang));
+      }
       setDialogOpen(false); load();
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
@@ -208,15 +240,25 @@ export default function SupplierInvoices() {
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5"><Label>{t('رقم الفاتورة', 'Invoice No.', lang)} *</Label><Input value={form.invoiceNo} onChange={e => setForm(f => ({ ...f, invoiceNo: e.target.value }))} /></div>
             <div className="space-y-1.5">
+              <Label>{t('سند الاستلام (السلسلة)', 'Goods Receipt (chain)', lang)}</Label>
+              <Select value={form.goodsReceiptId || 'none'} onValueChange={onReceipt} disabled={!!editing}>
+                <SelectTrigger><SelectValue placeholder={t('اختر سند استلام', 'Select a goods receipt', lang)} /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('بدون (فاتورة مباشرة)', 'None (direct invoice)', lang)}</SelectItem>
+                  {pendingReceipts.map(r => <SelectItem key={r.id} value={r.id}>{r.receiptNo} — {r.supplierName || ''} ({formatCurrency(r.receivedAmount, lang)})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>{t('المورد', 'Supplier', lang)} *</Label>
-              <Select value={form.supplierId} onValueChange={v => { const s = suppliers.find(s => s.id === v); setForm(f => ({ ...f, supplierId: v, supplierName: s?.name || '' })); }}>
+              <Select value={form.supplierId} onValueChange={v => { const s = suppliers.find(s => s.id === v); setForm(f => ({ ...f, supplierId: v, supplierName: s?.name || '' })); }} disabled={!!form.goodsReceiptId}>
                 <SelectTrigger><SelectValue placeholder={t('اختر مورد', 'Select supplier', lang)} /></SelectTrigger>
                 <SelectContent>{suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>{t('أمر الشراء', 'Purchase Order', lang)}</Label>
-              <Select value={form.purchaseOrderId || 'none'} onValueChange={v => setForm(f => ({ ...f, purchaseOrderId: v === 'none' ? '' : v }))}>
+              <Select value={form.purchaseOrderId || 'none'} onValueChange={v => { const o = orders.find(o => o.id === v); setForm(f => ({ ...f, purchaseOrderId: v === 'none' ? '' : v, orderNo: o?.orderNo || '' })); }} disabled={!!form.goodsReceiptId}>
                 <SelectTrigger><SelectValue placeholder={t('بدون', 'None', lang)} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{t('بدون', 'None', lang)}</SelectItem>

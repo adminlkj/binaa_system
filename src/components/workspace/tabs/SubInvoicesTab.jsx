@@ -72,6 +72,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
         const { vat, total } = computeTotal(f);
         return {
           subcontractorId, subcontractorName: subcontractorName || '', subcontractorContractId: f.subcontractorContractId || '',
+          projectId: f.projectId || '', projectName: f.projectName || '',
           invoiceNo: f.invoiceNo, invoiceType: f.invoiceType, date: f.date || null, dueDate: f.dueDate || null,
           baseAmount: Number(f.baseAmount) || 0, retentionAmount: Number(f.retentionAmount) || 0,
           vatAmount: vat, totalAmount: total, paidAmount: Number(f.paidAmount) || 0,
@@ -119,10 +120,11 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
             {contracts.length > 0 && (
               <div className="space-y-1.5 md:col-span-2">
                 <Label>{t('العقد المرتبط', 'Linked Contract', lang)}</Label>
-                <Select value={form.subcontractorContractId || ''} onValueChange={v => set('subcontractorContractId', v)}>
+                <Select value={form.subcontractorContractId || ''} onValueChange={v => { const c = contracts.find(x => x.id === v); set('subcontractorContractId', v); if (c?.projectId) { set('projectId', c.projectId); set('projectName', c.projectName || ''); } }}>
                   <SelectTrigger><SelectValue placeholder={t('اختياري', 'Optional', lang)} /></SelectTrigger>
                   <SelectContent>{contracts.map(c => <SelectItem key={c.id} value={c.id}>{c.contractNo} — {c.title || ''}</SelectItem>)}</SelectContent>
                 </Select>
+                {form.projectName && <p className="text-[11px] text-muted-foreground">{t('المشروع:', 'Project:', lang)} {form.projectName}</p>}
               </div>
             )}
             <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date || ''} onChange={e => set('date', e.target.value)} /></div>

@@ -46,6 +46,8 @@ export const MODULES = [
   // Master data & settings
   { key: 'clients', ar: 'العملاء', en: 'Clients', group: 'settings' },
   { key: 'suppliers', ar: 'الموردون', en: 'Suppliers', group: 'settings' },
+  { key: 'warehouses', ar: 'المخازن', en: 'Warehouses', group: 'settings' },
+  { key: 'stock-movements', ar: 'الحركات المخزنية', en: 'Stock Movements', group: 'settings' },
   { key: 'users', ar: 'المستخدمون والصلاحيات', en: 'Users & Permissions', group: 'settings' },
   { key: 'settings', ar: 'إعدادات النظام', en: 'System Settings', group: 'settings' },
 ];
@@ -92,7 +94,7 @@ export const APP_ROLES = {
     ar: 'مسؤول مشتريات', en: 'Procurement',
     color: 'bg-amber-100 text-amber-700 border border-amber-200',
     modules: ['purchase-orders', 'supplier-invoices', 'supplier-payments', 'inventory',
-      'subcontractors', 'suppliers'],
+      'warehouses', 'stock-movements', 'subcontractors', 'suppliers'],
   },
   HR: {
     ar: 'موارد بشرية', en: 'Human Resources',

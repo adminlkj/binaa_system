@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
+import { useToast } from '@/components/ui/use-toast';
 import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { OperationEngine } from '@/lib/businessEngine';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const STATUS = {
@@ -27,12 +31,37 @@ const computeTotal = (f) => {
   return { net, vat, total: net + vat };
 };
 
-export default function SubInvoicesTab({ subcontractorId, contracts = [] }) {
+export default function SubInvoicesTab({ subcontractorId, subcontractorName, contracts = [] }) {
   const { lang } = useStore();
+  const { toast } = useToast();
+  const [approvingId, setApprovingId] = useState(null);
+
+  // اعتماد المستخلص → ترحيل قيد الالتزام. reload يعيد تحميل الجدول عبر CrudTab.
+  const approve = async (row, reload) => {
+    setApprovingId(row.id);
+    try {
+      await OperationEngine.approveSubcontractorInvoice(row.id);
+      toast({ title: t('تم اعتماد المستخلص وترحيل القيد', 'Invoice approved & posted', lang) });
+      await reload();
+    } catch (e) {
+      toast({ title: t('فشل الاعتماد', 'Approval failed', lang), description: e.message, variant: 'destructive' });
+    }
+    setApprovingId(null);
+  };
+
   return (
     <CrudTab
       entityName="SubcontractorInvoice"
       filter={{ subcontractorId }}
+      operationHandlers={{
+        create: (payload) => OperationEngine.createSubcontractorInvoice(payload),
+        update: (id, payload) => OperationEngine.updateSubcontractorInvoice(id, payload),
+      }}
+      rowActions={(row, reload) => row.status === 'DRAFT' && (
+        <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" disabled={approvingId === row.id} onClick={() => approve(row, reload)}>
+          <CheckCircle2 className="size-3.5" />{approvingId === row.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
+        </Button>
+      )}
       defaults={(rows) => ({
         subcontractorId, subcontractorContractId: '', invoiceNo: genCode('SINV', rows.length + 1), invoiceType: 'PROGRESS',
         date: new Date().toISOString().slice(0, 10), dueDate: '',
@@ -42,7 +71,7 @@ export default function SubInvoicesTab({ subcontractorId, contracts = [] }) {
       buildPayload={(f) => {
         const { vat, total } = computeTotal(f);
         return {
-          subcontractorId, subcontractorContractId: f.subcontractorContractId || '',
+          subcontractorId, subcontractorName: subcontractorName || '', subcontractorContractId: f.subcontractorContractId || '',
           invoiceNo: f.invoiceNo, invoiceType: f.invoiceType, date: f.date || null, dueDate: f.dueDate || null,
           baseAmount: Number(f.baseAmount) || 0, retentionAmount: Number(f.retentionAmount) || 0,
           vatAmount: vat, totalAmount: total, paidAmount: Number(f.paidAmount) || 0,

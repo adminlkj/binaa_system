@@ -171,12 +171,35 @@ export const OperationEngine = {
     return await runOperation({ operation: 'SUPPLIER_INVOICE', mode: 'update', id, data });
   },
 
+  // اعتماد فاتورة مورد → ترحيل قيد الالتزام وتحويلها إلى معتمدة.
+  async approveSupplierInvoice(id) {
+    return await runOperation({ operation: 'SUPPLIER_INVOICE', mode: 'approve', id });
+  },
+
+  async createSubcontractorInvoice(data) {
+    return await runOperation({ operation: 'SUBCONTRACTOR_INVOICE', mode: 'create', data });
+  },
+
+  async updateSubcontractorInvoice(id, data) {
+    return await runOperation({ operation: 'SUBCONTRACTOR_INVOICE', mode: 'update', id, data });
+  },
+
+  // اعتماد مستخلص مقاول باطن → ترحيل قيد الالتزام وتحويله إلى معتمد.
+  async approveSubcontractorInvoice(id) {
+    return await runOperation({ operation: 'SUBCONTRACTOR_INVOICE', mode: 'approve', id });
+  },
+
   async createRentalInvoice(data) {
     return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'create', data });
   },
 
   async updateRentalInvoice(id, data) {
     return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'update', id, data });
+  },
+
+  // اعتماد فاتورة تأجير → ترحيل قيد الإيراد وتحويلها إلى معتمدة.
+  async approveRentalInvoice(id) {
+    return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'approve', id });
   },
 
   // حركة مخزنية (استلام / صرف / تحويل) — تُنشئ السجل وترحّل قيدها تلقائياً وتحدّث الأرصدة.

@@ -40,6 +40,8 @@ const ACCOUNTS = {
   INVENTORY_LOSS:       { code: '5160', name: 'خسائر تلف وهدر المخزون' },
   INVENTORY_GAIN:       { code: '4910', name: 'فروقات جرد المخزون (زيادة)' },
   STAFF_RECEIVABLE:     { code: '1125', name: 'ذمم مدينة — تحميلات على الموظفين' },
+  SUB_PAYABLES:         { code: '2120', name: 'ذمم دائنة — مقاولو الباطن' },
+  RETENTION_PAYABLE:    { code: '2130', name: 'محتجزات مقاولي الباطن' },
 };
 
 const EXPENSE_TYPE_ACCOUNTS = {
@@ -118,6 +120,11 @@ const RULES = {
     { m: 'المبلغ الأساسي يجب أن يكون أكبر من صفر', t: (d) => num(d.baseAmount) > 0 },
     { m: 'تاريخ الاستحقاق لا يمكن أن يسبق تاريخ الفاتورة', t: (d) => isBlank(d.dueDate) || isBlank(d.date) || d.dueDate >= d.date },
   ],
+  SUBCONTRACTOR_INVOICE: [
+    { m: 'رقم المستخلص مطلوب', t: (d) => !isBlank(d.invoiceNo) },
+    { m: 'اختيار مقاول الباطن مطلوب', t: (d) => !isBlank(d.subcontractorId) },
+    { m: 'المبلغ الأساسي يجب أن يكون أكبر من صفر', t: (d) => num(d.baseAmount) > 0 },
+  ],
   RENTAL_INVOICE: [
     { m: 'رقم الفاتورة مطلوب', t: (d) => !isBlank(d.invoiceNo) },
     { m: 'تاريخ الفاتورة مطلوب', t: (d) => !isBlank(d.date) },
@@ -183,7 +190,7 @@ function resolveAccount(role, accounts) {
 }
 
 // أدوار الذمم التي تُوسم بالطرف (عميل/مورد) لبناء الكشوفات من القيود المرحّلة.
-const PARTY_ROLE_TYPE = { RECEIVABLES: 'CLIENT', PAYABLES: 'SUPPLIER' };
+const PARTY_ROLE_TYPE = { RECEIVABLES: 'CLIENT', PAYABLES: 'SUPPLIER', SUB_PAYABLES: 'SUBCONTRACTOR' };
 
 function buildLinesFromTemplate(template, amounts, accounts, description, party) {
   const lines = [];
@@ -360,6 +367,27 @@ function buildSupplierInvoiceJE({ invoiceNo, date, supplierId, supplierName, bas
       { accountCode: purchase.code, accountName: purchase.name, debit: baseAmount, credit: 0, description: 'مشتريات ومواد' },
       ...(vatAmount > 0 ? [{ accountCode: vatRec.code, accountName: vatRec.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
       { accountCode: payables.code, accountName: payables.name, debit: 0, credit: totalAmount, description: `مستحقات ${supplierName || ''}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName },
+    ],
+  };
+}
+
+// مستخلص مقاول باطن (التزام): من ح/ مصروفات المشاريع + ضريبة مدفوعة (مدين)
+//   إلى ح/ ذمم مقاولي الباطن (بالصافي بعد المحتجز) + ح/ محتجزات مقاولي الباطن (دائن).
+function buildSubcontractorInvoiceJE({ invoiceNo, subcontractorId, subcontractorName, date, baseAmount, retentionAmount, vatAmount, totalAmount }, accounts) {
+  const expense = resolveAccount('EXPENSE_PROJECT', accounts);
+  const vatRec = resolveAccount('VAT_RECEIVABLE', accounts);
+  const subPay = resolveAccount('SUB_PAYABLES', accounts);
+  const retention = resolveAccount('RETENTION_PAYABLE', accounts);
+  const net = +(num(baseAmount) - num(retentionAmount)).toFixed(2);
+  const payable = +(net + num(vatAmount)).toFixed(2);
+  return {
+    entryNo: `JE-SUBINV-${invoiceNo}`, date: date || new Date().toISOString().slice(0, 10), description: `مستخلص مقاول باطن ${invoiceNo} — ${subcontractorName || ''}`, sourceType: 'SubcontractorInvoice', isPosted: true,
+    totalDebit: totalAmount, totalCredit: totalAmount,
+    lines: [
+      { accountCode: expense.code, accountName: expense.name, debit: num(baseAmount), credit: 0, description: 'أعمال مقاول باطن' },
+      ...(num(vatAmount) > 0 ? [{ accountCode: vatRec.code, accountName: vatRec.name, debit: num(vatAmount), credit: 0, description: 'ضريبة مدفوعة' }] : []),
+      { accountCode: subPay.code, accountName: subPay.name, debit: 0, credit: payable, description: `مستحقات ${subcontractorName || ''}`, partyType: 'SUBCONTRACTOR', partyId: subcontractorId, partyName: subcontractorName },
+      ...(num(retentionAmount) > 0 ? [{ accountCode: retention.code, accountName: retention.name, debit: 0, credit: num(retentionAmount), description: `محتجز ${subcontractorName || ''}`, partyType: 'SUBCONTRACTOR', partyId: subcontractorId, partyName: subcontractorName }] : []),
     ],
   };
 }
@@ -562,23 +590,12 @@ async function autoPostJE(base44, jeData) {
 
 // ─── منفّذو العمليات (كل واحد يُنشئ السجل ثم يرحّل القيد ذرّياً مع rollback) ───
 
+// الإنشاء يحفظ الفاتورة كمسودة فقط بلا قيد — القيد يُرحّل عند الاعتماد.
 async function createSalesInvoice(base44, data) {
   assertValid('SALES_INVOICE', data);
   const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, num(data.vatRate) || VAT_RATE);
-  const payload = { ...data, subtotal, vatRate: num(data.vatRate) || VAT_RATE, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
-  const invoice = await base44.asServiceRole.entities.SalesInvoice.create(payload);
-  try {
-    const je = await buildJE(base44, 'SALES_INVOICE',
-      { entryNo: `JE-SINV-${payload.invoiceNo}`, date: payload.date, description: `فاتورة مبيعات ${payload.invoiceNo} — ${payload.clientName}`, sourceType: 'SalesInvoice' },
-      { base: subtotal, vat: vatAmount, total: totalAmount },
-      () => buildSalesInvoiceJE({ ...payload }),
-      { type: 'CLIENT', id: payload.clientId, name: payload.clientName });
-    await autoPostJE(base44, je);
-  } catch (e) {
-    await rollback(base44, 'SalesInvoice', invoice.id);
-    throw e;
-  }
-  return invoice;
+  const payload = { ...data, subtotal, vatRate: num(data.vatRate) || VAT_RATE, vatAmount, totalAmount, paidAmount: num(data.paidAmount), status: 'DRAFT' };
+  return await base44.asServiceRole.entities.SalesInvoice.create(payload);
 }
 
 async function updateSalesInvoice(base44, id, data, prevStatus) {
@@ -587,6 +604,20 @@ async function updateSalesInvoice(base44, id, data, prevStatus) {
   const { base: subtotal, vat: vatAmount, total: totalAmount } = calcVAT(data.subtotal, num(data.vatRate) || VAT_RATE);
   const payload = { ...data, subtotal, vatRate: num(data.vatRate) || VAT_RATE, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
   return await base44.asServiceRole.entities.SalesInvoice.update(id, payload);
+}
+
+// اعتماد فاتورة مبيعات: يرحّل قيد الإيراد ويحوّل الحالة إلى معتمدة.
+async function approveSalesInvoice(base44, id) {
+  const inv = await base44.asServiceRole.entities.SalesInvoice.get(id);
+  if (!inv) throw new Error('الفاتورة غير موجودة');
+  if (inv.status !== 'DRAFT') throw new Error('لا يمكن اعتماد إلا الفواتير التي في حالة مسودة');
+  const je = await buildJE(base44, 'SALES_INVOICE',
+    { entryNo: `JE-SINV-${inv.invoiceNo}`, date: inv.date, description: `فاتورة مبيعات ${inv.invoiceNo} — ${inv.clientName}`, sourceType: 'SalesInvoice' },
+    { base: num(inv.subtotal), vat: num(inv.vatAmount), total: num(inv.totalAmount) },
+    () => buildSalesInvoiceJE({ ...inv }),
+    { type: 'CLIENT', id: inv.clientId, name: inv.clientName });
+  await autoPostJE(base44, je);
+  return await base44.asServiceRole.entities.SalesInvoice.update(id, { status: 'APPROVED' });
 }
 
 async function createPurchaseOrder(base44, data) {
@@ -811,24 +842,53 @@ function buildSupplierInvoicePayload(data) {
   return { ...data, baseAmount, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
 }
 
+// الإنشاء يحفظ الفاتورة كمسودة فقط بلا قيد — القيد يُرحّل عند الاعتماد.
 async function createSupplierInvoice(base44, data) {
   assertValid('SUPPLIER_INVOICE', data);
-  const payload = buildSupplierInvoicePayload(data);
-  const inv = await base44.asServiceRole.entities.SupplierInvoice.create(payload);
-  try {
-    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
-    await autoPostJE(base44, buildSupplierInvoiceJE(payload, accounts));
-  } catch (e) {
-    await rollback(base44, 'SupplierInvoice', inv.id);
-    throw e;
-  }
-  return inv;
+  const payload = { ...buildSupplierInvoicePayload(data), status: 'DRAFT' };
+  return await base44.asServiceRole.entities.SupplierInvoice.create(payload);
 }
 
 async function updateSupplierInvoice(base44, id, data) {
   assertValid('SUPPLIER_INVOICE', data);
   const payload = buildSupplierInvoicePayload(data);
   return await base44.asServiceRole.entities.SupplierInvoice.update(id, payload);
+}
+
+// اعتماد فاتورة مورد: يرحّل قيد الالتزام ويحوّل الحالة إلى معتمدة.
+async function approveSupplierInvoice(base44, id) {
+  const inv = await base44.asServiceRole.entities.SupplierInvoice.get(id);
+  if (!inv) throw new Error('الفاتورة غير موجودة');
+  if (inv.status !== 'DRAFT') throw new Error('لا يمكن اعتماد إلا الفواتير التي في حالة مسودة');
+  const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+  await autoPostJE(base44, buildSupplierInvoiceJE(inv, accounts));
+  return await base44.asServiceRole.entities.SupplierInvoice.update(id, { status: 'APPROVED' });
+}
+
+// ─── مستخلصات مقاولي الباطن ──────────────────────────────────────────────────
+async function createSubcontractorInvoice(base44, data) {
+  assertValid('SUBCONTRACTOR_INVOICE', data);
+  const payload = { ...data, status: 'DRAFT' };
+  return await base44.asServiceRole.entities.SubcontractorInvoice.create(payload);
+}
+
+async function updateSubcontractorInvoice(base44, id, data) {
+  assertValid('SUBCONTRACTOR_INVOICE', data);
+  return await base44.asServiceRole.entities.SubcontractorInvoice.update(id, data);
+}
+
+// اعتماد مستخلص مقاول باطن: يرحّل قيد الالتزام (بالصافي + محتجز) ويحوّل الحالة إلى معتمد.
+async function approveSubcontractorInvoice(base44, id) {
+  const inv = await base44.asServiceRole.entities.SubcontractorInvoice.get(id);
+  if (!inv) throw new Error('المستخلص غير موجود');
+  if (inv.status !== 'DRAFT') throw new Error('لا يمكن اعتماد إلا المستخلصات التي في حالة مسودة');
+  let subName = inv.subcontractorName;
+  if (!subName && inv.subcontractorId) {
+    try { subName = (await base44.asServiceRole.entities.Subcontractor.get(inv.subcontractorId))?.name; } catch { /* قد لا يوجد */ }
+  }
+  const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+  await autoPostJE(base44, buildSubcontractorInvoiceJE({ ...inv, subcontractorName: subName }, accounts));
+  return await base44.asServiceRole.entities.SubcontractorInvoice.update(id, { status: 'APPROVED' });
 }
 
 // ─── فواتير التأجير ───────────────────────────────────────────────────────────
@@ -845,19 +905,12 @@ function buildRentalInvoicePayload(data) {
   return { ...data, baseAmount, extraCharges, deliveryAmount, deliveryVatable, net, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
 }
 
+// الإنشاء يحفظ فاتورة التأجير كمسودة فقط بلا قيد — القيد يُرحّل عند الاعتماد.
 async function createRentalInvoice(base44, data) {
   assertValid('RENTAL_INVOICE', data);
   const p = buildRentalInvoicePayload(data);
-  const payload = { ...p }; delete payload.net;
-  const inv = await base44.asServiceRole.entities.RentalInvoice.create(payload);
-  try {
-    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
-    await autoPostJE(base44, buildRentalInvoiceJE({ ...payload, baseAmount: p.net }, accounts));
-  } catch (e) {
-    await rollback(base44, 'RentalInvoice', inv.id);
-    throw e;
-  }
-  return inv;
+  const payload = { ...p, status: 'DRAFT' }; delete payload.net;
+  return await base44.asServiceRole.entities.RentalInvoice.create(payload);
 }
 
 async function updateRentalInvoice(base44, id, data) {
@@ -865,6 +918,18 @@ async function updateRentalInvoice(base44, id, data) {
   const p = buildRentalInvoicePayload(data);
   const payload = { ...p }; delete payload.net;
   return await base44.asServiceRole.entities.RentalInvoice.update(id, payload);
+}
+
+// اعتماد فاتورة تأجير: يرحّل قيد الإيراد ويحوّل الحالة إلى معتمدة.
+async function approveRentalInvoice(base44, id) {
+  const inv = await base44.asServiceRole.entities.RentalInvoice.get(id);
+  if (!inv) throw new Error('الفاتورة غير موجودة');
+  if (inv.status !== 'DRAFT') throw new Error('لا يمكن اعتماد إلا الفواتير التي في حالة مسودة');
+  // الوعاء الأساسي للإيراد = الأساسي + الرسوم الإضافية + الشحن (net).
+  const net = +(num(inv.baseAmount) + num(inv.extraCharges) + num(inv.deliveryAmount)).toFixed(2);
+  const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+  await autoPostJE(base44, buildRentalInvoiceJE({ ...inv, baseAmount: net }, accounts));
+  return await base44.asServiceRole.entities.RentalInvoice.update(id, { status: 'APPROVED' });
 }
 
 // تراجع (إنشاء): احذف السجل المصدر حين يفشل ترحيل القيد
@@ -880,15 +945,16 @@ async function restoreStatus(base44, entityName, id, prevStatus) {
 
 // ─── التوجيه ──────────────────────────────────────────────────────────────────
 const HANDLERS = {
-  SALES_INVOICE:   { create: (b, p) => createSalesInvoice(b, p.data), update: (b, p) => updateSalesInvoice(b, p.id, p.data, p.prevStatus) },
+  SALES_INVOICE:   { create: (b, p) => createSalesInvoice(b, p.data), update: (b, p) => updateSalesInvoice(b, p.id, p.data, p.prevStatus), approve: (b, p) => approveSalesInvoice(b, p.id) },
   PURCHASE_ORDER:  { create: (b, p) => createPurchaseOrder(b, p.data), update: (b, p) => updatePurchaseOrder(b, p.id, p.data, p.prevStatus) },
   EXPENSE:         { create: (b, p) => createExpense(b, p.data), update: (b, p) => updateExpense(b, p.id, p.data) },
   RENTAL_CONTRACT: { create: (b, p) => createRentalContract(b, p.data), update: (b, p) => updateRentalContract(b, p.id, p.data, p.prevStatus, p.prevEquipmentStatus) },
   PAYROLL:         { create: (b, p) => createPayrollRun(b, p.data), update: (b, p) => updatePayrollRun(b, p.id, p.data, p.prevStatus) },
   CLIENT_PAYMENT:  { create: (b, p) => createClientPayment(b, p.data), update: (b, p) => updateClientPayment(b, p.id, p.data) },
   SUPPLIER_PAYMENT:{ create: (b, p) => createSupplierPayment(b, p.data), update: (b, p) => updateSupplierPayment(b, p.id, p.data) },
-  SUPPLIER_INVOICE:{ create: (b, p) => createSupplierInvoice(b, p.data), update: (b, p) => updateSupplierInvoice(b, p.id, p.data) },
-  RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data) },
+  SUPPLIER_INVOICE:{ create: (b, p) => createSupplierInvoice(b, p.data), update: (b, p) => updateSupplierInvoice(b, p.id, p.data), approve: (b, p) => approveSupplierInvoice(b, p.id) },
+  SUBCONTRACTOR_INVOICE: { create: (b, p) => createSubcontractorInvoice(b, p.data), update: (b, p) => updateSubcontractorInvoice(b, p.id, p.data), approve: (b, p) => approveSubcontractorInvoice(b, p.id) },
+  RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data), approve: (b, p) => approveRentalInvoice(b, p.id) },
   STOCK_MOVEMENT:  { create: (b, p) => createStockMovement(b, p.data) },
 };
 

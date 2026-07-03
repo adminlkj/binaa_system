@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,6 +106,17 @@ export default function SupplierInvoices() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const [approvingId, setApprovingId] = useState(null);
+  const approve = async (item) => {
+    setApprovingId(item.id);
+    try {
+      await OperationEngine.approveSupplierInvoice(item.id);
+      toast.success(t('تم اعتماد الفاتورة وترحيل القيد', 'Invoice approved & posted', lang));
+      load();
+    } catch (e) { toast.error(e?.message || t('فشل الاعتماد', 'Approval failed', lang)); }
+    setApprovingId(null);
+  };
+
   const totalPayable = filtered.filter(i => i.status !== 'CANCELLED').reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
 
   return (
@@ -171,7 +182,12 @@ export default function SupplierInvoices() {
                         <TableCell className="text-sm">{formatCurrency(item.paidAmount, lang)}</TableCell>
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 items-center">
+                            {item.status === 'DRAFT' && (
+                              <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" disabled={approvingId === item.id} onClick={() => approve(item)}>
+                                <CheckCircle2 className="size-3.5" />{approvingId === item.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                           </div>

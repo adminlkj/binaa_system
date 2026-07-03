@@ -152,7 +152,7 @@ export default function CrudTab({
                   {columns.map((c, i) => <TableCell key={i}>{c.cell(row)}</TableCell>)}
                   <TableCell className="text-end">
                     <div className="flex items-center justify-end gap-1">
-                      {rowActions?.(row)}
+                      {rowActions?.(row, load)}
                       <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(row)}>
                         <Pencil className="size-3.5" />
                       </Button>

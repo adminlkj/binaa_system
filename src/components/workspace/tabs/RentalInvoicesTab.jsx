@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
+import { useToast } from '@/components/ui/use-toast';
 import { t, formatCurrency, formatDate, genInvoiceNo, INVOICE_STATUS } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 import { OperationEngine } from '@/lib/businessEngine';
@@ -48,10 +49,24 @@ const buildLineItems = (r, lang) => {
 
 export default function RentalInvoicesTab({ equipmentId }) {
   const { lang } = useStore();
+  const { toast } = useToast();
   const [printInvoice, setPrintInvoice] = useState(null);
+  const [approvingId, setApprovingId] = useState(null);
   const [contracts, setContracts] = useState([]);
   const [deliveryOrders, setDeliveryOrders] = useState([]);
   const [hoursRows, setHoursRows] = useState([]);
+
+  const approve = async (row, reload) => {
+    setApprovingId(row.id);
+    try {
+      await OperationEngine.approveRentalInvoice(row.id);
+      toast({ title: t('تم اعتماد الفاتورة وترحيل القيد', 'Invoice approved & posted', lang) });
+      await reload();
+    } catch (e) {
+      toast({ title: t('فشل الاعتماد', 'Approval failed', lang), description: e.message, variant: 'destructive' });
+    }
+    setApprovingId(null);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -69,10 +84,17 @@ export default function RentalInvoicesTab({ equipmentId }) {
         create: (payload) => OperationEngine.createRentalInvoice(payload),
         update: (id, payload) => OperationEngine.updateRentalInvoice(id, payload),
       }}
-      rowActions={(row) => (
-        <Button size="icon" variant="ghost" className="size-8 text-emerald-600 hover:text-emerald-700" onClick={() => setPrintInvoice(toInvoiceDoc(row, lang))}>
-          <Printer className="size-3.5" />
-        </Button>
+      rowActions={(row, reload) => (
+        <>
+          {row.status === 'DRAFT' && (
+            <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" disabled={approvingId === row.id} onClick={() => approve(row, reload)}>
+              <CheckCircle2 className="size-3.5" />{approvingId === row.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="size-8 text-emerald-600 hover:text-emerald-700" onClick={() => setPrintInvoice(toInvoiceDoc(row, lang))}>
+            <Printer className="size-3.5" />
+          </Button>
+        </>
       )}
       filter={{ equipmentId }}
       defaults={(rows) => ({

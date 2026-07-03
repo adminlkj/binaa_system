@@ -105,7 +105,7 @@ export default function SubcontractorWorkspace() {
       {tab === 'statement' && <SubStatementTab invoices={invoices} payments={payments} penalties={penalties} />}
       {tab === 'contracts' && <SubContractsTab subcontractorId={activeSubcontractorId} projects={projects} />}
       {tab === 'change-orders' && <SubChangeOrdersTab subcontractorId={activeSubcontractorId} contracts={contracts} />}
-      {tab === 'invoices' && <SubInvoicesTab subcontractorId={activeSubcontractorId} contracts={contracts} />}
+      {tab === 'invoices' && <SubInvoicesTab subcontractorId={activeSubcontractorId} subcontractorName={sub.name} contracts={contracts} />}
       {tab === 'penalties' && <SubPenaltiesTab subcontractorId={activeSubcontractorId} contracts={contracts} />}
       {tab === 'payments' && <SubPaymentsTab subcontractorId={activeSubcontractorId} invoices={invoices} />}
     </div>

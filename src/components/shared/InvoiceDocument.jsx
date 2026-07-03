@@ -132,7 +132,6 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
         <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
           <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{'فاتورة ضريبية'}<span style={{ display: 'block', fontSize: 12, opacity: 0.85 }}>Tax Invoice</span></div>
           <div style={{ fontSize: 10.5, opacity: 0.85, marginTop: 3 }}>{typeLabel.ar} / {typeLabel.en}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4 }}>{invoice.invoiceNo}</div>
         </div>
       </div>
 
@@ -161,6 +160,12 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
           {clientEmail && <div style={{ fontSize: 11, color: labelColor }}>{'البريد / Email'}: <span dir="ltr">{clientEmail}</span></div>}
           {invoice.projectName && <div style={{ fontSize: 11, color: labelColor }}>{'المشروع / Project'}: {invoice.projectName}</div>}
         </div>
+      </div>
+
+      {/* رقم الفاتورة بارزاً في الوسط */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: labelColor, letterSpacing: 1 }}>{'رقم الفاتورة / Invoice No'}</div>
+        <div dir="ltr" style={{ fontSize: 22, fontWeight: 800, color: primary, letterSpacing: 1, marginTop: 2 }}>{invoice.invoiceNo}</div>
       </div>
 
       {/* تفاصيل الفاتورة والعقد */}

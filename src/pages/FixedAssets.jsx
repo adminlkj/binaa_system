@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { base44 } from '@/api/base44Client';
 import { AssetEngine } from '@/lib/businessEngine';
 import { useStore } from '@/lib/store';
-import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
+import { t, formatDate, formatCurrency, STATUS_TONE } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -24,9 +24,9 @@ const CATEGORIES = {
   OTHER:     { ar: 'أخرى', en: 'Other' },
 };
 const STATUSES = {
-  ACTIVE:            { ar: 'نشط', en: 'Active', color: 'bg-emerald-100 text-emerald-700' },
-  FULLY_DEPRECIATED: { ar: 'مُهلك بالكامل', en: 'Fully Depreciated', color: 'bg-slate-100 text-slate-600' },
-  DISPOSED:          { ar: 'مستبعَد', en: 'Disposed', color: 'bg-rose-100 text-rose-700' },
+  ACTIVE:            { ar: 'نشط', en: 'Active', color: STATUS_TONE.SUCCESS },
+  FULLY_DEPRECIATED: { ar: 'مُهلك بالكامل', en: 'Fully Depreciated', color: STATUS_TONE.NEUTRAL },
+  DISPOSED:          { ar: 'مستبعَد', en: 'Disposed', color: STATUS_TONE.DANGER },
 };
 const empty = {
   code: '', name: '', category: 'EQUIPMENT', acquisitionDate: new Date().toISOString().slice(0, 10),

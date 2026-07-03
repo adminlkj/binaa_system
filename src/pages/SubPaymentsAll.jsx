@@ -13,6 +13,14 @@ export default function SubPaymentsAll() {
       searchField="paymentNo"
       title={{ ar: 'سداد مقاولي الباطن', en: 'Subcontractor Payments' }}
       subtitle={{ ar: 'كل سندات الصرف لمقاولي الباطن', en: 'All payments to subcontractors' }}
+      exportColumns={[
+        { header: { ar: 'المقاول', en: 'Subcontractor' }, value: (r, subs) => subs[r.subcontractorId]?.name || '' },
+        { header: { ar: 'رقم السند', en: 'No' }, value: r => r.paymentNo },
+        { header: { ar: 'التاريخ', en: 'Date' }, value: r => r.date },
+        { header: { ar: 'الطريقة', en: 'Method' }, value: r => { const m = METHODS[r.method]; return m ? (lang === 'ar' ? m.ar : m.en) : r.method; } },
+        { header: { ar: 'المرجع', en: 'Reference' }, value: r => r.reference },
+        { header: { ar: 'المبلغ', en: 'Amount' }, value: r => r.amount || 0 },
+      ]}
       columns={[
         { header: { ar: 'رقم السند', en: 'No' }, cell: r => <span className="font-mono text-xs">{r.paymentNo}</span> },
         { header: { ar: 'التاريخ', en: 'Date' }, cell: r => <span className="text-xs text-muted-foreground">{formatDate(r.date, lang)}</span> },

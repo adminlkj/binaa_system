@@ -10,17 +10,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency } from '@/lib/utils-binaa';
+import { t, formatCurrency, STATUS_TONE } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
 import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import PayrollRunDocument from '@/components/shared/PayrollRunDocument';
 import { printHtml } from '@/lib/printDocument';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { toast } from 'sonner';
 
-const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, APPROVED: { ar: 'موافق', en: 'Approved', color: 'bg-blue-100 text-blue-700' }, PAID: { ar: 'مدفوع', en: 'Paid', color: 'bg-emerald-100 text-emerald-700' } };
+const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: STATUS_TONE.NEUTRAL }, APPROVED: { ar: 'موافق', en: 'Approved', color: STATUS_TONE.INFO }, PAID: { ar: 'مدفوع', en: 'Paid', color: STATUS_TONE.SUCCESS } };
 const MONTHS = { 1: 'يناير / January', 2: 'فبراير / February', 3: 'مارس / March', 4: 'أبريل / April', 5: 'مايو / May', 6: 'يونيو / June', 7: 'يوليو / July', 8: 'أغسطس / August', 9: 'سبتمبر / September', 10: 'أكتوبر / October', 11: 'نوفمبر / November', 12: 'ديسمبر / December' };
 const empty = { code: '', month: '', year: new Date().getFullYear(), totalSalaries: '', totalAllowances: '', totalDeductions: '', netAmount: '', status: 'DRAFT', paymentAccountCode: '', paymentAccountName: '', paymentDate: '', notes: '' };
 
@@ -107,11 +108,27 @@ export default function PayrollRuns() {
   // Summary
   const empTotalSalary = employees.reduce((s, e) => s + (e.salary || 0) + (e.allowances || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الشهر', en: 'Month' }, value: (r) => r.month },
+    { header: { ar: 'السنة', en: 'Year' }, value: (r) => r.year },
+    { header: { ar: 'إجمالي الرواتب', en: 'Total Salaries' }, value: (r) => r.totalSalaries || 0 },
+    { header: { ar: 'البدلات', en: 'Allowances' }, value: (r) => r.totalAllowances || 0 },
+    { header: { ar: 'الخصومات', en: 'Deductions' }, value: (r) => r.totalDeductions || 0 },
+    { header: { ar: 'الصافي', en: 'Net' }, value: (r) => r.netAmount || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('مسيرات الرواتب', 'Payroll Runs', lang)}
       subtitle={t('إدارة مسيرات رواتب الموظفين', 'Manage employee payroll runs', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('مسير جديد', 'New Payroll', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'مسيرات الرواتب', en: 'Payroll Runs' }} />
+          <Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('مسير جديد', 'New Payroll', lang)}</Button>
+        </div>
+      }
     >
       {/* Employee Summary Card */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

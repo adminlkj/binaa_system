@@ -5,17 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const STATUS = {
-  DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-gray-100 text-gray-700' },
-  SUBMITTED: { ar: 'مقدّمة', en: 'Submitted', color: 'bg-blue-100 text-blue-700' },
-  APPROVED: { ar: 'معتمدة', en: 'Approved', color: 'bg-indigo-100 text-indigo-700' },
-  PARTIALLY_PAID: { ar: 'مدفوعة جزئياً', en: 'Partial', color: 'bg-amber-100 text-amber-700' },
-  PAID: { ar: 'مدفوعة', en: 'Paid', color: 'bg-emerald-100 text-emerald-700' },
-  REJECTED: { ar: 'مرفوضة', en: 'Rejected', color: 'bg-rose-100 text-rose-700' },
+  DRAFT: { ar: 'مسودة', en: 'Draft', color: STATUS_TONE.NEUTRAL },
+  SUBMITTED: { ar: 'مقدّمة', en: 'Submitted', color: STATUS_TONE.INFO },
+  APPROVED: { ar: 'معتمدة', en: 'Approved', color: STATUS_TONE.INFO },
+  PARTIALLY_PAID: { ar: 'مدفوعة جزئياً', en: 'Partial', color: STATUS_TONE.PENDING },
+  PAID: { ar: 'مدفوعة', en: 'Paid', color: STATUS_TONE.SUCCESS },
+  REJECTED: { ar: 'مرفوضة', en: 'Rejected', color: STATUS_TONE.DANGER },
 };
 
 // عرض موحّد لكل مستخلصات مقاولي الباطن عبر النظام (للقراءة والمتابعة).
@@ -46,11 +47,25 @@ export default function SubcontractorInvoicesAll() {
 
   const openSub = (id) => { const s = subs[id]; if (s) { setSubcontractorContext(s.id, s.name); setActiveItem('subcontractor-workspace'); } };
 
+  const exportColumns = [
+    { header: { ar: 'الرقم', en: 'No' }, value: (r) => r.invoiceNo },
+    { header: { ar: 'المقاول', en: 'Subcontractor' }, value: (r) => subs[r.subcontractorId]?.name || '' },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.totalAmount || 0 },
+    { header: { ar: 'المدفوع', en: 'Paid' }, value: (r) => r.paidAmount || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('مستخلصات وفواتير مقاولي الباطن', 'Subcontractor Invoices', lang)}
       subtitle={t('كل المستخلصات المقدّمة من مقاولي الباطن', 'All invoices submitted by subcontractors', lang)}
-      actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'مستخلصات مقاولي الباطن', en: 'Subcontractor Invoices' }} />
+          <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>
+        </div>
+      }
     >
       <div className="relative">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

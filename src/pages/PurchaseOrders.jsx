@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
@@ -19,16 +19,16 @@ import OrderLinesEditor from '@/components/purchase/OrderLinesEditor';
 import { toast } from 'sonner';
 
 const STATUSES = {
-  DRAFT:     { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' },
-  APPROVED:  { ar: 'موافق عليه', en: 'Approved', color: 'bg-blue-100 text-blue-700' },
-  ORDERED:   { ar: 'مطلوب', en: 'Ordered', color: 'bg-amber-100 text-amber-700' },
-  RECEIVED:  { ar: 'مستلم', en: 'Received', color: 'bg-emerald-100 text-emerald-700' },
-  CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: 'bg-rose-100 text-rose-700' },
+  DRAFT:     { ar: 'مسودة', en: 'Draft', color: STATUS_TONE.NEUTRAL },
+  APPROVED:  { ar: 'موافق عليه', en: 'Approved', color: STATUS_TONE.INFO },
+  ORDERED:   { ar: 'مطلوب', en: 'Ordered', color: STATUS_TONE.PENDING },
+  RECEIVED:  { ar: 'مستلم', en: 'Received', color: STATUS_TONE.SUCCESS },
+  CANCELLED: { ar: 'ملغي', en: 'Cancelled', color: STATUS_TONE.MUTED },
 };
 const RECEIPT = {
-  PENDING:  { ar: 'لم يُستلم', en: 'Not received', color: 'bg-slate-100 text-slate-600' },
-  PARTIAL:  { ar: 'استلام جزئي', en: 'Partial', color: 'bg-amber-100 text-amber-700' },
-  RECEIVED: { ar: 'مكتمل', en: 'Complete', color: 'bg-emerald-100 text-emerald-700' },
+  PENDING:  { ar: 'لم يُستلم', en: 'Not received', color: STATUS_TONE.NEUTRAL },
+  PARTIAL:  { ar: 'استلام جزئي', en: 'Partial', color: STATUS_TONE.PENDING },
+  RECEIVED: { ar: 'مكتمل', en: 'Complete', color: STATUS_TONE.SUCCESS },
 };
 const empty = {
   orderNo: '', purchaseRequestId: '', requestNo: '', supplierId: '', supplierName: '',

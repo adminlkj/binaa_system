@@ -1,14 +1,14 @@
 import React from 'react';
 import SubAggregateList from '@/components/subcontractors/SubAggregateList';
 import { useStore } from '@/lib/store';
-import { formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 
 const STATUS = {
-  DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-gray-100 text-gray-700' },
-  ACTIVE: { ar: 'نشط', en: 'Active', color: 'bg-emerald-100 text-emerald-700' },
-  SUSPENDED: { ar: 'موقوف', en: 'Suspended', color: 'bg-amber-100 text-amber-700' },
-  COMPLETED: { ar: 'مكتمل', en: 'Completed', color: 'bg-teal-100 text-teal-700' },
-  TERMINATED: { ar: 'مفسوخ', en: 'Terminated', color: 'bg-rose-100 text-rose-700' },
+  DRAFT: { ar: 'مسودة', en: 'Draft', color: STATUS_TONE.NEUTRAL },
+  ACTIVE: { ar: 'نشط', en: 'Active', color: STATUS_TONE.SUCCESS },
+  SUSPENDED: { ar: 'موقوف', en: 'Suspended', color: STATUS_TONE.PENDING },
+  COMPLETED: { ar: 'مكتمل', en: 'Completed', color: STATUS_TONE.DONE },
+  TERMINATED: { ar: 'مفسوخ', en: 'Terminated', color: STATUS_TONE.DANGER },
 };
 
 export default function SubContractsAll() {
@@ -19,6 +19,15 @@ export default function SubContractsAll() {
       searchField="contractNo"
       title={{ ar: 'عقود مقاولي الباطن', en: 'Subcontractor Contracts' }}
       subtitle={{ ar: 'كل عقود الباطن عبر المشاريع', en: 'All subcontractor contracts across projects' }}
+      exportColumns={[
+        { header: { ar: 'المقاول', en: 'Subcontractor' }, value: (r, subs) => subs[r.subcontractorId]?.name || '' },
+        { header: { ar: 'رقم العقد', en: 'Contract No' }, value: r => r.contractNo },
+        { header: { ar: 'العنوان', en: 'Title' }, value: r => r.title },
+        { header: { ar: 'المشروع', en: 'Project' }, value: r => r.projectName },
+        { header: { ar: 'التاريخ', en: 'Date' }, value: r => r.date },
+        { header: { ar: 'القيمة', en: 'Value' }, value: r => r.value || 0 },
+        { header: { ar: 'الحالة', en: 'Status' }, value: r => { const s = STATUS[r.status]; return s ? (lang === 'ar' ? s.ar : s.en) : r.status; } },
+      ]}
       columns={[
         { header: { ar: 'رقم العقد', en: 'Contract No' }, cell: r => <span className="font-mono text-xs">{r.contractNo}</span> },
         { header: { ar: 'العنوان', en: 'Title' }, cell: r => <span className="text-sm">{r.title || '—'}</span> },

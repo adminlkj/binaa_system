@@ -48,6 +48,22 @@ export function genCode(prefix, num) {
   return `${prefix}-${String(num).padStart(4, '0')}`;
 }
 
+/**
+ * أنماط الحالات الموحّدة على مستوى النظام — مصدر واحد للألوان.
+ * كل شارات الحالة في كل الشاشات يجب أن تشتق درجتها من هنا حسب "المعنى".
+ * المفتاح = المعنى الدلالي، وليس اسم الحالة في كل كيان.
+ */
+export const STATUS_TONE = {
+  NEUTRAL:  'bg-slate-100 text-slate-700 border border-slate-200',   // مسودة / بدون
+  INFO:     'bg-blue-100 text-blue-700 border border-blue-200',      // مرسلة / معتمدة (معلومة)
+  PENDING:  'bg-amber-100 text-amber-700 border border-amber-200',   // قيد المعالجة / جزئي / مطلوب
+  SUCCESS:  'bg-emerald-100 text-emerald-700 border border-emerald-200', // مكتمل / مدفوع / مرحّل / نشط
+  DONE:     'bg-teal-100 text-teal-700 border border-teal-200',      // منجز / مغلق
+  DANGER:   'bg-rose-100 text-rose-700 border border-rose-200',      // متأخر / خطأ
+  MUTED:    'bg-slate-100 text-slate-400 border border-slate-200',   // ملغي / مؤرشف
+  PURPLE:   'bg-purple-100 text-purple-700 border border-purple-200',// حالة خاصة (مؤجرة)
+};
+
 // Status configs
 export const PROJECT_STATUS = {
   PLANNING: { ar: 'تخطيط', en: 'Planning', color: 'bg-amber-100 text-amber-700 border border-amber-200' },

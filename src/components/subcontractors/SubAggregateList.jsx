@@ -7,6 +7,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 /**
@@ -14,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * props: entityName, title{ar,en}, subtitle{ar,en}, refField (رقم المرجع), columns([{header{ar,en}, cell(row, subs)}]).
  * النقر على الصف يفتح مركز عمل المقاول.
  */
-export default function SubAggregateList({ entityName, title, subtitle, columns, searchField = 'id' }) {
+export default function SubAggregateList({ entityName, title, subtitle, columns, exportColumns, searchField = 'id' }) {
   const { lang, setSubcontractorContext, setActiveItem } = useStore();
   const [rows, setRows] = useState([]);
   const [subs, setSubs] = useState({});
@@ -41,11 +42,21 @@ export default function SubAggregateList({ entityName, title, subtitle, columns,
 
   const openSub = (id) => { const s = subs[id]; if (s) { setSubcontractorContext(s.id, s.name); setActiveItem('subcontractor-workspace'); } };
 
+  const exportCols = (exportColumns || []).map((c) => ({
+    header: c.header,
+    value: (r) => c.value(r, subs),
+  }));
+
   return (
     <ModuleLayout
       title={t(title.ar, title.en, lang)}
       subtitle={t(subtitle.ar, subtitle.en, lang)}
-      actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          {exportCols.length > 0 && <TableToolbar columns={exportCols} rows={filtered} title={title} />}
+          <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>
+        </div>
+      }
     >
       <div className="relative">
         <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

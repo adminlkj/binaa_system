@@ -1,12 +1,12 @@
 import React from 'react';
 import SubAggregateList from '@/components/subcontractors/SubAggregateList';
 import { useStore } from '@/lib/store';
-import { formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 
 const STATUS = {
-  PENDING: { ar: 'معلقة', en: 'Pending', color: 'bg-amber-100 text-amber-700' },
-  APPLIED: { ar: 'مطبّقة', en: 'Applied', color: 'bg-rose-100 text-rose-700' },
-  WAIVED: { ar: 'معفاة', en: 'Waived', color: 'bg-gray-100 text-gray-600' },
+  PENDING: { ar: 'معلقة', en: 'Pending', color: STATUS_TONE.PENDING },
+  APPLIED: { ar: 'مطبّقة', en: 'Applied', color: STATUS_TONE.DANGER },
+  WAIVED: { ar: 'معفاة', en: 'Waived', color: STATUS_TONE.MUTED },
 };
 const REASONS = { DELAY: { ar: 'تأخير', en: 'Delay' }, QUALITY: { ar: 'جودة', en: 'Quality' }, SAFETY: { ar: 'سلامة', en: 'Safety' }, OTHER: { ar: 'أخرى', en: 'Other' } };
 
@@ -18,6 +18,15 @@ export default function SubPenaltiesAll() {
       searchField="penaltyNo"
       title={{ ar: 'غرامات مقاولي الباطن', en: 'Subcontractor Penalties' }}
       subtitle={{ ar: 'كل الغرامات على مقاولي الباطن', en: 'All penalties on subcontractors' }}
+      exportColumns={[
+        { header: { ar: 'المقاول', en: 'Subcontractor' }, value: (r, subs) => subs[r.subcontractorId]?.name || '' },
+        { header: { ar: 'الرقم', en: 'No' }, value: r => r.penaltyNo },
+        { header: { ar: 'السبب', en: 'Reason' }, value: r => { const x = REASONS[r.reason]; return x ? (lang === 'ar' ? x.ar : x.en) : r.reason; } },
+        { header: { ar: 'الوصف', en: 'Description' }, value: r => r.description },
+        { header: { ar: 'التاريخ', en: 'Date' }, value: r => r.date },
+        { header: { ar: 'القيمة', en: 'Amount' }, value: r => r.amount || 0 },
+        { header: { ar: 'الحالة', en: 'Status' }, value: r => { const s = STATUS[r.status]; return s ? (lang === 'ar' ? s.ar : s.en) : r.status; } },
+      ]}
       columns={[
         { header: { ar: 'الرقم', en: 'No' }, cell: r => <span className="font-mono text-xs">{r.penaltyNo}</span> },
         { header: { ar: 'السبب', en: 'Reason' }, cell: r => <span className="text-xs text-muted-foreground">{lang === 'ar' ? REASONS[r.reason]?.ar : REASONS[r.reason]?.en}</span> },

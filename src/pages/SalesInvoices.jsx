@@ -14,6 +14,7 @@ import { t, formatCurrency, formatDate, genInvoiceNo, INVOICE_STATUS } from '@/l
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
 import { toast } from 'sonner';
 
@@ -149,11 +150,26 @@ export default function SalesInvoices() {
   const totalRevenue = filtered.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0);
   const totalPending = filtered.filter(i => ['SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
 
+  const exportColumns = [
+    { header: { ar: 'رقم الفاتورة', en: 'Invoice No' }, value: (r) => r.invoiceNo },
+    { header: { ar: 'العميل', en: 'Client' }, value: (r) => r.clientName },
+    { header: { ar: 'المشروع', en: 'Project' }, value: (r) => r.projectName },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.totalAmount || 0 },
+    { header: { ar: 'المدفوع', en: 'Paid' }, value: (r) => r.paidAmount || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = INVOICE_STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('فواتير العملاء', 'Client Invoices', lang)}
       subtitle={t('إدارة فواتير المشاريع والخدمات', 'Manage project invoices', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('فاتورة جديدة', 'New Invoice', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'فواتير العملاء', en: 'Client Invoices' }} />
+          <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('فاتورة جديدة', 'New Invoice', lang)}</Button>
+        </div>
+      }
     >
       {/* Status cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

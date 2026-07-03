@@ -10,15 +10,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { base44 } from '@/api/base44Client';
 import { OperationEngine } from '@/lib/businessEngine';
 import { useStore } from '@/lib/store';
-import { t, formatDate } from '@/lib/utils-binaa';
+import { t, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const STATUSES = {
-  OPEN:   { ar: 'مفتوحة', en: 'Open', color: 'bg-emerald-100 text-emerald-700', Icon: LockOpen },
-  CLOSED: { ar: 'مغلقة', en: 'Closed', color: 'bg-amber-100 text-amber-700', Icon: Lock },
-  LOCKED: { ar: 'مقفلة نهائياً', en: 'Locked', color: 'bg-rose-100 text-rose-700', Icon: Lock },
+  OPEN:   { ar: 'مفتوحة', en: 'Open', color: STATUS_TONE.SUCCESS, Icon: LockOpen },
+  CLOSED: { ar: 'مغلقة', en: 'Closed', color: STATUS_TONE.PENDING, Icon: Lock },
+  LOCKED: { ar: 'مقفلة نهائياً', en: 'Locked', color: STATUS_TONE.DANGER, Icon: Lock },
 };
 const empty = { name: '', year: new Date().getFullYear(), startDate: '', endDate: '', status: 'OPEN', isCurrent: false, notes: '' };
 
@@ -92,11 +93,24 @@ export default function FiscalYears() {
     }
   };
 
+  const exportColumns = [
+    { header: { ar: 'الاسم', en: 'Name' }, value: (r) => r.name },
+    { header: { ar: 'السنة', en: 'Year' }, value: (r) => r.year },
+    { header: { ar: 'من', en: 'From' }, value: (r) => r.startDate },
+    { header: { ar: 'إلى', en: 'To' }, value: (r) => r.endDate },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('السنوات المالية', 'Fiscal Years', lang)}
       subtitle={t('تعريف الفترات المحاسبية وإغلاقها', 'Define and close accounting periods', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('سنة مالية جديدة', 'New Fiscal Year', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={items} title={{ ar: 'السنوات المالية', en: 'Fiscal Years' }} />
+          <Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('سنة مالية جديدة', 'New Fiscal Year', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex justify-end">
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>

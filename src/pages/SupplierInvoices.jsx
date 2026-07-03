@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -18,12 +18,12 @@ import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
 const STATUS = {
-  DRAFT:          { ar: 'مسودة',       en: 'Draft',        color: 'bg-slate-100 text-slate-600' },
-  APPROVED:       { ar: 'معتمدة',      en: 'Approved',     color: 'bg-blue-100 text-blue-700' },
-  PARTIALLY_PAID: { ar: 'مدفوعة جزئياً', en: 'Partly Paid', color: 'bg-amber-100 text-amber-700' },
-  PAID:           { ar: 'مدفوعة',      en: 'Paid',         color: 'bg-emerald-100 text-emerald-700' },
-  OVERDUE:        { ar: 'متأخرة',      en: 'Overdue',      color: 'bg-rose-100 text-rose-700' },
-  CANCELLED:      { ar: 'ملغاة',       en: 'Cancelled',    color: 'bg-slate-100 text-slate-400' },
+  DRAFT:          { ar: 'مسودة',       en: 'Draft',        color: STATUS_TONE.NEUTRAL },
+  APPROVED:       { ar: 'معتمدة',      en: 'Approved',     color: STATUS_TONE.INFO },
+  PARTIALLY_PAID: { ar: 'مدفوعة جزئياً', en: 'Partly Paid', color: STATUS_TONE.PENDING },
+  PAID:           { ar: 'مدفوعة',      en: 'Paid',         color: STATUS_TONE.SUCCESS },
+  OVERDUE:        { ar: 'متأخرة',      en: 'Overdue',      color: STATUS_TONE.DANGER },
+  CANCELLED:      { ar: 'ملغاة',       en: 'Cancelled',    color: STATUS_TONE.MUTED },
 };
 
 const empty = {

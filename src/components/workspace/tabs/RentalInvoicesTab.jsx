@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, genInvoiceNo, INVOICE_STATUS } from '@/lib/utils-binaa';
@@ -14,18 +15,35 @@ import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
 import { monthBounds, monthLabel, recentMonths, sumHoursForMonth, addDays } from '@/lib/rentalBilling';
 
 // تحويل سجل فاتورة التأجير إلى الشكل الذي يتوقعه مستند الفاتورة الموحّد.
-const toInvoiceDoc = (r) => ({
+const toInvoiceDoc = (r, lang) => ({
   ...r,
   invoiceType: 'RENTAL',
-  subtotal: (Number(r.baseAmount) || 0) + (Number(r.extraCharges) || 0),
+  subtotal: (Number(r.baseAmount) || 0) + (Number(r.extraCharges) || 0) + (Number(r.deliveryAmount) || 0),
+  lineItems: buildLineItems(r, lang),
 });
 
 const computeTotal = (f) => {
   const base = Number(f.baseAmount) || 0;
   const extra = Number(f.extraCharges) || 0;
-  const net = base + extra;
-  const vat = Math.round(net * 0.15 * 100) / 100;
+  const delivery = Number(f.deliveryAmount) || 0;
+  const deliveryVatable = f.deliveryVatable !== false;
+  const net = base + extra + delivery; // الصافي = كل البنود قبل الضريبة
+  // الوعاء الخاضع للضريبة يستثني الشحن غير الخاضع.
+  const vatableBase = base + extra + (deliveryVatable ? delivery : 0);
+  const vat = Math.round(vatableBase * 0.15 * 100) / 100;
   return { net, vat, total: net + vat };
+};
+
+// بنود الفاتورة التفصيلية — الإيجار، الرسوم الإضافية، ثم الشحن والتوصيل كبند مستقل.
+const buildLineItems = (r, lang) => {
+  const items = [];
+  const base = Number(r.baseAmount) || 0;
+  const extra = Number(r.extraCharges) || 0;
+  const delivery = Number(r.deliveryAmount) || 0;
+  if (base > 0) items.push({ description: t('قيمة الإيجار', 'Rental value', lang), qty: 1, unitPrice: base, total: base });
+  if (extra > 0) items.push({ description: t('رسوم إضافية', 'Extra charges', lang), qty: 1, unitPrice: extra, total: extra });
+  if (delivery > 0) items.push({ description: t('شحن وتوصيل', 'Shipping & Delivery', lang), qty: 1, unitPrice: delivery, total: delivery });
+  return items;
 };
 
 export default function RentalInvoicesTab({ equipmentId }) {
@@ -52,7 +70,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
         update: (id, payload) => OperationEngine.updateRentalInvoice(id, payload),
       }}
       rowActions={(row) => (
-        <Button size="icon" variant="ghost" className="size-8 text-emerald-600 hover:text-emerald-700" onClick={() => setPrintInvoice(toInvoiceDoc(row))}>
+        <Button size="icon" variant="ghost" className="size-8 text-emerald-600 hover:text-emerald-700" onClick={() => setPrintInvoice(toInvoiceDoc(row, lang))}>
           <Printer className="size-3.5" />
         </Button>
       )}
@@ -75,6 +93,8 @@ export default function RentalInvoicesTab({ equipmentId }) {
         totalHours: 0,
         baseAmount: 0,
         extraCharges: 0,
+        deliveryAmount: 0,
+        deliveryVatable: true,
         paidAmount: 0,
         status: 'DRAFT',
         notes: '',
@@ -112,6 +132,8 @@ export default function RentalInvoicesTab({ equipmentId }) {
           totalHours: Number(f.totalHours) || 0,
           baseAmount: Number(f.baseAmount) || 0,
           extraCharges: Number(f.extraCharges) || 0,
+          deliveryAmount: Number(f.deliveryAmount) || 0,
+          deliveryVatable: f.deliveryVatable !== false,
           vatAmount: vat,
           totalAmount: total,
           paidAmount: Number(f.paidAmount) || 0,
@@ -259,10 +281,24 @@ export default function RentalInvoicesTab({ equipmentId }) {
               <Input type="number" value={form.extraCharges ?? 0} onChange={e => set('extraCharges', e.target.value)} />
             </div>
             <div className="space-y-1.5">
+              <Label>{t('شحن وتوصيل', 'Shipping & Delivery', lang)}</Label>
+              <Input type="number" value={form.deliveryAmount ?? 0} onChange={e => set('deliveryAmount', e.target.value)} placeholder="0" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('ضريبة على الشحن؟', 'VAT on delivery?', lang)}</Label>
+              <div className="flex items-center gap-2 h-9">
+                <Switch checked={form.deliveryVatable !== false} onCheckedChange={v => set('deliveryVatable', v)} disabled={!Number(form.deliveryAmount)} />
+                <span className="text-xs text-muted-foreground">{form.deliveryVatable !== false ? t('خاضع للضريبة 15%', 'VAT 15% applies', lang) : t('بدون ضريبة', 'No VAT', lang)}</span>
+              </div>
+            </div>
+            <div className="space-y-1.5">
               <Label>{t('المحصّل', 'Paid Amount', lang)}</Label>
               <Input type="number" value={form.paidAmount ?? 0} onChange={e => set('paidAmount', e.target.value)} />
             </div>
             <div className="md:col-span-2 rounded-lg bg-muted/50 p-3 text-xs space-y-1">
+              {Number(form.deliveryAmount) > 0 && (
+                <div className="flex justify-between"><span className="text-muted-foreground">{t('شحن وتوصيل', 'Shipping & Delivery', lang)}{form.deliveryVatable === false ? t(' (بدون ضريبة)', ' (No VAT)', lang) : ''}</span><span className="tabular-nums">{formatCurrency(Number(form.deliveryAmount), lang)}</span></div>
+              )}
               <div className="flex justify-between"><span className="text-muted-foreground">{t('الصافي', 'Net', lang)}</span><span className="tabular-nums">{formatCurrency(net, lang)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">{t('الضريبة 15%', 'VAT 15%', lang)}</span><span className="tabular-nums">{formatCurrency(vat, lang)}</span></div>
               <div className="flex justify-between font-bold pt-1 border-t"><span>{t('الإجمالي', 'Total', lang)}</span><span className="tabular-nums">{formatCurrency(total, lang)}</span></div>

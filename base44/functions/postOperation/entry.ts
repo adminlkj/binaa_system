@@ -655,10 +655,14 @@ async function updateSupplierInvoice(base44, id, data) {
 function buildRentalInvoicePayload(data) {
   const baseAmount = num(data.baseAmount);
   const extraCharges = num(data.extraCharges);
-  const net = +(baseAmount + extraCharges).toFixed(2);
-  const vatAmount = +(net * VAT_RATE).toFixed(2);
+  const deliveryAmount = num(data.deliveryAmount);
+  const deliveryVatable = data.deliveryVatable !== false;
+  const net = +(baseAmount + extraCharges + deliveryAmount).toFixed(2);
+  // الوعاء الخاضع للضريبة يستثني الشحن غير الخاضع.
+  const vatableBase = baseAmount + extraCharges + (deliveryVatable ? deliveryAmount : 0);
+  const vatAmount = +(vatableBase * VAT_RATE).toFixed(2);
   const totalAmount = +(net + vatAmount).toFixed(2);
-  return { ...data, baseAmount, extraCharges, net, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
+  return { ...data, baseAmount, extraCharges, deliveryAmount, deliveryVatable, net, vatAmount, totalAmount, paidAmount: num(data.paidAmount) };
 }
 
 async function createRentalInvoice(base44, data) {

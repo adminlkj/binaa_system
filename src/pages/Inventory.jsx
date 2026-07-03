@@ -21,11 +21,12 @@ const CATEGORIES = {
   TOOL:        { ar: 'أدوات', en: 'Tool', color: 'bg-violet-100 text-violet-700' },
   FIXED_ASSET: { ar: 'أصل ثابت', en: 'Fixed Asset', color: 'bg-emerald-100 text-emerald-700' },
 };
-const empty = { code: '', name: '', nameEn: '', category: 'MATERIAL', unit: '', quantity: '', reorderLevel: '', unitCost: '', location: '', isActive: true, notes: '' };
+const empty = { code: '', name: '', nameEn: '', category: 'MATERIAL', unit: '', quantity: '', reorderLevel: '', unitCost: '', warehouseId: '', location: '', isActive: true, notes: '' };
 
 export default function Inventory() {
   const { lang } = useStore();
   const [items, setItems] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('ALL');
@@ -38,7 +39,14 @@ export default function Inventory() {
 
   const load = async () => {
     setLoading(true);
-    try { setItems(await base44.entities.InventoryItem.list('code', 500)); }
+    try {
+      const [it, wh] = await Promise.all([
+        base44.entities.InventoryItem.list('code', 500),
+        base44.entities.Warehouse.filter({ isActive: true }, 'code', 500),
+      ]);
+      setItems(it || []);
+      setWarehouses(wh || []);
+    }
     catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
   };
@@ -57,10 +65,12 @@ export default function Inventory() {
     if (!form.code || !form.name) return toast.error(t('الرمز والاسم مطلوبان', 'Code and name required', lang));
     setSaving(true);
     try {
+      const wh = warehouses.find(w => w.id === form.warehouseId);
       const data = {
         code: form.code, name: form.name, nameEn: form.nameEn, category: form.category, unit: form.unit,
         quantity: Number(form.quantity) || 0, reorderLevel: Number(form.reorderLevel) || 0,
-        unitCost: Number(form.unitCost) || 0, location: form.location, isActive: form.isActive, notes: form.notes,
+        unitCost: Number(form.unitCost) || 0, warehouseId: form.warehouseId, warehouseName: wh?.name || '',
+        location: form.location, isActive: form.isActive, notes: form.notes,
       };
       if (editing) { await base44.entities.InventoryItem.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.InventoryItem.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
@@ -106,6 +116,7 @@ export default function Inventory() {
                 <TableHead>{t('الرمز', 'Code', lang)}</TableHead>
                 <TableHead>{t('الصنف', 'Item', lang)}</TableHead>
                 <TableHead>{t('الفئة', 'Category', lang)}</TableHead>
+                <TableHead>{t('المخزن', 'Warehouse', lang)}</TableHead>
                 <TableHead>{t('الكمية', 'Qty', lang)}</TableHead>
                 <TableHead>{t('الوحدة', 'Unit', lang)}</TableHead>
                 <TableHead className="text-end">{t('تكلفة الوحدة', 'Unit Cost', lang)}</TableHead>
@@ -114,8 +125,8 @@ export default function Inventory() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد أصناف', 'No items', lang)}</TableCell></TableRow>
+              {loading ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا توجد أصناف', 'No items', lang)}</TableCell></TableRow>
                 : filtered.map(item => {
                   const cat = CATEGORIES[item.category] || CATEGORIES.MATERIAL;
                   const low = item.reorderLevel > 0 && item.quantity <= item.reorderLevel;
@@ -124,6 +135,7 @@ export default function Inventory() {
                       <TableCell className="font-mono text-xs text-muted-foreground">{item.code}</TableCell>
                       <TableCell className="font-medium">{lang === 'ar' ? item.name : (item.nameEn || item.name)}</TableCell>
                       <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cat.color}`}>{lang === 'ar' ? cat.ar : cat.en}</span></TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{item.warehouseName || '—'}</TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center gap-1 font-medium ${low ? 'text-rose-600' : ''}`}>
                           {item.quantity ?? 0}{low && <AlertTriangle className="size-3.5" />}
@@ -168,7 +180,14 @@ export default function Inventory() {
             <div className="space-y-1"><Label>{t('الوحدة', 'Unit', lang)}</Label><Input value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} placeholder={t('قطعة، كجم...', 'pcs, kg...', lang)} /></div>
             <div className="space-y-1"><Label>{t('حد إعادة الطلب', 'Reorder Level', lang)}</Label><Input type="number" value={form.reorderLevel} onChange={e => setForm(f => ({ ...f, reorderLevel: e.target.value }))} /></div>
             <div className="space-y-1"><Label>{t('تكلفة الوحدة', 'Unit Cost', lang)}</Label><Input type="number" value={form.unitCost} onChange={e => setForm(f => ({ ...f, unitCost: e.target.value }))} /></div>
-            <div className="space-y-1 col-span-2"><Label>{t('الموقع / المستودع', 'Location', lang)}</Label><Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></div>
+            <div className="space-y-1 col-span-2">
+              <Label>{t('المخزن', 'Warehouse', lang)}</Label>
+              <Select value={form.warehouseId} onValueChange={v => setForm(f => ({ ...f, warehouseId: v }))}>
+                <SelectTrigger><SelectValue placeholder={t('اختر المخزن', 'Select warehouse', lang)} /></SelectTrigger>
+                <SelectContent>{warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}{w.projectName ? ` — ${w.projectName}` : ''}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 col-span-2"><Label>{t('الموقع داخل المخزن', 'Location in Warehouse', lang)}</Label><Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>

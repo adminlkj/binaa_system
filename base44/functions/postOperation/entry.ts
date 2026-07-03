@@ -35,6 +35,8 @@ const ACCOUNTS = {
   EXPENSE_EMPLOYEE:     { code: '5220', name: 'مصروفات الموظفين' },
   EXPENSE_GOVERNMENT:   { code: '5240', name: 'رسوم ومصروفات حكومية' },
   EXPENSE_ADMIN:        { code: '5230', name: 'مصروفات إدارية' },
+  INVENTORY_MATERIALS:  { code: '1131', name: 'مخزون مواد البناء' },
+  OPENING_BALANCE_EQUITY: { code: '3900', name: 'رصيد افتتاحي — حقوق ملكية' },
 };
 
 const EXPENSE_TYPE_ACCOUNTS = {
@@ -117,6 +119,18 @@ const RULES = {
     { m: 'رقم الفاتورة مطلوب', t: (d) => !isBlank(d.invoiceNo) },
     { m: 'تاريخ الفاتورة مطلوب', t: (d) => !isBlank(d.date) },
     { m: 'قيمة الفاتورة يجب أن تكون أكبر من صفر', t: (d) => num(d.baseAmount) + num(d.extraCharges) > 0 },
+  ],
+  STOCK_MOVEMENT: [
+    { m: 'تاريخ الحركة مطلوب', t: (d) => !isBlank(d.date) },
+    { m: 'اختيار الصنف مطلوب', t: (d) => !isBlank(d.itemId) },
+    { m: 'الكمية يجب أن تكون أكبر من صفر', t: (d) => num(d.quantity) > 0 },
+    { m: 'نوع الحركة غير صحيح', t: (d) => ['RECEIVE', 'ISSUE', 'TRANSFER'].includes(d.type) },
+    { m: 'مخزن الاستلام مطلوب', t: (d) => d.type !== 'RECEIVE' || !isBlank(d.toWarehouseId) },
+    { m: 'مخزن الصرف مطلوب', t: (d) => d.type !== 'ISSUE' || !isBlank(d.fromWarehouseId) },
+    { m: 'مخزن المصدر ومخزن الوجهة مطلوبان للتحويل', t: (d) => d.type !== 'TRANSFER' || (!isBlank(d.fromWarehouseId) && !isBlank(d.toWarehouseId)) },
+    { m: 'لا يمكن التحويل إلى نفس المخزن', t: (d) => d.type !== 'TRANSFER' || d.fromWarehouseId !== d.toWarehouseId },
+    { m: 'اختيار المورد مطلوب عند الاستلام بذمة مورد', t: (d) => d.type !== 'RECEIVE' || d.sourceType !== 'SUPPLIER' || !isBlank(d.supplierId) },
+    { m: 'اختيار الحساب النقدي مطلوب عند الشراء النقدي', t: (d) => d.type !== 'RECEIVE' || d.sourceType !== 'CASH' || !isBlank(d.cashAccountCode) },
   ],
 };
 
@@ -359,6 +373,113 @@ function buildRentalInvoiceJE({ invoiceNo, date, clientId, clientName, baseAmoun
       ...(vatAmount > 0 ? [{ accountCode: vatPay.code, accountName: vatPay.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
     ],
   };
+}
+
+// ─── الحركات المخزنية ─────────────────────────────────────────────────────────
+// استلام: من ح/ المخزون (مدين) إلى ح/ (ذمم المورد | النقدية | رصيد افتتاحي) دائن.
+// صرف على مشروع: من ح/ مصروفات المشاريع (مدين) إلى ح/ المخزون (دائن) — نقل القيمة إلى تكلفة المشروع.
+// تحويل بين مخازن: قيد تذكيري بنفس حساب المخزون مع وسم مركز التكلفة لكل طرف.
+function buildStockMovementJE(m, accounts) {
+  const inventory = resolveAccount('INVENTORY_MATERIALS', accounts);
+  const total = +num(m.totalCost).toFixed(2);
+  const itemDesc = `${m.itemName || ''}${m.quantity ? ` × ${m.quantity}` : ''}`;
+
+  if (m.type === 'RECEIVE') {
+    let creditAcc, creditParty = null, creditDesc;
+    if (m.sourceType === 'SUPPLIER') {
+      creditAcc = resolveAccount('PAYABLES', accounts);
+      creditParty = { type: 'SUPPLIER', id: m.supplierId, name: m.supplierName };
+      creditDesc = `مستحقات ${m.supplierName || 'مورد'}`;
+    } else if (m.sourceType === 'CASH') {
+      creditAcc = { code: m.cashAccountCode, name: m.cashAccountName || 'النقدية' };
+      creditDesc = `شراء نقدي من ${creditAcc.name}`;
+    } else {
+      creditAcc = resolveAccount('OPENING_BALANCE_EQUITY', accounts);
+      creditDesc = 'رصيد افتتاحي مخزون';
+    }
+    const creditLine = { accountCode: creditAcc.code, accountName: creditAcc.name, debit: 0, credit: total, description: creditDesc };
+    if (creditParty && creditParty.id) { creditLine.partyType = creditParty.type; creditLine.partyId = creditParty.id; creditLine.partyName = creditParty.name; }
+    return {
+      entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `استلام مخزون ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
+      totalDebit: total, totalCredit: total,
+      lines: [
+        { accountCode: inventory.code, accountName: inventory.name, debit: total, credit: 0, description: `إدخال ${itemDesc} — ${m.toWarehouseName || ''}`, costCenter: m.toWarehouseName || '' },
+        creditLine,
+      ],
+    };
+  }
+
+  if (m.type === 'ISSUE') {
+    const expense = resolveAccount('EXPENSE_PROJECT', accounts);
+    return {
+      entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `صرف مخزون ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
+      totalDebit: total, totalCredit: total,
+      lines: [
+        { accountCode: expense.code, accountName: expense.name, debit: total, credit: 0, description: `استهلاك ${itemDesc}${m.projectName ? ` — ${m.projectName}` : ''}`, costCenter: m.projectName || '' },
+        { accountCode: inventory.code, accountName: inventory.name, debit: 0, credit: total, description: `صرف من ${m.fromWarehouseName || ''}`, costCenter: m.fromWarehouseName || '' },
+      ],
+    };
+  }
+
+  // TRANSFER — نفس حساب المخزون على الطرفين، مع وسم مركز التكلفة لكل مخزن.
+  return {
+    entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `تحويل مخزون ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
+    totalDebit: total, totalCredit: total,
+    lines: [
+      { accountCode: inventory.code, accountName: inventory.name, debit: total, credit: 0, description: `تحويل وارد إلى ${m.toWarehouseName || ''}`, costCenter: m.toWarehouseName || '' },
+      { accountCode: inventory.code, accountName: inventory.name, debit: 0, credit: total, description: `تحويل صادر من ${m.fromWarehouseName || ''}`, costCenter: m.fromWarehouseName || '' },
+    ],
+  };
+}
+
+// يعدّل رصيد صنف في مخزن محدّد: يزيد/ينقص كمية سجل الصنف المطابق للمخزن.
+// إن لم يوجد سجل للصنف في المخزن الوجهة عند الاستلام/التحويل، يُنشأ سجل جديد.
+async function adjustStock(base44, itemId, warehouseId, warehouseName, deltaQty, unitCost) {
+  if (!warehouseId) return;
+  const item = await base44.asServiceRole.entities.InventoryItem.get(itemId);
+  if (!item) return;
+  // السجل الذي يمثّل رصيد الصنف في هذا المخزن: نفس الكود + نفس المخزن.
+  const inWarehouse = (await base44.asServiceRole.entities.InventoryItem.filter({ code: item.code, warehouseId })) || [];
+  if (inWarehouse.length > 0) {
+    const rec = inWarehouse[0];
+    const newQty = +(num(rec.quantity) + deltaQty).toFixed(3);
+    await base44.asServiceRole.entities.InventoryItem.update(rec.id, { quantity: newQty });
+  } else if (deltaQty > 0) {
+    await base44.asServiceRole.entities.InventoryItem.create({
+      code: item.code, name: item.name, nameEn: item.nameEn, category: item.category, unit: item.unit,
+      quantity: +deltaQty.toFixed(3), reorderLevel: item.reorderLevel, unitCost: num(unitCost) || item.unitCost,
+      warehouseId, warehouseName, isActive: true,
+    });
+  }
+}
+
+async function createStockMovement(base44, data) {
+  assertValid('STOCK_MOVEMENT', data);
+  const quantity = num(data.quantity);
+  const unitCost = num(data.unitCost);
+  const totalCost = +(quantity * unitCost).toFixed(2);
+  const payload = { ...data, quantity, unitCost, totalCost, journalEntryNo: `JE-STK-${data.movementNo}` };
+  const rec = await base44.asServiceRole.entities.StockMovement.create(payload);
+  try {
+    // القيد يُرحّل فقط عند وجود قيمة (تكلفة > 0)؛ الحركات صفرية القيمة تحدّث الكمية فقط.
+    if (totalCost > 0) {
+      const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+      await autoPostJE(base44, buildStockMovementJE(payload, accounts));
+    }
+    // تحديث أرصدة المخازن حسب نوع الحركة.
+    if (payload.type === 'RECEIVE') {
+      await adjustStock(base44, payload.itemId, payload.toWarehouseId, payload.toWarehouseName, quantity, unitCost);
+    } else if (payload.type === 'ISSUE') {
+      await adjustStock(base44, payload.itemId, payload.fromWarehouseId, payload.fromWarehouseName, -quantity, unitCost);
+    } else {
+      await adjustStock(base44, payload.itemId, payload.fromWarehouseId, payload.fromWarehouseName, -quantity, unitCost);
+      await adjustStock(base44, payload.itemId, payload.toWarehouseId, payload.toWarehouseName, quantity, unitCost);
+    }
+  } catch (e) {
+    await rollback(base44, 'StockMovement', rec.id);
+    throw e;
+  }
+  return rec;
 }
 
 // ─── حارس سلامة القيد ─────────────────────────────────────────────────────────
@@ -709,6 +830,7 @@ const HANDLERS = {
   SUPPLIER_PAYMENT:{ create: (b, p) => createSupplierPayment(b, p.data), update: (b, p) => updateSupplierPayment(b, p.id, p.data) },
   SUPPLIER_INVOICE:{ create: (b, p) => createSupplierInvoice(b, p.data), update: (b, p) => updateSupplierInvoice(b, p.id, p.data) },
   RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data) },
+  STOCK_MOVEMENT:  { create: (b, p) => createStockMovement(b, p.data) },
 };
 
 Deno.serve(async (req) => {

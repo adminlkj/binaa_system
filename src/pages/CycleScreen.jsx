@@ -30,6 +30,8 @@ import GeneralLedger from '@/pages/GeneralLedger';
 import CostCenters from '@/pages/CostCenters';
 import FiscalYears from '@/pages/FiscalYears';
 import Inventory from '@/pages/Inventory';
+import Warehouses from '@/pages/Warehouses';
+import StockMovements from '@/pages/StockMovements';
 import Reports from '@/pages/Reports';
 import VATReport from '@/pages/VATReport';
 import ProjectReports from '@/pages/ProjectReports';
@@ -89,6 +91,8 @@ const TAB_CONTENT = {
   clients: <Clients />,
   suppliers: <Suppliers />,
   inventory: <Inventory />,
+  warehouses: <Warehouses />,
+  'stock-movements': <StockMovements />,
   users: <Users />,
   settings: <Settings />,
 };

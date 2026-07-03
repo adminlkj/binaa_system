@@ -16,7 +16,7 @@ export const READY_TABS = new Set([
   'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
   'employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances',
   'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'audit',
-  'clients', 'suppliers', 'inventory', 'users', 'settings',
+  'clients', 'suppliers', 'inventory', 'warehouses', 'stock-movements', 'users', 'settings',
   // Reports cycle
   'report-income', 'report-trial', 'report-vat', 'report-cashflow', 'report-projects',
   // Subcontractors cycle
@@ -144,8 +144,10 @@ export const CYCLES = [
     Icon: Settings,
     color: { text: 'text-slate-600', border: 'border-slate-500', light: 'bg-slate-50', bg: 'bg-slate-600' },
     tabs: [
-      { key: 'inventory', ar: 'المخزون والأصول', en: 'Inventory',       Icon: Warehouse },
-      { key: 'settings',  ar: 'إعدادات النظام',  en: 'System Settings', Icon: Settings },
+      { key: 'warehouses',      ar: 'المخازن',          en: 'Warehouses',      Icon: Warehouse },
+      { key: 'stock-movements', ar: 'الحركات المخزنية', en: 'Stock Movements', Icon: GitPullRequestArrow },
+      { key: 'inventory',       ar: 'المخزون والأصول',  en: 'Inventory',       Icon: Package },
+      { key: 'settings',        ar: 'إعدادات النظام',   en: 'System Settings', Icon: Settings },
     ],
   },
 ];

@@ -178,4 +178,21 @@ export const OperationEngine = {
   async updateRentalInvoice(id, data) {
     return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'update', id, data });
   },
+
+  // حركة مخزنية (استلام / صرف / تحويل) — تُنشئ السجل وترحّل قيدها تلقائياً وتحدّث الأرصدة.
+  async createStockMovement(data, refs = {}) {
+    const { items = [], warehouses = [], projects = [], suppliers = [] } = refs;
+    const item = (items || []).find(i => i.id === data.itemId);
+    const payload = {
+      ...data,
+      itemName: item?.name || data.itemName,
+      itemCode: item?.code || data.itemCode,
+      unit: item?.unit || data.unit,
+      fromWarehouseName: nameOf(warehouses, data.fromWarehouseId, data.fromWarehouseName),
+      toWarehouseName: nameOf(warehouses, data.toWarehouseId, data.toWarehouseName),
+      projectName: nameOf(projects, data.projectId, data.projectName),
+      supplierName: nameOf(suppliers, data.supplierId, data.supplierName),
+    };
+    return await runOperation({ operation: 'STOCK_MOVEMENT', mode: 'create', data: payload });
+  },
 };

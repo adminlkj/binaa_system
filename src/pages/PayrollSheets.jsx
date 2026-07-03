@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Printer, Users, User, RefreshCw, FileText } from 'lucide-react';
+import { Printer, Users, User, RefreshCw, FileText, Download } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -28,6 +30,7 @@ export default function PayrollSheets() {
   const [dept, setDept] = useState('ALL');
   const [empId, setEmpId] = useState('ALL');
   const printRef = useRef(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -52,12 +55,40 @@ export default function PayrollSheets() {
 
   const totalNet = filtered.reduce((s, e) => s + empNet(e), 0);
 
+  const docTitle = () => (mode === 'individual' ? t('بطاقات رواتب', 'Payslips', lang) : t('كشف رواتب', 'Payroll Sheet', lang));
+
   const handlePrint = () => {
     if (!filtered.length) return toast.error(t('لا يوجد موظفون مطابقون للفلاتر', 'No employees match the filters', lang));
-    printHtml(printRef.current?.innerHTML, {
-      title: mode === 'individual' ? t('بطاقات رواتب', 'Payslips', lang) : t('كشف رواتب', 'Payroll Sheet', lang),
-      lang,
-    });
+    printHtml(printRef.current?.innerHTML, { title: docTitle(), lang });
+  };
+
+  const handleExport = async () => {
+    if (!filtered.length) return toast.error(t('لا يوجد موظفون مطابقون للفلاتر', 'No employees match the filters', lang));
+    const el = printRef.current;
+    if (!el) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const img = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      let remaining = imgH;
+      let position = 0;
+      pdf.addImage(img, 'PNG', 0, position, pageW, imgH);
+      remaining -= pageH;
+      while (remaining > 0) {
+        position -= pageH;
+        pdf.addPage();
+        pdf.addImage(img, 'PNG', 0, position, pageW, imgH);
+        remaining -= pageH;
+      }
+      pdf.save(`${docTitle()}-${year}-${month}.pdf`);
+    } catch {
+      toast.error(t('فشل التصدير', 'Export failed', lang));
+    }
+    setExporting(false);
   };
 
   return (
@@ -67,7 +98,8 @@ export default function PayrollSheets() {
       actions={
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
-          <Button onClick={handlePrint} className="gap-2 bg-violet-600 hover:bg-violet-700"><Printer className="size-4" />{t('طباعة / تصدير', 'Print / Export', lang)}</Button>
+          <Button variant="outline" onClick={handleExport} disabled={exporting} className="gap-2"><Download className="size-4" />{exporting ? t('جاري التصدير...', 'Exporting...', lang) : t('تصدير PDF', 'Export PDF', lang)}</Button>
+          <Button onClick={handlePrint} className="gap-2 bg-violet-600 hover:bg-violet-700"><Printer className="size-4" />{t('طباعة', 'Print', lang)}</Button>
         </div>
       }
     >

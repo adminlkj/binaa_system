@@ -31,6 +31,7 @@ import TrialBalance from '@/pages/TrialBalance';
 import GeneralLedger from '@/pages/GeneralLedger';
 import CostCenters from '@/pages/CostCenters';
 import FiscalYears from '@/pages/FiscalYears';
+import FixedAssets from '@/pages/FixedAssets';
 import Inventory from '@/pages/Inventory';
 import Warehouses from '@/pages/Warehouses';
 import StockMovements from '@/pages/StockMovements';
@@ -78,6 +79,7 @@ const TAB_CONTENT = {
   vat: <VATReport />,
   reports: <Reports />,
   'fiscal-years': <FiscalYears />,
+  'fixed-assets': <FixedAssets />,
   audit: <AuditSuite />,
   // Reports cycle
   'report-income': <Reports initialReport="income" hideSelector />,

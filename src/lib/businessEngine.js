@@ -235,3 +235,27 @@ export const OperationEngine = {
     return await runOperation({ operation: 'STOCK_MOVEMENT', mode: 'create', data: payload });
   },
 };
+
+// ─── دورة الأصول الثابتة والإهلاك (IAS 16) ─────────────────────────────────────
+// تمر عبر دالة باكند مستقلة (assetDepreciation) لفصل منطق الأصول عن محرك العمليات.
+async function runAssetOperation(payload) {
+  const res = await base44.functions.invoke('assetDepreciation', payload);
+  const out = res?.data || {};
+  if (out.success === false) throw new Error(out.error || 'فشل تنفيذ العملية');
+  return out.record;
+}
+
+export const AssetEngine = {
+  // رسملة الأصل → ترحيل قيد الاقتناء (الأصل مدين / التمويل دائن).
+  async capitalize(id) {
+    return await runAssetOperation({ mode: 'capitalize', id });
+  },
+  // قسط إهلاك لشهر محدّد (YYYY-MM) → مصروف إهلاك مدين / مجمع إهلاك دائن.
+  async depreciate(id, period) {
+    return await runAssetOperation({ mode: 'depreciate', id, period });
+  },
+  // إهلاك جماعي لكل الأصول النشطة لشهر محدّد.
+  async depreciateAll(period) {
+    return await runAssetOperation({ mode: 'depreciateAll', period });
+  },
+};

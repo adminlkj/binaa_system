@@ -43,6 +43,7 @@ export const MODULES = [
   { key: 'vat', ar: 'ضريبة القيمة المضافة', en: 'VAT', group: 'accounting' },
   { key: 'reports', ar: 'التقارير المالية', en: 'Reports', group: 'accounting' },
   { key: 'fiscal-years', ar: 'السنوات المالية', en: 'Fiscal Years', group: 'accounting' },
+  { key: 'fixed-assets', ar: 'الأصول والإهلاك', en: 'Fixed Assets', group: 'accounting' },
   // Master data & settings
   { key: 'clients', ar: 'العملاء', en: 'Clients', group: 'settings' },
   { key: 'suppliers', ar: 'الموردون', en: 'Suppliers', group: 'settings' },
@@ -82,7 +83,7 @@ export const APP_ROLES = {
     color: 'bg-teal-100 text-teal-700 border border-teal-200',
     modules: ['sales', 'client-payments', 'purchase-orders', 'expenses', 'supplier-invoices',
       'supplier-payments', 'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers',
-      'vat', 'reports', 'fiscal-years', 'payroll-runs', 'payroll-sheets', 'clients', 'suppliers'],
+      'vat', 'reports', 'fiscal-years', 'fixed-assets', 'payroll-runs', 'payroll-sheets', 'clients', 'suppliers'],
   },
   PROJECT_MANAGER: {
     ar: 'مدير مشاريع', en: 'Project Manager',

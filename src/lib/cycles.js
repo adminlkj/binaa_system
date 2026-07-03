@@ -16,7 +16,7 @@ export const READY_TABS = new Set([
   'purchase-requests', 'purchase-orders', 'goods-receipts', 'supplier-invoices', 'supplier-payments',
   'expenses',
   'employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances',
-  'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'audit',
+  'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'fixed-assets', 'audit',
   'clients', 'suppliers', 'inventory', 'warehouses', 'stock-movements', 'users', 'settings',
   // Reports cycle
   'report-income', 'report-trial', 'report-vat', 'report-cashflow', 'report-projects',
@@ -100,6 +100,7 @@ export const CYCLES = [
       { key: 'vat',            ar: 'ضريبة القيمة المضافة', en: 'VAT',            Icon: Shield },
       { key: 'reports',        ar: 'التقارير المالية',   en: 'Financial Reports', Icon: BarChart3 },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },
+      { key: 'fixed-assets',   ar: 'الأصول والإهلاك',    en: 'Fixed Assets',      Icon: Landmark },
       { key: 'audit',          ar: 'التحقق المحاسبي',    en: 'Accounting Audit',  Icon: ShieldQuestion },
     ],
   },

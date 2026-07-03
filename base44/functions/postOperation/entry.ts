@@ -522,31 +522,68 @@ function buildStockMovementJE(m, accounts) {
   };
 }
 
-// يعدّل رصيد صنف في مخزن محدّد: يزيد/ينقص كمية سجل الصنف المطابق للمخزن.
-// إن لم يوجد سجل للصنف في المخزن الوجهة عند الاستلام/التحويل، يُنشأ سجل جديد.
+// يعدّل رصيد صنف في مخزن محدّد وفق المتوسط المرجّح للتكلفة (IAS 2).
+//   • عند الإدخال (deltaQty > 0): التكلفة الجديدة = (قيمة الرصيد + قيمة الوارد) ÷ (الكمية الكلية).
+//   • عند الإخراج (deltaQty < 0): الكمية تنقص والتكلفة المرجّحة تبقى كما هي.
+// يُرجع { avgCost } وهو متوسط تكلفة الوحدة بعد الحركة — يُستخدم لتسعير قيد الإخراج بدقة.
 async function adjustStock(base44, itemId, warehouseId, warehouseName, deltaQty, unitCost) {
-  if (!warehouseId) return;
+  if (!warehouseId) return { avgCost: num(unitCost) };
   const item = await base44.asServiceRole.entities.InventoryItem.get(itemId);
-  if (!item) return;
+  if (!item) return { avgCost: num(unitCost) };
   // السجل الذي يمثّل رصيد الصنف في هذا المخزن: نفس الكود + نفس المخزن.
   const inWarehouse = (await base44.asServiceRole.entities.InventoryItem.filter({ code: item.code, warehouseId })) || [];
   if (inWarehouse.length > 0) {
     const rec = inWarehouse[0];
-    const newQty = +(num(rec.quantity) + deltaQty).toFixed(3);
-    await base44.asServiceRole.entities.InventoryItem.update(rec.id, { quantity: newQty });
-  } else if (deltaQty > 0) {
+    const oldQty = num(rec.quantity);
+    const oldCost = num(rec.unitCost);
+    const newQty = +(oldQty + deltaQty).toFixed(3);
+    let avgCost = oldCost;
+    if (deltaQty > 0) {
+      // متوسط مرجّح: (قيمة القديم + قيمة الوارد) ÷ (الكمية الكلية).
+      const totalValue = oldQty * oldCost + deltaQty * num(unitCost);
+      avgCost = newQty > 0 ? +(totalValue / newQty).toFixed(4) : num(unitCost);
+      await base44.asServiceRole.entities.InventoryItem.update(rec.id, { quantity: newQty, unitCost: avgCost });
+    } else {
+      // الإخراج بالتكلفة المرجّحة القائمة؛ الكمية فقط تتغيّر.
+      await base44.asServiceRole.entities.InventoryItem.update(rec.id, { quantity: newQty });
+    }
+    return { avgCost };
+  }
+  if (deltaQty > 0) {
+    const avgCost = num(unitCost) || num(item.unitCost);
     await base44.asServiceRole.entities.InventoryItem.create({
       code: item.code, name: item.name, nameEn: item.nameEn, category: item.category, unit: item.unit,
-      quantity: +deltaQty.toFixed(3), reorderLevel: item.reorderLevel, unitCost: num(unitCost) || item.unitCost,
+      quantity: +deltaQty.toFixed(3), reorderLevel: item.reorderLevel, unitCost: avgCost,
       warehouseId, warehouseName, isActive: true,
     });
+    return { avgCost };
   }
+  return { avgCost: num(unitCost) };
 }
+
+// يقرأ متوسط تكلفة الوحدة المرجّح لصنف في مخزن محدّد (قبل الإخراج) — لتسعير قيد الصرف/التلف.
+async function weightedCostFor(base44, itemId, warehouseId, fallbackUnitCost) {
+  if (!itemId || !warehouseId) return num(fallbackUnitCost);
+  const item = await base44.asServiceRole.entities.InventoryItem.get(itemId);
+  if (!item) return num(fallbackUnitCost);
+  const rec = (await base44.asServiceRole.entities.InventoryItem.filter({ code: item.code, warehouseId }))?.[0];
+  const cost = num(rec?.unitCost);
+  return cost > 0 ? cost : num(fallbackUnitCost);
+}
+
+// حركات الإخراج تُسعَّر بالمتوسط المرجّح لتكلفة الصنف في المخزن المصدر (IAS 2)،
+// لا بالتكلفة المُدخلة يدوياً — فيعكس القيد والقيمة التكلفة الفعلية للمخزون.
+const OUTBOUND_TYPES = ['ISSUE', 'DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_DECREASE'];
 
 async function createStockMovement(base44, data) {
   assertValid('STOCK_MOVEMENT', data);
   const quantity = num(data.quantity);
-  const unitCost = num(data.unitCost);
+  let unitCost = num(data.unitCost);
+
+  // للإخراج والتحويل: اعتمد المتوسط المرجّح المخزّن للصنف بدل التكلفة المُدخلة.
+  if (data.itemId && (OUTBOUND_TYPES.includes(data.type) || data.type === 'TRANSFER')) {
+    unitCost = await weightedCostFor(base44, data.itemId, data.fromWarehouseId, unitCost);
+  }
   const totalCost = +(quantity * unitCost).toFixed(2);
   const payload = { ...data, quantity, unitCost, totalCost, journalEntryNo: `JE-STK-${data.movementNo}` };
   const rec = await base44.asServiceRole.entities.StockMovement.create(payload);
@@ -556,12 +593,13 @@ async function createStockMovement(base44, data) {
       const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
       await autoPostJE(base44, buildStockMovementJE(payload, accounts));
     }
-    // تحديث أرصدة المخازن حسب نوع الحركة.
+    // تحديث أرصدة المخازن حسب نوع الحركة (الاستلام يعيد حساب المتوسط المرجّح).
     if (payload.type === 'RECEIVE' || payload.type === 'ADJUST_INCREASE') {
       await adjustStock(base44, payload.itemId, payload.toWarehouseId, payload.toWarehouseName, quantity, unitCost);
-    } else if (['ISSUE', 'DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_DECREASE'].includes(payload.type)) {
+    } else if (OUTBOUND_TYPES.includes(payload.type)) {
       await adjustStock(base44, payload.itemId, payload.fromWarehouseId, payload.fromWarehouseName, -quantity, unitCost);
     } else {
+      // تحويل: الإخراج بالتكلفة المرجّحة، والإدخال بنفس التكلفة (نقل قيمة بلا ربح/خسارة).
       await adjustStock(base44, payload.itemId, payload.fromWarehouseId, payload.fromWarehouseName, -quantity, unitCost);
       await adjustStock(base44, payload.itemId, payload.toWarehouseId, payload.toWarehouseName, quantity, unitCost);
     }

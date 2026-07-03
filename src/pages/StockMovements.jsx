@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, RefreshCw, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, RefreshCw, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, CheckCircle2, Flame, ShieldAlert, ClipboardCheck } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,10 @@ const TYPES = {
   RECEIVE:  { ar: 'استلام', en: 'Receive', color: 'bg-emerald-100 text-emerald-700', Icon: ArrowDownToLine },
   ISSUE:    { ar: 'صرف', en: 'Issue', color: 'bg-rose-100 text-rose-700', Icon: ArrowUpFromLine },
   TRANSFER: { ar: 'تحويل', en: 'Transfer', color: 'bg-blue-100 text-blue-700', Icon: ArrowLeftRight },
+  DAMAGE_NORMAL:   { ar: 'تلف طبيعي', en: 'Normal Damage', color: 'bg-amber-100 text-amber-700', Icon: Flame },
+  DAMAGE_ABNORMAL: { ar: 'تلف غير طبيعي', en: 'Abnormal Damage', color: 'bg-orange-100 text-orange-700', Icon: ShieldAlert },
+  ADJUST_INCREASE: { ar: 'جرد بالزيادة', en: 'Count Surplus', color: 'bg-teal-100 text-teal-700', Icon: ClipboardCheck },
+  ADJUST_DECREASE: { ar: 'جرد بالعجز', en: 'Count Shortage', color: 'bg-red-100 text-red-700', Icon: ClipboardCheck },
 };
 const SOURCES = {
   SUPPLIER: { ar: 'ذمة مورد', en: 'Supplier (credit)' },
@@ -28,8 +32,12 @@ const SOURCES = {
 const empty = {
   type: 'RECEIVE', date: new Date().toISOString().slice(0, 10), itemId: '', quantity: '', unitCost: '',
   fromWarehouseId: '', toWarehouseId: '', projectId: '', sourceType: 'SUPPLIER', supplierId: '',
-  cashAccountCode: '', reference: '', notes: '',
+  cashAccountCode: '', responsibleId: '', reason: '', reference: '', notes: '',
 };
+
+// أنواع تستخدم مخزن المصدر (صرف/تلف/عجز/تحويل) ومخزن الوجهة (استلام/زيادة/تحويل).
+const USES_FROM = ['ISSUE', 'TRANSFER', 'DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_DECREASE'];
+const USES_TO = ['RECEIVE', 'TRANSFER', 'ADJUST_INCREASE'];
 
 export default function StockMovements() {
   const { lang } = useStore();
@@ -38,6 +46,7 @@ export default function StockMovements() {
   const [warehouses, setWarehouses] = useState([]);
   const [projects, setProjects] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [cashAccounts, setCashAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -49,12 +58,13 @@ export default function StockMovements() {
   const load = async () => {
     setLoading(true);
     try {
-      const [mv, it, wh, pr, sup, acc] = await Promise.all([
+      const [mv, it, wh, pr, sup, emp, acc] = await Promise.all([
         base44.entities.StockMovement.list('-date', 500),
         base44.entities.InventoryItem.list('code', 1000),
         base44.entities.Warehouse.filter({ isActive: true }, 'code', 500),
         base44.entities.Project.list('-created_date', 500),
         base44.entities.Supplier.list('name', 500),
+        base44.entities.Employee.list('name', 500),
         base44.entities.ChartAccount.filter({ isActive: true }, 'code', 1000),
       ]);
       setMovements(mv || []);
@@ -64,6 +74,7 @@ export default function StockMovements() {
       setWarehouses(wh || []);
       setProjects(pr || []);
       setSuppliers(sup || []);
+      setEmployees(emp || []);
       setCashAccounts((acc || []).filter(a => ['CASH', 'BANK', 'CUSTODY'].includes(a.semanticRole)));
     } catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
     setLoading(false);
@@ -88,9 +99,9 @@ export default function StockMovements() {
   const save = async () => {
     if (!form.itemId) return toast.error(t('اختر الصنف', 'Select item', lang));
     if (!(Number(form.quantity) > 0)) return toast.error(t('الكمية يجب أن تكون أكبر من صفر', 'Quantity must be > 0', lang));
-    if (form.type === 'RECEIVE' && !form.toWarehouseId) return toast.error(t('اختر مخزن الاستلام', 'Select receiving warehouse', lang));
-    if (form.type === 'ISSUE' && !form.fromWarehouseId) return toast.error(t('اختر مخزن الصرف', 'Select issuing warehouse', lang));
-    if (form.type === 'TRANSFER' && (!form.fromWarehouseId || !form.toWarehouseId)) return toast.error(t('اختر مخزن المصدر والوجهة', 'Select from and to warehouses', lang));
+    if (USES_TO.includes(form.type) && !form.toWarehouseId) return toast.error(t('اختر مخزن الوجهة', 'Select destination warehouse', lang));
+    if (USES_FROM.includes(form.type) && !form.fromWarehouseId) return toast.error(t('اختر مخزن المصدر', 'Select source warehouse', lang));
+    if (form.type === 'DAMAGE_ABNORMAL' && !form.responsibleId) return toast.error(t('اختر المسؤول المُحمّل عليه التلف', 'Select the responsible person', lang));
 
     setSaving(true);
     try {
@@ -100,16 +111,18 @@ export default function StockMovements() {
           movementNo: form.movementNo || genCode('STK', movements.length + 1),
           date: form.date, type: form.type, itemId: form.itemId,
           quantity: Number(form.quantity), unitCost: Number(form.unitCost) || 0,
-          fromWarehouseId: form.type === 'RECEIVE' ? '' : form.fromWarehouseId,
-          toWarehouseId: form.type === 'ISSUE' ? '' : form.toWarehouseId,
+          fromWarehouseId: USES_FROM.includes(form.type) ? form.fromWarehouseId : '',
+          toWarehouseId: USES_TO.includes(form.type) ? form.toWarehouseId : '',
           projectId: form.projectId,
           sourceType: form.type === 'RECEIVE' ? form.sourceType : 'NONE',
           supplierId: form.type === 'RECEIVE' && form.sourceType === 'SUPPLIER' ? form.supplierId : '',
           cashAccountCode: form.type === 'RECEIVE' && form.sourceType === 'CASH' ? form.cashAccountCode : '',
           cashAccountName: cashAcc?.name || '',
+          responsibleId: form.type === 'DAMAGE_ABNORMAL' ? form.responsibleId : '',
+          reason: form.reason,
           reference: form.reference, notes: form.notes,
         },
-        { items, warehouses, projects, suppliers }
+        { items, warehouses, projects, suppliers, employees }
       );
       toast.success(t('تم تسجيل الحركة وترحيلها محاسبياً', 'Movement recorded and posted', lang));
       setDialogOpen(false); load();
@@ -128,10 +141,14 @@ export default function StockMovements() {
       title={t('الحركات المخزنية', 'Stock Movements', lang)}
       subtitle={t('استلام وصرف وتحويل بين المخازن — مثبتة محاسبياً تلقائياً', 'Receive, issue & transfer — auto-posted to accounting', lang)}
       actions={
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button onClick={() => openNew('RECEIVE')} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><ArrowDownToLine className="size-4" />{t('استلام', 'Receive', lang)}</Button>
           <Button onClick={() => openNew('ISSUE')} className="gap-2 bg-rose-600 hover:bg-rose-700"><ArrowUpFromLine className="size-4" />{t('صرف', 'Issue', lang)}</Button>
           <Button onClick={() => openNew('TRANSFER')} className="gap-2 bg-blue-600 hover:bg-blue-700"><ArrowLeftRight className="size-4" />{t('تحويل', 'Transfer', lang)}</Button>
+          <Button onClick={() => openNew('DAMAGE_NORMAL')} variant="outline" className="gap-2 text-amber-700 border-amber-300 hover:bg-amber-50"><Flame className="size-4" />{t('تلف طبيعي', 'Normal Damage', lang)}</Button>
+          <Button onClick={() => openNew('DAMAGE_ABNORMAL')} variant="outline" className="gap-2 text-orange-700 border-orange-300 hover:bg-orange-50"><ShieldAlert className="size-4" />{t('تلف غير طبيعي', 'Abnormal Damage', lang)}</Button>
+          <Button onClick={() => openNew('ADJUST_INCREASE')} variant="outline" className="gap-2 text-teal-700 border-teal-300 hover:bg-teal-50"><ClipboardCheck className="size-4" />{t('جرد بالزيادة', 'Surplus', lang)}</Button>
+          <Button onClick={() => openNew('ADJUST_DECREASE')} variant="outline" className="gap-2 text-red-700 border-red-300 hover:bg-red-50"><ClipboardCheck className="size-4" />{t('جرد بالعجز', 'Shortage', lang)}</Button>
         </div>
       }
     >
@@ -225,7 +242,7 @@ export default function StockMovements() {
             <div className="space-y-1"><Label>{t('الكمية', 'Quantity', lang)} *</Label><Input type="number" value={form.quantity} onChange={e => set('quantity', e.target.value)} /></div>
             <div className="space-y-1"><Label>{t('تكلفة الوحدة', 'Unit Cost', lang)}</Label><Input type="number" value={form.unitCost} onChange={e => set('unitCost', e.target.value)} placeholder={selectedItem?.unitCost || '0'} /></div>
 
-            {form.type !== 'RECEIVE' && (
+            {USES_FROM.includes(form.type) && (
               <div className="space-y-1 col-span-2">
                 <Label>{t('من مخزن', 'From Warehouse', lang)} *</Label>
                 <Select value={form.fromWarehouseId} onValueChange={v => set('fromWarehouseId', v)}>
@@ -234,13 +251,30 @@ export default function StockMovements() {
                 </Select>
               </div>
             )}
-            {form.type !== 'ISSUE' && (
+            {USES_TO.includes(form.type) && (
               <div className="space-y-1 col-span-2">
                 <Label>{t('إلى مخزن', 'To Warehouse', lang)} *</Label>
                 <Select value={form.toWarehouseId} onValueChange={v => set('toWarehouseId', v)}>
                   <SelectTrigger><SelectValue placeholder={t('اختر المخزن', 'Select warehouse', lang)} /></SelectTrigger>
                   <SelectContent>{warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}{w.projectName ? ` — ${w.projectName}` : ''}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {form.type === 'DAMAGE_ABNORMAL' && (
+              <div className="space-y-1 col-span-2">
+                <Label>{t('المسؤول المُحمّل عليه التلف (ذمة عليه)', 'Responsible Person (charged)', lang)} *</Label>
+                <Select value={form.responsibleId} onValueChange={v => set('responsibleId', v)}>
+                  <SelectTrigger><SelectValue placeholder={t('اختر الموظف', 'Select employee', lang)} /></SelectTrigger>
+                  <SelectContent>{employees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {['DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_INCREASE', 'ADJUST_DECREASE'].includes(form.type) && (
+              <div className="space-y-1 col-span-2">
+                <Label>{t('السبب', 'Reason', lang)}</Label>
+                <Input value={form.reason} onChange={e => set('reason', e.target.value)} placeholder={t('تلف بالمياه، كسر، فرق عدّ...', 'Water damage, breakage, count diff...', lang)} />
               </div>
             )}
 

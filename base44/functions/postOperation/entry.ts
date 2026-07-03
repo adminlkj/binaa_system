@@ -37,6 +37,9 @@ const ACCOUNTS = {
   EXPENSE_ADMIN:        { code: '5230', name: 'مصروفات إدارية' },
   INVENTORY_MATERIALS:  { code: '1131', name: 'مخزون مواد البناء' },
   OPENING_BALANCE_EQUITY: { code: '3900', name: 'رصيد افتتاحي — حقوق ملكية' },
+  INVENTORY_LOSS:       { code: '5160', name: 'خسائر تلف وهدر المخزون' },
+  INVENTORY_GAIN:       { code: '4910', name: 'فروقات جرد المخزون (زيادة)' },
+  STAFF_RECEIVABLE:     { code: '1125', name: 'ذمم مدينة — تحميلات على الموظفين' },
 };
 
 const EXPENSE_TYPE_ACCOUNTS = {
@@ -124,13 +127,15 @@ const RULES = {
     { m: 'تاريخ الحركة مطلوب', t: (d) => !isBlank(d.date) },
     { m: 'اختيار الصنف مطلوب', t: (d) => !isBlank(d.itemId) },
     { m: 'الكمية يجب أن تكون أكبر من صفر', t: (d) => num(d.quantity) > 0 },
-    { m: 'نوع الحركة غير صحيح', t: (d) => ['RECEIVE', 'ISSUE', 'TRANSFER'].includes(d.type) },
-    { m: 'مخزن الاستلام مطلوب', t: (d) => d.type !== 'RECEIVE' || !isBlank(d.toWarehouseId) },
-    { m: 'مخزن الصرف مطلوب', t: (d) => d.type !== 'ISSUE' || !isBlank(d.fromWarehouseId) },
+    { m: 'نوع الحركة غير صحيح', t: (d) => ['RECEIVE', 'ISSUE', 'TRANSFER', 'DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_INCREASE', 'ADJUST_DECREASE'].includes(d.type) },
+    { m: 'مخزن الاستلام مطلوب', t: (d) => !['RECEIVE', 'ADJUST_INCREASE'].includes(d.type) || !isBlank(d.toWarehouseId) },
+    { m: 'مخزن الصرف مطلوب', t: (d) => !['ISSUE', 'DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_DECREASE'].includes(d.type) || !isBlank(d.fromWarehouseId) },
     { m: 'مخزن المصدر ومخزن الوجهة مطلوبان للتحويل', t: (d) => d.type !== 'TRANSFER' || (!isBlank(d.fromWarehouseId) && !isBlank(d.toWarehouseId)) },
     { m: 'لا يمكن التحويل إلى نفس المخزن', t: (d) => d.type !== 'TRANSFER' || d.fromWarehouseId !== d.toWarehouseId },
     { m: 'اختيار المورد مطلوب عند الاستلام بذمة مورد', t: (d) => d.type !== 'RECEIVE' || d.sourceType !== 'SUPPLIER' || !isBlank(d.supplierId) },
     { m: 'اختيار الحساب النقدي مطلوب عند الشراء النقدي', t: (d) => d.type !== 'RECEIVE' || d.sourceType !== 'CASH' || !isBlank(d.cashAccountCode) },
+    { m: 'اختيار المسؤول المُحمّل عليه التلف مطلوب في التلف غير الطبيعي', t: (d) => d.type !== 'DAMAGE_ABNORMAL' || !isBlank(d.responsibleName) },
+    { m: 'تكلفة الوحدة مطلوبة للتلف وتسويات الجرد لإثبات القيمة المحاسبية', t: (d) => !['DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_INCREASE', 'ADJUST_DECREASE'].includes(d.type) || num(d.unitCost) > 0 },
   ],
 };
 
@@ -421,6 +426,60 @@ function buildStockMovementJE(m, accounts) {
     };
   }
 
+  // DAMAGE_NORMAL — تلف طبيعي: خسارة تشغيلية. من ح/ خسائر تلف المخزون (مدين) إلى ح/ المخزون (دائن).
+  if (m.type === 'DAMAGE_NORMAL') {
+    const loss = resolveAccount('INVENTORY_LOSS', accounts);
+    return {
+      entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `تلف طبيعي ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
+      totalDebit: total, totalCredit: total,
+      lines: [
+        { accountCode: loss.code, accountName: loss.name, debit: total, credit: 0, description: `تلف طبيعي ${itemDesc}${m.reason ? ` — ${m.reason}` : ''}`, costCenter: m.fromWarehouseName || '' },
+        { accountCode: inventory.code, accountName: inventory.name, debit: 0, credit: total, description: `إخراج تالف من ${m.fromWarehouseName || ''}`, costCenter: m.fromWarehouseName || '' },
+      ],
+    };
+  }
+
+  // DAMAGE_ABNORMAL — تلف غير طبيعي محمّل على مسؤول المخزن: من ح/ ذمم مدينة على الموظفين (مدين) إلى ح/ المخزون (دائن).
+  if (m.type === 'DAMAGE_ABNORMAL') {
+    const staff = resolveAccount('STAFF_RECEIVABLE', accounts);
+    const staffLine = { accountCode: staff.code, accountName: staff.name, debit: total, credit: 0, description: `تحميل تلف على ${m.responsibleName || 'المسؤول'}${m.reason ? ` — ${m.reason}` : ''}`, costCenter: m.fromWarehouseName || '' };
+    if (m.responsibleId) { staffLine.partyType = 'EMPLOYEE'; staffLine.partyId = m.responsibleId; staffLine.partyName = m.responsibleName; }
+    return {
+      entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `تلف غير طبيعي ${m.movementNo} — ${itemDesc} — تحميل على ${m.responsibleName || ''}`, sourceType: 'StockMovement', isPosted: true,
+      totalDebit: total, totalCredit: total,
+      lines: [
+        staffLine,
+        { accountCode: inventory.code, accountName: inventory.name, debit: 0, credit: total, description: `إخراج تالف من ${m.fromWarehouseName || ''}`, costCenter: m.fromWarehouseName || '' },
+      ],
+    };
+  }
+
+  // ADJUST_INCREASE — تسوية جرد بالزيادة: من ح/ المخزون (مدين) إلى ح/ فروقات جرد (دائن).
+  if (m.type === 'ADJUST_INCREASE') {
+    const gain = resolveAccount('INVENTORY_GAIN', accounts);
+    return {
+      entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `تسوية جرد بالزيادة ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
+      totalDebit: total, totalCredit: total,
+      lines: [
+        { accountCode: inventory.code, accountName: inventory.name, debit: total, credit: 0, description: `زيادة جرد في ${m.toWarehouseName || ''}${m.reason ? ` — ${m.reason}` : ''}`, costCenter: m.toWarehouseName || '' },
+        { accountCode: gain.code, accountName: gain.name, debit: 0, credit: total, description: 'فروقات جرد بالزيادة' },
+      ],
+    };
+  }
+
+  // ADJUST_DECREASE — تسوية جرد بالعجز: من ح/ خسائر تلف/هدر المخزون (مدين) إلى ح/ المخزون (دائن).
+  if (m.type === 'ADJUST_DECREASE') {
+    const loss = resolveAccount('INVENTORY_LOSS', accounts);
+    return {
+      entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `تسوية جرد بالعجز ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
+      totalDebit: total, totalCredit: total,
+      lines: [
+        { accountCode: loss.code, accountName: loss.name, debit: total, credit: 0, description: `عجز جرد في ${m.fromWarehouseName || ''}${m.reason ? ` — ${m.reason}` : ''}`, costCenter: m.fromWarehouseName || '' },
+        { accountCode: inventory.code, accountName: inventory.name, debit: 0, credit: total, description: `إنقاص عجز من ${m.fromWarehouseName || ''}`, costCenter: m.fromWarehouseName || '' },
+      ],
+    };
+  }
+
   // TRANSFER — نفس حساب المخزون على الطرفين، مع وسم مركز التكلفة لكل مخزن.
   return {
     entryNo: `JE-STK-${m.movementNo}`, date: m.date, description: `تحويل مخزون ${m.movementNo} — ${itemDesc}`, sourceType: 'StockMovement', isPosted: true,
@@ -467,9 +526,9 @@ async function createStockMovement(base44, data) {
       await autoPostJE(base44, buildStockMovementJE(payload, accounts));
     }
     // تحديث أرصدة المخازن حسب نوع الحركة.
-    if (payload.type === 'RECEIVE') {
+    if (payload.type === 'RECEIVE' || payload.type === 'ADJUST_INCREASE') {
       await adjustStock(base44, payload.itemId, payload.toWarehouseId, payload.toWarehouseName, quantity, unitCost);
-    } else if (payload.type === 'ISSUE') {
+    } else if (['ISSUE', 'DAMAGE_NORMAL', 'DAMAGE_ABNORMAL', 'ADJUST_DECREASE'].includes(payload.type)) {
       await adjustStock(base44, payload.itemId, payload.fromWarehouseId, payload.fromWarehouseName, -quantity, unitCost);
     } else {
       await adjustStock(base44, payload.itemId, payload.fromWarehouseId, payload.fromWarehouseName, -quantity, unitCost);

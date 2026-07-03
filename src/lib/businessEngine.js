@@ -181,7 +181,7 @@ export const OperationEngine = {
 
   // حركة مخزنية (استلام / صرف / تحويل) — تُنشئ السجل وترحّل قيدها تلقائياً وتحدّث الأرصدة.
   async createStockMovement(data, refs = {}) {
-    const { items = [], warehouses = [], projects = [], suppliers = [] } = refs;
+    const { items = [], warehouses = [], projects = [], suppliers = [], employees = [] } = refs;
     const item = (items || []).find(i => i.id === data.itemId);
     const payload = {
       ...data,
@@ -192,6 +192,7 @@ export const OperationEngine = {
       toWarehouseName: nameOf(warehouses, data.toWarehouseId, data.toWarehouseName),
       projectName: nameOf(projects, data.projectId, data.projectName),
       supplierName: nameOf(suppliers, data.supplierId, data.supplierName),
+      responsibleName: nameOf(employees, data.responsibleId, data.responsibleName),
     };
     return await runOperation({ operation: 'STOCK_MOVEMENT', mode: 'create', data: payload });
   },

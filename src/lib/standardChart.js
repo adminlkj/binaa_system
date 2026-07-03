@@ -27,6 +27,7 @@ export const STANDARD_CHART = [
   { code: '1122', name: 'دفعات مقدمة للموردين', nameEn: 'Advances to Suppliers', accountType: 'ASSET', nature: 'DEBIT', parentCode: '1120' },
   { code: '1123', name: 'سلف العاملين', nameEn: 'Employee Advances', accountType: 'ASSET', nature: 'DEBIT', parentCode: '1120', semanticRole: 'EMPLOYEE_ADVANCES' },
   { code: '1124', name: 'محتجزات لدى العملاء', nameEn: 'Retention Receivable', accountType: 'ASSET', nature: 'DEBIT', parentCode: '1120', semanticRole: 'RETENTION_RECEIVABLE' },
+  { code: '1125', name: 'ذمم مدينة — تحميلات على الموظفين', nameEn: 'Staff Charge Receivable', accountType: 'ASSET', nature: 'DEBIT', parentCode: '1120', semanticRole: 'STAFF_RECEIVABLE' },
 
   { code: '1130', name: 'المخزون', nameEn: 'Inventory', accountType: 'ASSET', nature: 'DEBIT', parentCode: '1100', group: true },
   { code: '1131', name: 'مخزون مواد البناء', nameEn: 'Construction Materials', accountType: 'ASSET', nature: 'DEBIT', parentCode: '1130', semanticRole: 'INVENTORY_MATERIALS' },
@@ -71,6 +72,7 @@ export const STANDARD_CHART = [
   { code: '4200', name: 'إيرادات تأجير المعدات', nameEn: 'Equipment Rental Revenue', accountType: 'REVENUE', nature: 'CREDIT', parentCode: '4000', semanticRole: 'REVENUE_RENTAL' },
   { code: '4300', name: 'إيرادات الخدمات', nameEn: 'Service Revenue', accountType: 'REVENUE', nature: 'CREDIT', parentCode: '4000', semanticRole: 'REVENUE_SERVICE' },
   { code: '4900', name: 'إيرادات أخرى', nameEn: 'Other Revenue', accountType: 'REVENUE', nature: 'CREDIT', parentCode: '4000' },
+  { code: '4910', name: 'فروقات جرد المخزون (زيادة)', nameEn: 'Inventory Count Gain', accountType: 'REVENUE', nature: 'CREDIT', parentCode: '4000', semanticRole: 'INVENTORY_GAIN' },
 
   // ═══════════════════ 5 — المصروفات (EXPENSES) ═══════════════════
   { code: '5000', name: 'المصروفات', nameEn: 'Expenses', accountType: 'EXPENSE', nature: 'DEBIT', group: true },
@@ -82,6 +84,7 @@ export const STANDARD_CHART = [
   { code: '5130', name: 'أجور عمالة مباشرة', nameEn: 'Direct Labor', accountType: 'EXPENSE', nature: 'DEBIT', parentCode: '5100', semanticRole: 'EXPENSE_DIRECT_LABOR' },
   { code: '5140', name: 'تكاليف مقاولي الباطن', nameEn: 'Subcontractor Costs', accountType: 'EXPENSE', nature: 'DEBIT', parentCode: '5100', semanticRole: 'EXPENSE_SUBCONTRACTOR' },
   { code: '5150', name: 'مصروفات المعدات', nameEn: 'Equipment Expenses', accountType: 'EXPENSE', nature: 'DEBIT', parentCode: '5100', semanticRole: 'EXPENSE_EQUIPMENT' },
+  { code: '5160', name: 'خسائر تلف وهدر المخزون', nameEn: 'Inventory Damage & Loss', accountType: 'EXPENSE', nature: 'DEBIT', parentCode: '5100', semanticRole: 'INVENTORY_LOSS' },
 
   // 5200 — مصروفات تشغيلية وإدارية
   { code: '5200', name: 'المصروفات التشغيلية والإدارية', nameEn: 'Operating & Admin Expenses', accountType: 'EXPENSE', nature: 'DEBIT', parentCode: '5000', group: true },

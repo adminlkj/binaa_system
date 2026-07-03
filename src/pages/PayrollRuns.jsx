@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, Calculator } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Calculator, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,9 @@ import { t, formatCurrency } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import PayrollRunDocument from '@/components/shared/PayrollRunDocument';
+import { printHtml } from '@/lib/printDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { toast } from 'sonner';
 
 const STATUSES = { DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-slate-100 text-slate-700' }, APPROVED: { ar: 'موافق', en: 'Approved', color: 'bg-blue-100 text-blue-700' }, PAID: { ar: 'مدفوع', en: 'Paid', color: 'bg-emerald-100 text-emerald-700' } };
@@ -22,6 +25,9 @@ const empty = { code: '', month: '', year: new Date().getFullYear(), totalSalari
 
 export default function PayrollRuns() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
+  const [printRun, setPrintRun] = useState(null);
+  const printRef = useRef(null);
   const [items, setItems] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +91,8 @@ export default function PayrollRuns() {
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
   };
+
+  const doPrint = () => printHtml(printRef.current?.innerHTML, { title: printRun?.code || 'Payroll', lang });
 
   const remove = async () => {
     try { await base44.entities.PayrollRun.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
@@ -155,6 +163,7 @@ export default function PayrollRuns() {
                       <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="size-8 text-violet-600" onClick={() => setPrintRun(item)}><Printer className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
@@ -213,6 +222,20 @@ export default function PayrollRuns() {
         title={t('حذف المسير', 'Delete Payroll Run', lang)}
         description={t('سيتم حذف مسير الرواتب نهائياً.', 'This payroll run will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <Dialog open={!!printRun} onOpenChange={(v) => !v && setPrintRun(null)}>
+        <DialogContent className="max-w-2xl max-h-[92vh] p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <span className="font-semibold">{t('معاينة المسيّر', 'Payroll Preview', lang)}</span>
+            <Button size="sm" onClick={doPrint} className="gap-1 bg-violet-600 hover:bg-violet-700"><Printer className="size-3.5" />{t('طباعة / تصدير', 'Print / Export', lang)}</Button>
+          </div>
+          <div className="overflow-auto max-h-[80vh] bg-muted/30 p-4">
+            <div className="bg-white mx-auto max-w-xl p-8 rounded shadow-sm">
+              {printRun && <PayrollRunDocument run={printRun} settings={settings} lang={lang} innerRef={printRef} />}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </ModuleLayout>
   );
 }

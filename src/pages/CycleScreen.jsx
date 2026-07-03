@@ -20,6 +20,7 @@ import SupplierInvoices from '@/pages/SupplierInvoices';
 import SupplierPayments from '@/pages/SupplierPayments';
 import Employees from '@/pages/Employees';
 import PayrollRuns from '@/pages/PayrollRuns';
+import PayrollSheets from '@/pages/PayrollSheets';
 import Attendance from '@/pages/Attendance';
 import Advances from '@/pages/Advances';
 import ChartAccounts from '@/pages/ChartAccounts';
@@ -61,6 +62,7 @@ const TAB_CONTENT = {
   'supplier-payments': <SupplierPayments />,
   employees: <Employees />,
   'payroll-runs': <PayrollRuns />,
+  'payroll-sheets': <PayrollSheets />,
   attendance: <Attendance />,
   advances: <Advances />,
   'chart-accounts': <ChartAccounts />,

@@ -14,7 +14,7 @@ export const READY_TABS = new Set([
   'projects', 'contracts', 'sales', 'client-payments', 'boq',
   'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
   'purchase-orders', 'expenses', 'subcontractors', 'supplier-invoices', 'supplier-payments',
-  'employees', 'payroll-runs', 'attendance', 'advances',
+  'employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances',
   'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'audit',
   'clients', 'suppliers', 'inventory', 'users', 'settings',
   // Reports cycle
@@ -71,6 +71,7 @@ export const CYCLES = [
     tabs: [
       { key: 'employees',    ar: 'ملفات الموظفين',    en: 'Employee Files', Icon: UsersRound },
       { key: 'payroll-runs', ar: 'مسيرات الرواتب',    en: 'Payroll Runs',   Icon: Wallet },
+      { key: 'payroll-sheets', ar: 'كشوفات الرواتب',  en: 'Payroll Sheets', Icon: FileText },
       { key: 'attendance',   ar: 'الحضور والإجازات',  en: 'Attendance',     Icon: CalendarDays },
       { key: 'advances',     ar: 'السلف والاستقطاعات', en: 'Advances',      Icon: HandCoins },
     ],

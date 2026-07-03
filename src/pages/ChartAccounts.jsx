@@ -205,6 +205,7 @@ export default function ChartAccounts() {
         onOpenChange={setDialogOpen}
         account={editing}
         parents={accounts}
+        allAccounts={accounts}
         onSave={handleSave}
         lang={lang}
       />

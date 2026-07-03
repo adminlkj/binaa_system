@@ -16,16 +16,43 @@ const ACCOUNT_TYPES = [
 
 const EMPTY = { code: '', name: '', nameEn: '', parentCode: '', accountType: 'EXPENSE', nature: 'DEBIT', semanticRole: '', isPostable: true, isActive: true, openingBalance: 0 };
 
-export default function ChartAccountDialog({ open, onOpenChange, account, parents, onSave, lang }) {
+// يقترح أول رقم حساب فرعي متاح تحت حساب أب (مثل 1114 تحت مجموعة النقدية 1110).
+function nextChildCode(parentCode, allAccounts) {
+  if (!parentCode) return '';
+  const used = new Set((allAccounts || []).map(a => String(a.code)));
+  // نبدأ من parentCode+1 ونزيد حتى نجد رقماً غير مستخدم ضمن نفس نطاق الأب.
+  const base = parseInt(parentCode, 10);
+  if (Number.isNaN(base)) return '';
+  for (let i = 1; i <= 99; i++) {
+    const candidate = String(base + i);
+    if (!used.has(candidate)) return candidate;
+  }
+  return '';
+}
+
+export default function ChartAccountDialog({ open, onOpenChange, account, parents, allAccounts, onSave, lang }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [codeError, setCodeError] = useState('');
+
+  const accountsList = allAccounts || parents || [];
 
   useEffect(() => {
     if (account) setForm({ ...EMPTY, ...account, openingBalance: 0 });
     else setForm(EMPTY);
+    setCodeError('');
   }, [account, open]);
 
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  // يتحقق من تكرار رقم الحساب (باستثناء الحساب نفسه عند التعديل).
+  const isDuplicateCode = (code) => {
+    if (!code) return false;
+    return accountsList.some(a => String(a.code) === String(code) && a.id !== account?.id && a.code !== account?.code);
+  };
+
+  const set = (k, v) => {
+    if (k === 'code') setCodeError(isDuplicateCode(v) ? t('هذا الرقم مستخدم لحساب آخر — اختر رقماً فريداً', 'This code is already used — choose a unique code', lang) : '');
+    setForm(prev => ({ ...prev, [k]: v }));
+  };
 
   const handleType = (type) => {
     const def = ACCOUNT_TYPES.find(a => a.key === type);
@@ -36,15 +63,23 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
   const handleParent = (v) => {
     const parentCode = v === 'none' ? '' : v;
     const parent = (parents || []).find(p => p.code === parentCode);
+    // عند اختيار أب لحساب جديد وبدون رقم بعد: اقترح أول رقم فرعي متاح تلقائياً.
+    const suggested = (!account && parentCode && !form.code) ? nextChildCode(parentCode, accountsList) : form.code;
     setForm(prev => ({
       ...prev,
       parentCode,
+      code: suggested,
       ...(parent ? { accountType: parent.accountType, nature: parent.nature } : {}),
     }));
+    if (suggested) setCodeError('');
   };
 
   const handleSave = async () => {
     if (!form.code || !form.name) return;
+    if (isDuplicateCode(form.code)) {
+      setCodeError(t('هذا الرقم مستخدم لحساب آخر — اختر رقماً فريداً', 'This code is already used — choose a unique code', lang));
+      return;
+    }
     setSaving(true);
     const { openingBalance, ...rest } = form;
     await onSave(
@@ -79,7 +114,8 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
           </div>
           <div>
             <Label className="text-xs">{t('رقم الحساب', 'Account Code', lang)} *</Label>
-            <Input value={form.code} onChange={e => set('code', e.target.value)} placeholder="1021" className="mt-1" />
+            <Input value={form.code} onChange={e => set('code', e.target.value)} placeholder="1021" className={`mt-1 ${codeError ? 'border-destructive focus-visible:ring-destructive' : ''}`} />
+            {codeError && <p className="text-[10px] text-destructive mt-1">{codeError}</p>}
           </div>
           <div>
             <Label className="text-xs">{t('نوع الحساب', 'Account Type', lang)} *</Label>
@@ -126,7 +162,7 @@ export default function ChartAccountDialog({ open, onOpenChange, account, parent
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-          <Button onClick={handleSave} disabled={saving || !form.code || !form.name} className="bg-teal-600 hover:bg-teal-700">
+          <Button onClick={handleSave} disabled={saving || !form.code || !form.name || !!codeError} className="bg-teal-600 hover:bg-teal-700">
             {saving ? t('جارٍ الحفظ...', 'Saving...', lang) : t('حفظ', 'Save', lang)}
           </Button>
         </DialogFooter>

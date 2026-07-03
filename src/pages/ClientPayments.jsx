@@ -13,6 +13,7 @@ import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
+import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
 const METHODS = {
@@ -69,6 +70,8 @@ export default function ClientPayments() {
   const save = async () => {
     if (!form.clientId || !form.date || !form.amount)
       return toast.error(t('العميل والتاريخ والمبلغ مطلوبة', 'Client, date and amount required', lang));
+    if (!form.cashAccountCode)
+      return toast.error(t('اختيار الحساب النقدي (صندوق/بنك) مطلوب — كل تحصيل يُنشئ قيداً محاسبياً', 'A cash/bank account is required — every receipt posts a journal entry', lang));
     setSaving(true);
     try {
       const data = {
@@ -80,15 +83,15 @@ export default function ClientPayments() {
         date: form.date,
         amount: Number(form.amount) || 0,
         method: form.method,
-        cashAccountCode: form.cashAccountCode || undefined,
-        cashAccountName: form.cashAccountName || undefined,
+        cashAccountCode: form.cashAccountCode,
+        cashAccountName: form.cashAccountName,
         reference: form.reference,
         notes: form.notes,
       };
-      if (editing) { await base44.entities.ClientPayment.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.ClientPayment.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      if (editing) { await OperationEngine.updateClientPayment(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await OperationEngine.createClientPayment(data); toast.success(t('تمت الإضافة + قيد التحصيل', 'Added + receipt entry', lang)); }
       setDialogOpen(false); load();
-    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
   };
 
@@ -196,18 +199,16 @@ export default function ClientPayments() {
               </Select>
             </div>
             <div className="space-y-1 col-span-2">
-              <Label>{t('الحساب النقدي (صندوق / بنك)', 'Cash / Bank Account', lang)}</Label>
+              <Label>{t('الحساب النقدي (صندوق / بنك)', 'Cash / Bank Account', lang)} *</Label>
               <Select
-                value={form.cashAccountCode || 'NONE'}
+                value={form.cashAccountCode || ''}
                 onValueChange={v => {
-                  if (v === 'NONE') return setForm(f => ({ ...f, cashAccountCode: '', cashAccountName: '' }));
                   const a = cashAccounts.find(x => x.code === v);
                   setForm(f => ({ ...f, cashAccountCode: v, cashAccountName: a?.name || '' }));
                 }}
               >
                 <SelectTrigger><SelectValue placeholder={t('اختر حساب التحصيل', 'Select collection account', lang)} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="NONE">{t('بدون تحديد', 'Unspecified', lang)}</SelectItem>
                   {cashAccounts.length === 0
                     ? <SelectItem value="none" disabled>{t('لا توجد حسابات نقدية في الدليل', 'No cash accounts in the chart', lang)}</SelectItem>
                     : cashAccounts.map(a => (

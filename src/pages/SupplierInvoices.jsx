@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
 const STATUS = {
@@ -93,10 +94,10 @@ export default function SupplierInvoices() {
         paidAmount: parseFloat(form.paidAmount) || 0,
       };
       delete data.vatRate;
-      if (editing) { await base44.entities.SupplierInvoice.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.SupplierInvoice.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      if (editing) { await OperationEngine.updateSupplierInvoice(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await OperationEngine.createSupplierInvoice(data); toast.success(t('تمت الإضافة + قيد الالتزام', 'Added + liability entry', lang)); }
       setDialogOpen(false); load();
-    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
   };
 

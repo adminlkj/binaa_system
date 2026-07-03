@@ -25,7 +25,7 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog';
  *  - onChanged: () => void  — optional callback after any mutation
  */
 export default function CrudTab({
-  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions, beforeSave,
+  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions, beforeSave, operationHandlers,
 }) {
   const { lang } = useStore();
   const { toast } = useToast();
@@ -82,11 +82,15 @@ export default function CrudTab({
         }
       }
       const payload = buildPayload(form);
+      // حين تُمرَّر معالجات عمليات (operationHandlers) يمر الحفظ عبر الخادم فيُنشئ
+      // قيداً محاسبياً ذرّياً، وفشل القيد يُلغي العملية. وإلا كتابة مباشرة كالمعتاد.
       if (editingId) {
-        await base44.entities[entityName].update(editingId, payload);
+        if (operationHandlers?.update) await operationHandlers.update(editingId, payload);
+        else await base44.entities[entityName].update(editingId, payload);
         toast({ title: t('تم التحديث', 'Updated', lang) });
       } else {
-        await base44.entities[entityName].create(payload);
+        if (operationHandlers?.create) await operationHandlers.create(payload);
+        else await base44.entities[entityName].create(payload);
         toast({ title: t('تمت الإضافة', 'Created', lang) });
       }
       setDialogOpen(false);

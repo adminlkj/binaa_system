@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, genInvoiceNo, INVOICE_STATUS } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
+import { OperationEngine } from '@/lib/businessEngine';
 import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
 import { monthBounds, monthLabel, recentMonths, sumHoursForMonth, addDays } from '@/lib/rentalBilling';
 
@@ -46,6 +47,10 @@ export default function RentalInvoicesTab({ equipmentId }) {
     <>
     <CrudTab
       entityName="RentalInvoice"
+      operationHandlers={{
+        create: (payload) => OperationEngine.createRentalInvoice(payload),
+        update: (id, payload) => OperationEngine.updateRentalInvoice(id, payload),
+      }}
       rowActions={(row) => (
         <Button size="icon" variant="ghost" className="size-8 text-emerald-600 hover:text-emerald-700" onClick={() => setPrintInvoice(toInvoiceDoc(row))}>
           <Printer className="size-3.5" />

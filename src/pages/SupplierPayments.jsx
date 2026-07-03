@@ -14,6 +14,7 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
+import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
 const METHODS = {
@@ -70,13 +71,17 @@ export default function SupplierPayments() {
   const save = async () => {
     if (!form.supplierId || !form.amount)
       return toast.error(t('المورد والمبلغ مطلوبان', 'Supplier and amount required', lang));
+    if (!form.date)
+      return toast.error(t('التاريخ مطلوب', 'Date is required', lang));
+    if (!form.cashAccountCode)
+      return toast.error(t('اختيار الحساب النقدي (صندوق/بنك) مطلوب — كل سداد يُنشئ قيداً محاسبياً', 'A cash/bank account is required — every payment posts a journal entry', lang));
     setSaving(true);
     try {
       const data = { ...form, amount: parseFloat(form.amount) || 0 };
-      if (editing) { await base44.entities.SupplierPayment.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.SupplierPayment.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      if (editing) { await OperationEngine.updateSupplierPayment(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await OperationEngine.createSupplierPayment(data); toast.success(t('تمت الإضافة + قيد السداد', 'Added + payment entry', lang)); }
       setDialogOpen(false); load();
-    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
   };
 
@@ -168,7 +173,7 @@ export default function SupplierPayments() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)} *</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ', 'Amount', lang)} *</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('طريقة الدفع', 'Method', lang)}</Label>
@@ -178,18 +183,16 @@ export default function SupplierPayments() {
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>{t('الحساب النقدي (صندوق / بنك)', 'Cash / Bank Account', lang)}</Label>
+              <Label>{t('الحساب النقدي (صندوق / بنك)', 'Cash / Bank Account', lang)} *</Label>
               <Select
-                value={form.cashAccountCode || 'NONE'}
+                value={form.cashAccountCode || ''}
                 onValueChange={v => {
-                  if (v === 'NONE') return setForm(f => ({ ...f, cashAccountCode: '', cashAccountName: '' }));
                   const a = cashAccounts.find(x => x.code === v);
                   setForm(f => ({ ...f, cashAccountCode: v, cashAccountName: a?.name || '' }));
                 }}
               >
                 <SelectTrigger><SelectValue placeholder={t('اختر حساب الدفع', 'Select payment account', lang)} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="NONE">{t('بدون تحديد', 'Unspecified', lang)}</SelectItem>
                   {cashAccounts.length === 0
                     ? <SelectItem value="none" disabled>{t('لا توجد حسابات نقدية في الدليل', 'No cash accounts in the chart', lang)}</SelectItem>
                     : cashAccounts.map(a => (

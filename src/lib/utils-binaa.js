@@ -34,8 +34,11 @@ export function formatDate(dateStr, lang = 'ar') {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
-    // Always use Gregorian calendar with English (Latin) digits, in both languages.
-    return d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    // Format as YYYY/MMM/DD (e.g. 2026/MAR/01) — Gregorian, uppercase English month, Latin digits.
+    const year = d.getFullYear();
+    const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}/${month}/${day}`;
   } catch {
     return dateStr;
   }

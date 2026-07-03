@@ -99,7 +99,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
       filter={{ equipmentId }}
       defaults={(rows) => ({
         equipmentId,
-        invoiceNo: genInvoiceNo('RINV', new Date().getFullYear(), rows.length + 1),
+        invoiceNo: genInvoiceNo('RNT', new Date().getFullYear(), rows.length + 1),
         rentalContractId: '',
         contractNo: '',
         deliveryOrderId: '',

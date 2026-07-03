@@ -1157,7 +1157,86 @@ async function closeFiscalYear(base44, id) {
     });
   }
 
-  return await base44.asServiceRole.entities.FiscalYear.update(id, { status: 'CLOSED' });
+  await base44.asServiceRole.entities.FiscalYear.update(id, { status: 'CLOSED' });
+
+  // بعد الإقفال: افتح السنة التالية فوراً ورحّل لها قيد الرصيد الافتتاحي
+  // بأرصدة حسابات الميزانية (أصول/خصوم/حقوق ملكية) — الحسابات المؤقتة صُفّرت بالإقفال.
+  const nextYear = await openNextFiscalYear(base44, fy, accounts);
+  return { closed: fy.id, nextYear };
+}
+
+// يحسب حدود السنة المالية التالية من السنة المُقفلة (نفس الطول، تبدأ في اليوم التالي).
+function nextYearBounds(fy) {
+  const start = new Date(`${fy.endDate}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() + 1);
+  const end = new Date(start);
+  end.setUTCFullYear(end.getUTCFullYear() + 1);
+  end.setUTCDate(end.getUTCDate() - 1);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return { startDate: iso(start), endDate: iso(end), year: start.getUTCFullYear() };
+}
+
+// ينشئ السنة المالية الجديدة (إن لم تكن موجودة) ويرحّل لها قيد الرصيد الافتتاحي.
+async function openNextFiscalYear(base44, closedFy, accounts) {
+  const b = nextYearBounds(closedFy);
+
+  // لا تُنشئ سنة مكررة إن كانت موجودة مسبقاً.
+  const existing = (await base44.asServiceRole.entities.FiscalYear.filter({ year: b.year }))?.[0];
+  const newFy = existing || await base44.asServiceRole.entities.FiscalYear.create({
+    name: `السنة المالية ${b.year}`, year: b.year,
+    startDate: b.startDate, endDate: b.endDate, status: 'OPEN', isCurrent: true,
+  });
+
+  // اجعلها السنة الجارية وأزِل العلم عن الباقي.
+  const allYears = await base44.asServiceRole.entities.FiscalYear.filter({ isCurrent: true });
+  for (const y of allYears || []) {
+    if (y.id !== newFy.id && y.isCurrent) await base44.asServiceRole.entities.FiscalYear.update(y.id, { isCurrent: false });
+  }
+  if (!newFy.isCurrent) await base44.asServiceRole.entities.FiscalYear.update(newFy.id, { isCurrent: true });
+
+  // احسب أرصدة حسابات الميزانية حتى نهاية السنة المُقفلة (شاملة قيد الإقفال).
+  // نُجمّع بمفتاح "الحساب + الطرف" حتى يُرحّل رصيد كل عميل/مورد/باطن مستقلاً،
+  // فتبقى كشوف الحسابات في السنة الجديدة سليمة ومطابقة لأرصدة نهاية السنة السابقة.
+  const entries = await base44.asServiceRole.entities.JournalEntry.filter({ isPosted: true });
+  const typeByCode = Object.fromEntries((accounts || []).map((a) => [a.code, a.accountType]));
+  const nameByCode = Object.fromEntries((accounts || []).map((a) => [a.code, a.name]));
+  const bal = {};
+  for (const je of entries || []) {
+    if (!je.date || je.date > closedFy.endDate) continue;
+    for (const l of je.lines || []) {
+      const type = typeByCode[l.accountCode];
+      if (type !== 'ASSET' && type !== 'LIABILITY' && type !== 'EQUITY') continue;
+      const key = `${l.accountCode}|${l.partyId || ''}`;
+      if (!bal[key]) bal[key] = { accountCode: l.accountCode, debit: 0, credit: 0, partyType: l.partyType, partyId: l.partyId, partyName: l.partyName };
+      bal[key].debit += num(l.debit);
+      bal[key].credit += num(l.credit);
+    }
+  }
+
+  const lines = [];
+  for (const a of Object.values(bal)) {
+    const net = +(a.debit - a.credit).toFixed(2); // موجب = رصيد مدين
+    if (Math.abs(net) < 0.01) continue;
+    const line = {
+      accountCode: a.accountCode, accountName: nameByCode[a.accountCode] || a.accountCode,
+      debit: net > 0 ? net : 0, credit: net < 0 ? +Math.abs(net).toFixed(2) : 0,
+      description: a.partyName ? `رصيد افتتاحي مرحّل — ${a.partyName}` : 'رصيد افتتاحي مرحّل',
+    };
+    if (a.partyId) { line.partyType = a.partyType; line.partyId = a.partyId; line.partyName = a.partyName; }
+    lines.push(line);
+  }
+
+  if (lines.length > 0) {
+    const totalDebit = +lines.reduce((s, l) => s + num(l.debit), 0).toFixed(2);
+    const totalCredit = +lines.reduce((s, l) => s + num(l.credit), 0).toFixed(2);
+    await autoPostJE(base44, {
+      entryNo: `JE-OPEN-${b.year}`, date: b.startDate,
+      description: `قيد الأرصدة الافتتاحية للسنة المالية ${b.year}`, sourceType: 'OpeningBalance', isPosted: true,
+      totalDebit, totalCredit, lines,
+    });
+  }
+
+  return newFy;
 }
 
 // تراجع (إنشاء): احذف السجل المصدر حين يفشل ترحيل القيد

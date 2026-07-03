@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency as fmt } from '@/lib/utils-binaa';
 import { buildPartyBalances, buildPartyStatement } from '@/lib/partyStatement';
+import PartyStatementReport from '@/components/partners/PartyStatementReport';
 
 /**
  * قسم الكشوفات ومتابعة الدفعات — مصدره الوحيد قيود اليومية المُرحّلة فقط.
@@ -60,19 +61,6 @@ export default function PartyStatementSection({ partyType, parties = [] }) {
   const outstandingLabel = isSupplier
     ? t('مستحق للمورد', 'Owed to Supplier', lang)
     : t('مستحق على العميل', 'Owed by Client', lang);
-
-  const sourceLabel = (st) => {
-    const map = {
-      SalesInvoice: t('فاتورة مبيعات', 'Sales Invoice', lang),
-      RentalInvoice: t('فاتورة تأجير', 'Rental Invoice', lang),
-      RentalContract: t('عقد تأجير', 'Rental Contract', lang),
-      ClientPayment: t('تحصيل', 'Collection', lang),
-      SupplierInvoice: t('فاتورة مورد', 'Supplier Invoice', lang),
-      PurchaseOrder: t('أمر شراء', 'Purchase Order', lang),
-      SupplierPayment: t('سداد', 'Payment', lang),
-    };
-    return map[st] || st || '—';
-  };
 
   return (
     <div className="space-y-4">
@@ -136,48 +124,14 @@ export default function PartyStatementSection({ partyType, parties = [] }) {
         </div>
       </Card>
 
-      {/* كشف الحساب التفصيلي للطرف المختار */}
+      {/* تقرير كشف الحساب الاحترافي للطرف المختار */}
       {selectedParty && statement && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-lg">{t('كشف حساب', 'Statement of Account', lang)} — {selectedParty.name}</h3>
-            <span className="text-sm text-muted-foreground">{statement.rows.length} {t('حركة', 'movements', lang)}</span>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('التاريخ', 'Date', lang)}</TableHead>
-                  <TableHead>{t('رقم القيد', 'Entry No.', lang)}</TableHead>
-                  <TableHead>{t('النوع', 'Type', lang)}</TableHead>
-                  <TableHead>{t('البيان', 'Description', lang)}</TableHead>
-                  <TableHead className="text-center">{t('مدين', 'Debit', lang)}</TableHead>
-                  <TableHead className="text-center">{t('دائن', 'Credit', lang)}</TableHead>
-                  <TableHead className="text-center">{t('الرصيد', 'Balance', lang)}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {statement.rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('لا توجد حركات مرحّلة لهذا الطرف', 'No posted movements for this party', lang)}</TableCell></TableRow>
-                  : statement.rows.map((m, i) => (
-                    <TableRow key={i} className="hover:bg-muted/30">
-                      <TableCell className="text-sm whitespace-nowrap" dir="ltr">{m.date}</TableCell>
-                      <TableCell className="font-mono text-xs">{m.entryNo}</TableCell>
-                      <TableCell className="text-sm">{sourceLabel(m.sourceType)}</TableCell>
-                      <TableCell className="text-sm">{m.description}</TableCell>
-                      <TableCell className="text-center text-sm">{m.debit ? fmt(m.debit) : '—'}</TableCell>
-                      <TableCell className="text-center text-sm">{m.credit ? fmt(m.credit) : '—'}</TableCell>
-                      <TableCell className="text-center text-sm font-semibold">{fmt(Math.abs(m.balance))}</TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="flex flex-wrap gap-6 justify-end mt-3 pt-3 border-t text-sm">
-            <span>{t('إجمالي مدين', 'Total Debit', lang)}: <strong>{fmt(statement.totalDebit)}</strong></span>
-            <span>{t('إجمالي دائن', 'Total Credit', lang)}: <strong>{fmt(statement.totalCredit)}</strong></span>
-            <span className={isSupplier ? 'text-amber-700' : 'text-emerald-700'}>{outstandingLabel}: <strong>{fmt(statement.outstanding)}</strong></span>
-          </div>
-        </Card>
+        <PartyStatementReport
+          party={selectedParty}
+          statement={statement}
+          partyType={partyType}
+          onClose={() => setSelectedId(null)}
+        />
       )}
     </div>
   );

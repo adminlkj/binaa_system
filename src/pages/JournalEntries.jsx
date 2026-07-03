@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const emptyLine = { accountCode: '', accountName: '', debit: '', credit: '', description: '' };
@@ -131,11 +132,25 @@ export default function JournalEntries() {
   const totalPostedCredit = items.filter(i => i.isPosted).reduce((s, i) => s + (i.totalCredit || 0), 0);
   const globalBalanced = Math.abs(totalPostedDebit - totalPostedCredit) < 0.01;
 
+  const exportColumns = [
+    { header: { ar: 'رقم القيد', en: 'Entry No' }, value: (r) => r.entryNo },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الوصف', en: 'Description' }, value: (r) => r.description },
+    { header: { ar: 'إجمالي المدين', en: 'Total Debit' }, value: (r) => r.totalDebit || 0 },
+    { header: { ar: 'إجمالي الدائن', en: 'Total Credit' }, value: (r) => r.totalCredit || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => r.isPosted ? t('مرحّل', 'Posted', lang) : t('مسودة', 'Draft', lang) },
+  ];
+
   return (
     <ModuleLayout
       title={t('دفتر اليومية', 'Journal Entries', lang)}
       subtitle={t('القيود المحاسبية اليومية', 'Daily accounting entries', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('قيد جديد', 'New Entry', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'دفتر اليومية', en: 'Journal Entries' }} />
+          <Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('قيد جديد', 'New Entry', lang)}</Button>
+        </div>
+      }
     >
       {/* Balance Summary */}
       <div className={`flex items-center gap-3 p-3 rounded-xl border text-sm ${globalBalanced ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>

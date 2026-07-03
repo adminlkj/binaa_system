@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const STATUSES = {
@@ -83,11 +84,26 @@ export default function Advances() {
 
   const totalOpen = filtered.filter(r => r.status !== 'SETTLED').reduce((s, r) => s + ((r.amount || 0) - (r.deductedAmount || 0)), 0);
 
+  const exportColumns = [
+    { header: { ar: 'الموظف', en: 'Employee' }, value: (r) => empName(r.employeeId) },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'السبب', en: 'Reason' }, value: (r) => r.reason },
+    { header: { ar: 'المبلغ', en: 'Amount' }, value: (r) => r.amount || 0 },
+    { header: { ar: 'المستقطع', en: 'Deducted' }, value: (r) => r.deductedAmount || 0 },
+    { header: { ar: 'المتبقي', en: 'Remaining' }, value: (r) => (r.amount || 0) - (r.deductedAmount || 0) },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('السلف والاستقطاعات', 'Advances', lang)}
       subtitle={t('متابعة سلف الموظفين واستقطاعاتها', 'Track employee advances and deductions', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('سلفة جديدة', 'New Advance', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'السلف', en: 'Advances' }} />
+          <Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('سلفة جديدة', 'New Advance', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

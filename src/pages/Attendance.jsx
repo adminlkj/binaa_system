@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const STATUSES = {
@@ -79,11 +80,24 @@ export default function Attendance() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const exportColumns = [
+    { header: { ar: 'الموظف', en: 'Employee' }, value: (r) => empName(r.employeeId) },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+    { header: { ar: 'الساعات', en: 'Hours' }, value: (r) => r.hours ?? 0 },
+    { header: { ar: 'ملاحظات', en: 'Notes' }, value: (r) => r.notes },
+  ];
+
   return (
     <ModuleLayout
       title={t('الحضور والإجازات', 'Attendance', lang)}
       subtitle={t('تسجيل حضور وإجازات الموظفين', 'Track employee attendance and leaves', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('تسجيل يوم', 'Log Day', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'الحضور والإجازات', en: 'Attendance' }} />
+          <Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('تسجيل يوم', 'Log Day', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

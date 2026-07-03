@@ -14,6 +14,7 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import OrderLinesEditor from '@/components/purchase/OrderLinesEditor';
 import { toast } from 'sonner';
 
@@ -122,11 +123,25 @@ export default function PurchaseOrders() {
 
   const totalValue = filtered.reduce((s, i) => s + (i.totalAmount || 0) + (i.vatAmount || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'رقم الأمر', en: 'Order No' }, value: (r) => r.orderNo },
+    { header: { ar: 'المورد', en: 'Supplier' }, value: (r) => r.supplierName },
+    { header: { ar: 'المشروع', en: 'Project' }, value: (r) => r.projectName },
+    { header: { ar: 'عدد البنود', en: 'Items' }, value: (r) => (r.items || []).length },
+    { header: { ar: 'الإجمالي', en: 'Grand Total' }, value: (r) => (r.totalAmount || 0) + (r.vatAmount || 0) },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('أوامر الشراء', 'Purchase Orders', lang)}
       subtitle={t('أمر الشراء هو الأساس — تُبنى عليه سندات الاستلام تلقائياً', 'The purchase order is the base — receipts build on it automatically', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('أمر شراء جديد', 'New Order', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'أوامر الشراء', en: 'Purchase Orders' }} />
+          <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('أمر شراء جديد', 'New Order', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const CATEGORIES = {
@@ -87,11 +88,27 @@ export default function Inventory() {
   const totalValue = filtered.reduce((s, i) => s + (i.quantity || 0) * (i.unitCost || 0), 0);
   const lowStock = filtered.filter(i => i.reorderLevel > 0 && i.quantity <= i.reorderLevel).length;
 
+  const exportColumns = [
+    { header: { ar: 'الرمز', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الصنف', en: 'Item' }, value: (r) => r.name },
+    { header: { ar: 'الفئة', en: 'Category' }, value: (r) => { const c = CATEGORIES[r.category]; return c ? (lang === 'ar' ? c.ar : c.en) : r.category; } },
+    { header: { ar: 'المخزن', en: 'Warehouse' }, value: (r) => r.warehouseName },
+    { header: { ar: 'الكمية', en: 'Qty' }, value: (r) => r.quantity || 0 },
+    { header: { ar: 'الوحدة', en: 'Unit' }, value: (r) => r.unit },
+    { header: { ar: 'تكلفة الوحدة', en: 'Unit Cost' }, value: (r) => r.unitCost || 0 },
+    { header: { ar: 'القيمة', en: 'Value' }, value: (r) => (r.quantity || 0) * (r.unitCost || 0) },
+  ];
+
   return (
     <ModuleLayout
       title={t('المخزون والأصول', 'Inventory & Assets', lang)}
       subtitle={t('إدارة أصناف المخزون والأصول الثابتة', 'Manage stock items and fixed assets', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-slate-700 hover:bg-slate-800"><Plus className="size-4" />{t('صنف جديد', 'New Item', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'المخزون', en: 'Inventory' }} />
+          <Button onClick={openNew} className="gap-2 bg-slate-700 hover:bg-slate-800"><Plus className="size-4" />{t('صنف جديد', 'New Item', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

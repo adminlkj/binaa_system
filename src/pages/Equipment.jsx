@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, EQUIPMENT_STATUS } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const emptyForm = { code: '', name: '', nameAr: '', type: '', brand: '', model: '', year: '', serialNumber: '', plateNumber: '', status: 'AVAILABLE', dailyRate: '', monthlyRate: '', hourlyRate: '', purchaseDate: '', purchaseCost: '', currentValue: '', notes: '' };
@@ -71,11 +72,27 @@ export default function Equipment() {
 
   const statusCounts = Object.keys(EQUIPMENT_STATUS).reduce((acc, s) => { acc[s] = items.filter(i => i.status === s).length; return acc; }, {});
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الاسم', en: 'Name' }, value: (r) => r.name },
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => r.type },
+    { header: { ar: 'الماركة', en: 'Brand' }, value: (r) => r.brand },
+    { header: { ar: 'الموديل', en: 'Model' }, value: (r) => r.model },
+    { header: { ar: 'رقم اللوحة', en: 'Plate No.' }, value: (r) => r.plateNumber },
+    { header: { ar: 'سعر يومي', en: 'Daily Rate' }, value: (r) => r.dailyRate || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = EQUIPMENT_STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('المعدات', 'Equipment', lang)}
       subtitle={t('إدارة أسطول المعدات والآليات', 'Manage equipment fleet', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('معدة جديدة', 'New Equipment', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'المعدات', en: 'Equipment' }} />
+          <Button onClick={openNew} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('معدة جديدة', 'New Equipment', lang)}</Button>
+        </div>
+      }
     >
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {Object.entries(EQUIPMENT_STATUS).map(([status, cfg]) => (

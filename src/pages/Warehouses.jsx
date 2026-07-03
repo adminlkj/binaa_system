@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const TYPES = {
@@ -82,11 +83,25 @@ export default function Warehouses() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const exportColumns = [
+    { header: { ar: 'الرمز', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'المخزن', en: 'Warehouse' }, value: (r) => r.name },
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => { const ty = TYPES[r.type]; return ty ? (lang === 'ar' ? ty.ar : ty.en) : r.type; } },
+    { header: { ar: 'المشروع المرتبط', en: 'Linked Project' }, value: (r) => r.projectName },
+    { header: { ar: 'أمين المخزن', en: 'Keeper' }, value: (r) => r.keeper },
+    { header: { ar: 'الموقع', en: 'Location' }, value: (r) => r.location },
+  ];
+
   return (
     <ModuleLayout
       title={t('المخازن', 'Warehouses', lang)}
       subtitle={t('إدارة المخازن المركزية ومخازن المشاريع وربطها بالمشاريع', 'Manage central and project warehouses linked to projects', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-slate-700 hover:bg-slate-800"><Plus className="size-4" />{t('مخزن جديد', 'New Warehouse', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'المخازن', en: 'Warehouses' }} />
+          <Button onClick={openNew} className="gap-2 bg-slate-700 hover:bg-slate-800"><Plus className="size-4" />{t('مخزن جديد', 'New Warehouse', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex gap-3">
         <div className="relative flex-1">

@@ -14,6 +14,7 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const STATUSES = {
@@ -118,11 +119,27 @@ export default function RentalContracts() {
     } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const exportColumns = [
+    { header: { ar: 'رقم العقد', en: 'Contract No' }, value: (r) => r.contractNo },
+    { header: { ar: 'المعدة', en: 'Equipment' }, value: (r) => r.equipmentName },
+    { header: { ar: 'العميل', en: 'Client' }, value: (r) => r.clientName },
+    { header: { ar: 'نوع السعر', en: 'Rate Type' }, value: (r) => { const rt = RATE_TYPES[r.rateType]; return rt ? (lang === 'ar' ? rt.ar : rt.en) : r.rateType; } },
+    { header: { ar: 'السعر', en: 'Rate' }, value: (r) => r.rate || 0 },
+    { header: { ar: 'الإجمالي+ضريبة', en: 'Total+VAT' }, value: (r) => r.totalAmount || 0 },
+    { header: { ar: 'تاريخ البدء', en: 'Start' }, value: (r) => r.startDate },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('عقود التأجير', 'Rental Contracts', lang)}
       subtitle={t('عقود تأجير المعدات للعملاء', 'Equipment rental agreements', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('عقد جديد', 'New Contract', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'عقود التأجير', en: 'Rental Contracts' }} />
+          <Button onClick={openNew} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('عقد جديد', 'New Contract', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

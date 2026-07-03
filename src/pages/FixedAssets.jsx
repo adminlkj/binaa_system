@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const CATEGORIES = {
@@ -119,11 +120,26 @@ export default function FixedAssets() {
     return +(base / (a.usefulLifeMonths || 1)).toFixed(2);
   };
 
+  const exportColumns = [
+    { header: { ar: 'الرمز', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الأصل', en: 'Asset' }, value: (r) => r.name },
+    { header: { ar: 'الفئة', en: 'Category' }, value: (r) => { const c = CATEGORIES[r.category]; return c ? (lang === 'ar' ? c.ar : c.en) : r.category; } },
+    { header: { ar: 'التكلفة', en: 'Cost' }, value: (r) => r.acquisitionCost || 0 },
+    { header: { ar: 'مجمع الإهلاك', en: 'Accum. Dep.' }, value: (r) => r.accumulatedDepreciation || 0 },
+    { header: { ar: 'القيمة الدفترية', en: 'Book Value' }, value: (r) => bookValue(r) },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('الأصول الثابتة والإهلاك', 'Fixed Assets & Depreciation', lang)}
       subtitle={t('رسملة الأصول واحتساب الإهلاك بالقسط الثابت وفق IAS 16', 'Capitalize assets & straight-line depreciation (IAS 16)', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('أصل جديد', 'New Asset', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={items} title={{ ar: 'الأصول الثابتة', en: 'Fixed Assets' }} />
+          <Button onClick={openNew} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="size-4" />{t('أصل جديد', 'New Asset', lang)}</Button>
+        </div>
+      }
     >
       {/* شريط الإهلاك الشهري الجماعي */}
       <Card className="p-4 flex flex-wrap items-end gap-3 bg-teal-50/40 border-teal-100">

@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const STATUS = {
@@ -91,11 +92,25 @@ export default function PurchaseRequests() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
+  const exportColumns = [
+    { header: { ar: 'رقم الطلب', en: 'Request No' }, value: (r) => r.requestNo },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'المشروع', en: 'Project' }, value: (r) => r.projectName },
+    { header: { ar: 'الوصف', en: 'Description' }, value: (r) => r.description },
+    { header: { ar: 'القيمة التقديرية', en: 'Estimated' }, value: (r) => r.estimatedAmount || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('طلبات الشراء', 'Purchase Requests', lang)}
       subtitle={t('بداية سلسلة المشتريات — طلب مواد قبل إصدار أمر الشراء', 'Start of the procurement chain — request materials before a purchase order', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('طلب جديد', 'New Request', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'طلبات الشراء', en: 'Purchase Requests' }} />
+          <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('طلب جديد', 'New Request', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

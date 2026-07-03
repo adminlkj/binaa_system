@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
@@ -155,11 +156,26 @@ export default function SupplierInvoices() {
 
   const totalPayable = filtered.filter(i => i.status !== 'CANCELLED').reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
 
+  const exportColumns = [
+    { header: { ar: 'رقم الفاتورة', en: 'Invoice No' }, value: (r) => r.invoiceNo },
+    { header: { ar: 'المورد', en: 'Supplier' }, value: (r) => r.supplierName },
+    { header: { ar: 'المشروع', en: 'Project' }, value: (r) => r.projectName },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.totalAmount || 0 },
+    { header: { ar: 'المسدد', en: 'Paid' }, value: (r) => r.paidAmount || 0 },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('فواتير الموردين', 'Supplier Invoices', lang)}
       subtitle={t('تسجيل فواتير المشتريات ومتابعة المستحقات', 'Track purchase invoices and payables', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('فاتورة جديدة', 'New Invoice', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'فواتير الموردين', en: 'Supplier Invoices' }} />
+          <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('فاتورة جديدة', 'New Invoice', lang)}</Button>
+        </div>
+      }
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {Object.entries(STATUS).map(([s, cfg]) => (

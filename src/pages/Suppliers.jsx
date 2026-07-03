@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import PartyStatementSection from '@/components/partners/PartyStatementSection';
 import { toast } from 'sonner';
 
@@ -66,11 +67,25 @@ export default function Suppliers() {
     ['taxNumber', t('الرقم الضريبي', 'Tax No.', lang)], ['contactPerson', t('شخص التواصل', 'Contact', lang)],
   ];
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الاسم', en: 'Name' }, value: (r) => r.name },
+    { header: { ar: 'الهاتف', en: 'Phone' }, value: (r) => r.phone },
+    { header: { ar: 'البريد', en: 'Email' }, value: (r) => r.email },
+    { header: { ar: 'الرقم الضريبي', en: 'Tax No.' }, value: (r) => r.taxNumber },
+    { header: { ar: 'شخص التواصل', en: 'Contact' }, value: (r) => r.contactPerson },
+  ];
+
   return (
     <ModuleLayout
       title={t('الموردون', 'Suppliers', lang)}
       subtitle={t('إدارة بيانات الموردين والكشوفات', 'Manage supplier records & statements', lang)}
-      actions={view === 'records' ? <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('مورد جديد', 'New Supplier', lang)}</Button> : null}
+      actions={view === 'records' ? (
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'الموردون', en: 'Suppliers' }} />
+          <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('مورد جديد', 'New Supplier', lang)}</Button>
+        </div>
+      ) : null}
     >
       <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
         <button onClick={() => setView('records')} className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition ${view === 'records' ? 'bg-background shadow text-amber-700' : 'text-muted-foreground hover:text-foreground'}`}>

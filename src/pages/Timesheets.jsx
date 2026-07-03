@@ -12,6 +12,7 @@ import { useStore } from '@/lib/store';
 import { t, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const empty = { equipmentId: '', date: '', hours: '', meterStart: '', meterEnd: '', operator: '', projectName: '', notes: '' };
@@ -86,11 +87,26 @@ export default function Timesheets() {
 
   const totalHours = filtered.reduce((s, i) => s + (i.hours || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'المعدة', en: 'Equipment' }, value: (r) => equipName(r.equipmentId) },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الساعات', en: 'Hours' }, value: (r) => r.hours ?? 0 },
+    { header: { ar: 'عداد البداية', en: 'Meter Start' }, value: (r) => r.meterStart || 0 },
+    { header: { ar: 'عداد النهاية', en: 'Meter End' }, value: (r) => r.meterEnd || 0 },
+    { header: { ar: 'المشغّل', en: 'Operator' }, value: (r) => r.operator },
+    { header: { ar: 'المشروع / الموقع', en: 'Project / Site' }, value: (r) => r.projectName },
+  ];
+
   return (
     <ModuleLayout
       title={t('ساعات التشغيل', 'Operating Hours', lang)}
       subtitle={t('تسجيل ساعات تشغيل المعدات اليومية', 'Track daily equipment operating hours', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('تسجيل ساعات', 'Log Hours', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'ساعات التشغيل', en: 'Operating Hours' }} />
+          <Button onClick={openNew} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('تسجيل ساعات', 'Log Hours', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">

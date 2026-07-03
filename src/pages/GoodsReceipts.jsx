@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PackageCheck, Search, Trash2, RefreshCw } from 'lucide-react';
+import { PackageCheck, Search, Trash2, RefreshCw, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,10 @@ import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
+import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
+import GoodsReceiptDocument from '@/components/shared/GoodsReceiptDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { toast } from 'sonner';
 
 const INV = {
@@ -23,6 +27,9 @@ const INV = {
 
 export default function GoodsReceipts() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
+  const [preview, setPreview] = useState(null);
+  const [previewLines, setPreviewLines] = useState([]);
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,11 +112,35 @@ export default function GoodsReceipts() {
 
   const totalReceived = filtered.reduce((s, i) => s + (i.receivedAmount || 0), 0);
 
+  // معاينة سند الاستلام: تُبنى بنوده من حركات المخزون المرتبطة برقم السند.
+  const openPreview = async (item) => {
+    setPreview(item);
+    setPreviewLines([]);
+    try {
+      const movements = await base44.entities.StockMovement.filter({ reference: item.receiptNo });
+      setPreviewLines(movements.map(m => ({ description: m.itemName, unit: m.unit, quantity: m.quantity, unitPrice: m.unitCost })));
+    } catch { /* السند يُعرض بدون بنود إن تعذّر التحميل */ }
+  };
+
+  const exportColumns = [
+    { header: { ar: 'رقم السند', en: 'Receipt No' }, value: (r) => r.receiptNo },
+    { header: { ar: 'أمر الشراء', en: 'PO' }, value: (r) => r.orderNo },
+    { header: { ar: 'المورد', en: 'Supplier' }, value: (r) => r.supplierName },
+    { header: { ar: 'المشروع/المخزن', en: 'Project / Warehouse' }, value: (r) => r.projectName || r.warehouseName },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'القيمة', en: 'Amount' }, value: (r) => r.receivedAmount || 0 },
+  ];
+
   return (
     <ModuleLayout
       title={t('سندات الاستلام', 'Goods Receipts', lang)}
       subtitle={t('أكّد ما استُلم من كل بند — النظام يزيد المخزون ويرحّل القيود تلقائياً', 'Confirm received quantities — stock and journals are updated automatically', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><PackageCheck className="size-4" />{t('استلام', 'Receive', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'سندات الاستلام', en: 'Goods Receipts' }} />
+          <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><PackageCheck className="size-4" />{t('استلام', 'Receive', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -151,7 +182,10 @@ export default function GoodsReceipts() {
                         <TableCell className="font-medium">{formatCurrency(item.receivedAmount, lang)}</TableCell>
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${iv.color}`}>{lang === 'ar' ? iv.ar : iv.en}</span></TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة السند', 'Preview', lang)} onClick={() => openPreview(item)}><Printer className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -226,6 +260,10 @@ export default function GoodsReceipts() {
         title={t('حذف سند الاستلام', 'Delete Receipt', lang)}
         description={t('سيتم حذف السند نهائياً.', 'This receipt will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'سند استلام بضاعة', en: 'Goods Receipt' }}>
+        {preview && <GoodsReceiptDocument receipt={preview} lines={previewLines} settings={settings} lang={lang} />}
+      </DocumentPreviewDialog>
     </ModuleLayout>
   );
 }

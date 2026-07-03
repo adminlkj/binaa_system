@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,10 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
+import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
+import VoucherDocument from '@/components/shared/VoucherDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
@@ -31,6 +35,8 @@ const empty = {
 
 export default function SupplierPayments() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
+  const [preview, setPreview] = useState(null);
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices] = useState([]);
@@ -92,11 +98,25 @@ export default function SupplierPayments() {
 
   const totalPaid = filtered.reduce((s, i) => s + (i.amount || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'رقم السند', en: 'Voucher No' }, value: (r) => r.paymentNo },
+    { header: { ar: 'المورد', en: 'Supplier' }, value: (r) => r.supplierName },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'المبلغ', en: 'Amount' }, value: (r) => r.amount || 0 },
+    { header: { ar: 'طريقة الدفع', en: 'Method' }, value: (r) => { const m = METHODS[r.method]; return m ? (lang === 'ar' ? m.ar : m.en) : r.method; } },
+    { header: { ar: 'المرجع', en: 'Reference' }, value: (r) => r.reference },
+  ];
+
   return (
     <ModuleLayout
       title={t('سداد الموردين', 'Supplier Payments', lang)}
       subtitle={t('سندات صرف ومدفوعات الموردين', 'Supplier payment vouchers', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('سند صرف جديد', 'New Payment', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'سداد الموردين', en: 'Supplier Payments' }} />
+          <Button onClick={openNew} className="gap-2 bg-amber-600 hover:bg-amber-700"><Plus className="size-4" />{t('سند صرف جديد', 'New Payment', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex gap-3">
         <div className="relative flex-1">
@@ -137,6 +157,7 @@ export default function SupplierPayments() {
                         <TableCell className="text-sm">{item.reference || '—'}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة السند', 'Preview', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                           </div>
@@ -217,6 +238,10 @@ export default function SupplierPayments() {
         title={t('حذف سند الصرف', 'Delete Payment', lang)}
         description={t('سيتم حذف سند الصرف نهائياً.', 'This payment will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'سند صرف', en: 'Payment Voucher' }}>
+        {preview && <VoucherDocument kind="PAYMENT" voucher={preview} settings={settings} lang={lang} />}
+      </DocumentPreviewDialog>
     </ModuleLayout>
   );
 }

@@ -13,6 +13,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 
 const STATUSES = { ACTIVE: { ar: 'نشط', en: 'Active', color: 'bg-emerald-100 text-emerald-700' }, ON_LEAVE: { ar: 'إجازة', en: 'On Leave', color: 'bg-amber-100 text-amber-700' }, TERMINATED: { ar: 'منتهي', en: 'Terminated', color: 'bg-rose-100 text-rose-700' } };
@@ -67,11 +68,27 @@ export default function Employees() {
 
   const totalSalaries = items.filter(i => i.status === 'ACTIVE').reduce((s, e) => s + (e.salary || 0) + (e.allowances || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
+    { header: { ar: 'الاسم', en: 'Name' }, value: (r) => r.name },
+    { header: { ar: 'المنصب', en: 'Position' }, value: (r) => r.position },
+    { header: { ar: 'القسم', en: 'Department' }, value: (r) => r.department },
+    { header: { ar: 'الراتب', en: 'Salary' }, value: (r) => r.salary || 0 },
+    { header: { ar: 'البدلات', en: 'Allowances' }, value: (r) => r.allowances || 0 },
+    { header: { ar: 'الجنسية', en: 'Nationality' }, value: (r) => r.nationality },
+    { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUSES[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
+  ];
+
   return (
     <ModuleLayout
       title={t('الموظفون', 'Employees', lang)}
       subtitle={t('إدارة بيانات الموظفين والرواتب', 'Manage employee records', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('موظف جديد', 'New Employee', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'الموظفون', en: 'Employees' }} />
+          <Button onClick={openNew} className="gap-2 bg-violet-600 hover:bg-violet-700"><Plus className="size-4" />{t('موظف جديد', 'New Employee', lang)}</Button>
+        </div>
+      }
     >
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
         {Object.entries(STATUSES).map(([s, cfg]) => (

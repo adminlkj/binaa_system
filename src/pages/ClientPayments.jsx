@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,10 @@ import { useStore } from '@/lib/store';
 import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import TableToolbar from '@/components/shared/TableToolbar';
+import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
+import VoucherDocument from '@/components/shared/VoucherDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
@@ -26,6 +30,8 @@ const empty = { paymentNo: '', clientId: '', projectId: '', date: '', amount: ''
 
 export default function ClientPayments() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
+  const [preview, setPreview] = useState(null);
   const [items, setItems] = useState([]);
   const [clients, setClients] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -102,11 +108,25 @@ export default function ClientPayments() {
 
   const total = filtered.reduce((s, i) => s + (i.amount || 0), 0);
 
+  const exportColumns = [
+    { header: { ar: 'رقم السند', en: 'Receipt No' }, value: (r) => r.paymentNo },
+    { header: { ar: 'العميل', en: 'Client' }, value: (r) => clientName(r.clientId) },
+    { header: { ar: 'المشروع', en: 'Project' }, value: (r) => r.projectName },
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'الطريقة', en: 'Method' }, value: (r) => { const m = METHODS[r.method]; return m ? (lang === 'ar' ? m.ar : m.en) : r.method; } },
+    { header: { ar: 'المبلغ', en: 'Amount' }, value: (r) => r.amount || 0 },
+  ];
+
   return (
     <ModuleLayout
       title={t('التحصيلات', 'Collections', lang)}
       subtitle={t('سندات قبض وتحصيلات العملاء', 'Client receipts and collections', lang)}
-      actions={<Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('سند قبض', 'New Receipt', lang)}</Button>}
+      actions={
+        <div className="flex items-center gap-2">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'التحصيلات', en: 'Collections' }} />
+          <Button onClick={openNew} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><Plus className="size-4" />{t('سند قبض', 'New Receipt', lang)}</Button>
+        </div>
+      }
     >
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -152,6 +172,7 @@ export default function ClientPayments() {
                       <TableCell className="text-end text-sm font-medium text-emerald-700">{formatCurrency(item.amount, lang)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="size-8" title={t('معاينة السند', 'Preview', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>
@@ -233,6 +254,10 @@ export default function ClientPayments() {
         title={t('حذف السند', 'Delete Receipt', lang)}
         description={t('سيتم حذف سند القبض نهائياً.', 'This receipt will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'سند قبض', en: 'Receipt Voucher' }}>
+        {preview && <VoucherDocument kind="RECEIPT" voucher={{ ...preview, clientName: clientName(preview.clientId) }} settings={settings} lang={lang} />}
+      </DocumentPreviewDialog>
     </ModuleLayout>
   );
 }

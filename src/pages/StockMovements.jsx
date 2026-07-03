@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, genCode } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import TableToolbar from '@/components/shared/TableToolbar';
 import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
@@ -136,12 +137,24 @@ export default function StockMovements() {
     transfer: movements.filter(m => m.type === 'TRANSFER').length,
   }), [movements]);
 
+  const exportColumns = [
+    { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
+    { header: { ar: 'رقم الحركة', en: 'Movement No' }, value: (r) => r.movementNo },
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => { const ty = TYPES[r.type]; return ty ? (lang === 'ar' ? ty.ar : ty.en) : r.type; } },
+    { header: { ar: 'الصنف', en: 'Item' }, value: (r) => r.itemName },
+    { header: { ar: 'الكمية', en: 'Qty' }, value: (r) => r.quantity || 0 },
+    { header: { ar: 'من', en: 'From' }, value: (r) => r.fromWarehouseName },
+    { header: { ar: 'إلى', en: 'To' }, value: (r) => r.toWarehouseName },
+    { header: { ar: 'القيمة', en: 'Value' }, value: (r) => r.totalCost || 0 },
+  ];
+
   return (
     <ModuleLayout
       title={t('الحركات المخزنية', 'Stock Movements', lang)}
       subtitle={t('استلام وصرف وتحويل بين المخازن — مثبتة محاسبياً تلقائياً', 'Receive, issue & transfer — auto-posted to accounting', lang)}
       actions={
         <div className="flex gap-2 flex-wrap">
+          <TableToolbar columns={exportColumns} rows={filtered} title={{ ar: 'الحركات المخزنية', en: 'Stock Movements' }} />
           <Button onClick={() => openNew('RECEIVE')} className="gap-2 bg-emerald-600 hover:bg-emerald-700"><ArrowDownToLine className="size-4" />{t('استلام', 'Receive', lang)}</Button>
           <Button onClick={() => openNew('ISSUE')} className="gap-2 bg-rose-600 hover:bg-rose-700"><ArrowUpFromLine className="size-4" />{t('صرف', 'Issue', lang)}</Button>
           <Button onClick={() => openNew('TRANSFER')} className="gap-2 bg-blue-600 hover:bg-blue-700"><ArrowLeftRight className="size-4" />{t('تحويل', 'Transfer', lang)}</Button>

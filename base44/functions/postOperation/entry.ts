@@ -510,19 +510,9 @@ async function createRentalContract(base44, data) {
   const base = rate + delivery;
   const { vat: vatAmount, total: totalAmount } = calcVAT(base);
   const payload = { ...data, rate, deliveryFees: delivery, totalAmount, vatAmount };
+  // العقد مرجعي فقط ولا ينشئ أي قيد محاسبي — الإيراد والذمة ينشآن من فاتورة التأجير.
   const contract = await base44.asServiceRole.entities.RentalContract.create(payload);
-  try {
-    const je = await buildJE(base44, 'RENTAL_CONTRACT',
-      { entryNo: `JE-RC-${payload.contractNo}`, date: payload.startDate || new Date().toISOString().slice(0, 10), description: `عقد تأجير ${payload.contractNo} — ${payload.clientName}`, sourceType: 'RentalContract' },
-      { base, vat: vatAmount, total: totalAmount },
-      () => buildRentalJE({ contractNo: payload.contractNo, date: payload.startDate, clientId: payload.clientId, clientName: payload.clientName, base, vatAmount, totalAmount }),
-      { type: 'CLIENT', id: payload.clientId, name: payload.clientName });
-    await autoPostJE(base44, je);
-  } catch (e) {
-    await rollback(base44, 'RentalContract', contract.id);
-    throw e;
-  }
-  // الأثر الجانبي (حجز المعدة) يجري فقط بعد نجاح القيد — كي لا تبقى معدة محجوزة بلا عقد.
+  // حجز المعدة عند تفعيل العقد.
   if (data.equipmentId && payload.status === 'ACTIVE') {
     try { await base44.asServiceRole.entities.Equipment.update(data.equipmentId, { status: 'RENTED' }); } catch { /* المعدة قد لا تكون موجودة */ }
   }

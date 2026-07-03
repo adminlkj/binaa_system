@@ -31,6 +31,16 @@ function resolveLineItems(invoice, lang) {
   }];
 }
 
+// صف ثنائي (عربي/إنجليزي) لعنوان الحقل — يُستخدم في بطاقة تفاصيل الفاتورة والبنك.
+function FieldLabel({ ar, en, color }) {
+  return (
+    <div style={{ lineHeight: 1.25 }}>
+      <span style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: color || '#374151' }}>{ar}</span>
+      <span style={{ display: 'block', fontSize: 9, color: '#9ca3af' }}>{en}</span>
+    </div>
+  );
+}
+
 /**
  * مستند فاتورة ضريبية احترافي موحّد للمشاريع والتأجير — متوافق مع متطلبات ZATCA.
  * يتحكم فيه القالب (template) والألوان (primary/accent) وبيانات الشركة من الإعدادات.
@@ -42,15 +52,11 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
   // تفاصيل العميل: نأخذها من سجل العميل الكامل إن مُرّر، وإلا من حقول الفاتورة نفسها.
   const c = client || {};
   const clientName = invoice.clientName || (lang === 'ar' ? (c.nameAr || c.name) : c.name) || '—';
+  const clientNameEn = c.nameEn;
   const clientVat = invoice.clientVatNumber || c.taxNumber;
-  const clientPhone = invoice.clientPhone || c.phone;
-  const clientEmail = invoice.clientEmail || c.email;
-  const clientAddress = invoice.clientAddress || c.address;
-  const clientContact = c.contactPerson;
 
-  const primary = settings.primaryColor || '#059669';
-  const accent = settings.accentColor || '#047857';
-  const template = settings.template || 'MODERN';
+  const primary = settings.primaryColor || '#c8891f';
+  const accent = settings.accentColor || '#1f2d3d';
   const typeLabel = TYPE_LABEL[invoice.invoiceType] || TYPE_LABEL.RENTAL;
 
   const subtotal = invoice.subtotal != null ? invoice.subtotal : (invoice.totalAmount || 0) - (invoice.vatAmount || 0);
@@ -71,13 +77,17 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
       })
     : null;
 
-  const isMinimal = template === 'MINIMAL';
-  const isClassic = template === 'CLASSIC';
   // فاتورة التأجير تُختم وتُؤرشف — لا نُظهر فيها المدفوع/المتبقّي، ونضيف خانتَي ختم.
   const isRental = invoice.invoiceType === 'RENTAL';
 
   const labelColor = '#6b7280';
   const border = '1px solid #e5e7eb';
+  const cardShadow = '0 1px 3px rgba(0,0,0,0.06)';
+
+  // فترة الإيجار كنص واحد إن توفّرت.
+  const periodText = (invoice.periodFrom || invoice.periodTo)
+    ? `${formatDate(invoice.periodFrom, lang)} — ${formatDate(invoice.periodTo, lang)}`
+    : null;
 
   return (
     <div
@@ -97,258 +107,213 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
         <img src={settings.headerImageUrl} alt="header" style={{ width: '100%', display: 'block', marginBottom: 16 }} />
       )}
 
-      {/* رأس الفاتورة */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 16,
-          padding: isMinimal ? '0 0 14px' : '18px 20px',
-          borderRadius: isMinimal ? 0 : 12,
-          background: isMinimal ? 'transparent' : (isClassic ? '#f9fafb' : primary),
-          color: isMinimal || isClassic ? '#111827' : '#fff',
-          borderBottom: isMinimal ? `3px solid ${primary}` : 'none',
-          marginBottom: 18,
-        }}
-      >
+      {/* رأس الفاتورة — الشعار واسم الشركة يمين، شارة "فاتورة ضريبية" يسار */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, paddingBottom: 14 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {settings.logoUrl && (
-            <img src={settings.logoUrl} alt="logo" style={{ height: 52, width: 52, objectFit: 'contain', background: '#fff', borderRadius: 8, padding: 4 }} />
+            <img src={settings.logoUrl} alt="logo" style={{ height: 64, width: 64, objectFit: 'contain' }} />
           )}
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.3 }}>
-              <span dir="rtl" style={{ display: 'block' }}>{settings.companyName}</span>
-              {settings.companyNameEn && <span dir="ltr" style={{ display: 'block', fontSize: 12, opacity: 0.8 }}>{settings.companyNameEn}</span>}
+            <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2, color: accent }} dir="rtl">{settings.companyName}</div>
+            {settings.companyNameEn && <div dir="ltr" style={{ fontSize: 12, fontWeight: 600, letterSpacing: 0.5, color: '#6b7280' }}>{settings.companyNameEn}</div>}
+          </div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ background: primary, color: '#fff', borderRadius: 10, padding: '10px 22px', fontSize: 15, fontWeight: 800 }}>
+            {'فاتورة ضريبية'}
+            <span style={{ display: 'block', fontSize: 11, fontWeight: 600, opacity: 0.9, letterSpacing: 1 }}>TAX INVOICE</span>
+          </div>
+          {settings.vatNumber && (
+            <div style={{ fontSize: 9.5, color: labelColor, marginTop: 4 }}>
+              {'الرقم الضريبي / VAT No.'}
+              <span dir="ltr" style={{ display: 'block', fontWeight: 700, color: accent }}>{settings.vatNumber}</span>
             </div>
-            {settings.vatNumber && (
-              <div style={{ fontSize: 10.5, opacity: 0.85, marginTop: 2 }}>{'الرقم الضريبي / VAT No'}: {settings.vatNumber}</div>
-            )}
-            {settings.crNumber && (
-              <div style={{ fontSize: 10.5, opacity: 0.85 }}>{'السجل التجاري / CR No'}: {settings.crNumber}</div>
-            )}
+          )}
+        </div>
+      </div>
+
+      {/* خط ذهبي فاصل تحت الهيدر */}
+      <div style={{ height: 3, background: primary, borderRadius: 2, marginBottom: 16 }} />
+
+      {/* بطاقتا العميل (يمين) وتفاصيل الفاتورة (يسار) */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
+        {/* بيانات العميل */}
+        <div style={{ flex: 1, border, borderRadius: 12, padding: 14, boxShadow: cardShadow }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <FieldLabel ar="بيانات العميل" en="Customer Details" color={accent} />
           </div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: accent }}>{clientName}</div>
+          {clientNameEn && <div dir="ltr" style={{ fontSize: 11, color: labelColor }}>{clientNameEn}</div>}
+          {clientVat && (
+            <div style={{ marginTop: 10, fontSize: 11, color: labelColor }}>
+              {'الرقم الضريبي / VAT No.'}
+              <span dir="ltr" style={{ display: 'block', fontWeight: 700, color: accent, fontSize: 13 }}>{clientVat}</span>
+            </div>
+          )}
         </div>
-        <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{'فاتورة ضريبية'}<span style={{ display: 'block', fontSize: 12, opacity: 0.85 }}>Tax Invoice</span></div>
-          <div style={{ fontSize: 10.5, opacity: 0.85, marginTop: 3 }}>{typeLabel.ar} / {typeLabel.en}</div>
+
+        {/* تفاصيل الفاتورة */}
+        <div style={{ flex: 1, border, borderRadius: 12, overflow: 'hidden', boxShadow: cardShadow }}>
+          {[
+            { ar: 'رقم الفاتورة', en: 'Invoice No.', value: invoice.invoiceNo, big: true },
+            { ar: 'تاريخ الفاتورة', en: 'Invoice Date', value: formatDate(invoice.date, lang) },
+            invoice.dueDate && { ar: 'تاريخ الاستحقاق', en: 'Due Date', value: formatDate(invoice.dueDate, lang) },
+            periodText && { ar: 'الفترة', en: 'Period', value: periodText },
+            invoice.billingMonth && { ar: 'شهر التوصيل', en: 'Billing Month', value: invoice.billingMonth },
+            invoice.clientPoNumber && { ar: 'رقم طلب الشراء', en: 'Purchase Order No.', value: invoice.clientPoNumber, big: true },
+          ].filter(Boolean).map((row, i, arr) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < arr.length - 1 ? border : 'none' }}>
+              <FieldLabel ar={row.ar} en={row.en} color={accent} />
+              <span dir="ltr" style={{ fontWeight: 800, fontSize: row.big ? 17 : 13, color: row.big ? primary : accent }}>{row.value}</span>
+            </div>
+          ))}
         </div>
       </div>
-
-      {/* شريط بيانات الشركة والعميل */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        <div style={{ flex: 1, border, borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: primary, marginBottom: 6 }}>{'بيانات المُصدِر / Issued By'}</div>
-          <div style={{ fontWeight: 600 }}>
-            <span dir="rtl" style={{ display: 'block' }}>{settings.companyName}</span>
-            {settings.companyNameEn && <span dir="ltr" style={{ display: 'block', fontSize: 11, opacity: 0.75 }}>{settings.companyNameEn}</span>}
-          </div>
-          {settings.crNumber && <div style={{ fontSize: 11, color: labelColor }}>{'السجل التجاري / CR No'}: {settings.crNumber}</div>}
-          {settings.vatNumber && <div style={{ fontSize: 11, color: labelColor }}>{'الرقم الضريبي / VAT No'}: {settings.vatNumber}</div>}
-          {(settings.address || settings.city) && <div style={{ fontSize: 11, color: labelColor }}>{'العنوان / Address'}: {[settings.address, settings.city].filter(Boolean).join('، ')}</div>}
-          {settings.phone && <div style={{ fontSize: 11, color: labelColor }}>{'هاتف / Phone'}: <span dir="ltr">{settings.phone}</span></div>}
-          {settings.email && <div style={{ fontSize: 11, color: labelColor }}>{'البريد / Email'}: <span dir="ltr">{settings.email}</span></div>}
-          {settings.website && <div style={{ fontSize: 11, color: labelColor }}><span dir="ltr">{settings.website}</span></div>}
-        </div>
-        <div style={{ flex: 1, border, borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: primary, marginBottom: 6 }}>{'بيانات العميل / Bill To'}</div>
-          <div style={{ fontWeight: 600 }}>{clientName}</div>
-          {clientContact && <div style={{ fontSize: 11, color: labelColor }}>{'جهة الاتصال / Contact'}: {clientContact}</div>}
-          {clientVat && <div style={{ fontSize: 11, color: labelColor }}>{'الرقم الضريبي / VAT No'}: {clientVat}</div>}
-          {clientAddress && <div style={{ fontSize: 11, color: labelColor }}>{'العنوان / Address'}: {clientAddress}</div>}
-          {clientPhone && <div style={{ fontSize: 11, color: labelColor }}>{'هاتف / Phone'}: <span dir="ltr">{clientPhone}</span></div>}
-          {clientEmail && <div style={{ fontSize: 11, color: labelColor }}>{'البريد / Email'}: <span dir="ltr">{clientEmail}</span></div>}
-          {invoice.projectName && <div style={{ fontSize: 11, color: labelColor }}>{'المشروع / Project'}: {invoice.projectName}</div>}
-        </div>
-      </div>
-
-      {/* رقم الفاتورة بارزاً في الوسط */}
-      <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: labelColor, letterSpacing: 1 }}>{'رقم الفاتورة / Invoice No'}</div>
-        <div dir="ltr" style={{ fontSize: 22, fontWeight: 800, color: primary, letterSpacing: 1, marginTop: 2 }}>{invoice.invoiceNo}</div>
-      </div>
-
-      {/* تفاصيل الفاتورة والعقد */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12, tableLayout: 'fixed', border, borderRadius: 10 }}>
-        <colgroup>
-          <col style={{ width: '25%' }} />
-          <col style={{ width: '25%' }} />
-          <col style={{ width: '25%' }} />
-          <col style={{ width: '25%' }} />
-        </colgroup>
-        <tbody>
-          <tr>
-            <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'تاريخ الإصدار / Issue Date'}</td>
-            <td style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border, textAlign: 'start' }} dir="ltr">{formatDate(invoice.date, lang)}</td>
-            <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'تاريخ الاستحقاق / Due Date'}</td>
-            <td style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border, textAlign: 'start' }} dir="ltr">{formatDate(invoice.dueDate, lang)}</td>
-          </tr>
-          {invoice.contractNo && (
-            <tr>
-              <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'رقم العقد / Contract No'}</td>
-              <td style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border }}>{invoice.contractNo}</td>
-              {invoice.certificateNo ? (
-                <>
-                  <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'رقم المستخلص / Certificate No'}</td>
-                  <td style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border }}>{invoice.certificateNo}</td>
-                </>
-              ) : <td colSpan={2} style={{ borderBottom: border }} />}
-            </tr>
-          )}
-          {!invoice.contractNo && invoice.certificateNo && (
-            <tr>
-              <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'رقم المستخلص / Certificate No'}</td>
-              <td colSpan={3} style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border }}>{invoice.certificateNo}</td>
-            </tr>
-          )}
-          {(invoice.deliveryOrderNo || invoice.billingMonth) && (
-            <tr>
-              {invoice.deliveryOrderNo ? (
-                <>
-                  <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'رقم أمر التوصيل / Delivery Order No'}</td>
-                  <td style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border }}>{invoice.deliveryOrderNo}</td>
-                </>
-              ) : <td colSpan={2} style={{ borderBottom: border }} />}
-              {invoice.billingMonth ? (
-                <>
-                  <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'شهر العمل / Billing Month'}</td>
-                  <td style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border, textAlign: 'start' }} dir="ltr">{invoice.billingMonth}</td>
-                </>
-              ) : <td colSpan={2} style={{ borderBottom: border }} />}
-            </tr>
-          )}
-          {(invoice.periodFrom || invoice.periodTo) && (
-            <tr>
-              <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'فترة الإيجار / Rental Period'}</td>
-              <td colSpan={3} style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border, textAlign: 'start' }} dir="ltr">{formatDate(invoice.periodFrom, lang)} — {formatDate(invoice.periodTo, lang)}</td>
-            </tr>
-          )}
-          {invoice.equipmentName && (
-            <tr>
-              <td style={{ color: labelColor, padding: '7px 10px', borderBottom: border }}>{'المعدة / Equipment'}</td>
-              <td colSpan={3} style={{ fontWeight: 600, padding: '7px 10px', borderBottom: border }}>{invoice.equipmentName}</td>
-            </tr>
-          )}
-          {invoice.totalHours != null && Number(invoice.totalHours) > 0 && (
-            <tr>
-              <td style={{ color: labelColor, padding: '7px 10px' }}>{'عدد ساعات التشغيل / Operating Hours'}</td>
-              <td colSpan={3} style={{ fontWeight: 600, padding: '7px 10px' }}>{formatNumber(invoice.totalHours, 0)} {'ساعة / hrs'}</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
 
       {/* جدول البنود */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12, tableLayout: 'fixed', borderRadius: 10, overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12, tableLayout: 'fixed', borderRadius: 12, overflow: 'hidden', boxShadow: cardShadow }}>
         <colgroup>
-          <col style={{ width: '46%' }} />
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '20%' }} />
           <col style={{ width: '12%' }} />
-          <col style={{ width: '21%' }} />
-          <col style={{ width: '21%' }} />
+          <col style={{ width: '40%' }} />
+          <col style={{ width: '8%' }} />
         </colgroup>
         <thead>
-          <tr style={{ background: isMinimal ? '#f3f4f6' : primary, color: isMinimal ? '#111827' : '#fff', fontSize: 11 }}>
-            <th style={{ padding: '9px 12px', textAlign: 'start' }}>{'الوصف'}<span style={{ display: 'block', fontSize: 9.5, fontWeight: 400, opacity: 0.85 }}>Description</span></th>
-            <th style={{ padding: '9px 12px', textAlign: 'center' }}>{'الكمية'}<span style={{ display: 'block', fontSize: 9.5, fontWeight: 400, opacity: 0.85 }}>Qty</span></th>
-            <th style={{ padding: '9px 12px', textAlign: 'end' }}>{'سعر الوحدة'}<span style={{ display: 'block', fontSize: 9.5, fontWeight: 400, opacity: 0.85 }}>Unit Price</span></th>
-            <th style={{ padding: '9px 12px', textAlign: 'end' }}>{'الإجمالي'}<span style={{ display: 'block', fontSize: 9.5, fontWeight: 400, opacity: 0.85 }}>Total</span></th>
+          <tr style={{ background: primary, color: '#fff', fontSize: 11 }}>
+            <th style={{ padding: '10px 12px', textAlign: 'start' }}>{'الإجمالي'}<span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.9 }}>Amount (SAR)</span></th>
+            <th style={{ padding: '10px 12px', textAlign: 'start' }}>{'سعر الوحدة'}<span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.9 }}>Unit Price</span></th>
+            <th style={{ padding: '10px 12px', textAlign: 'center' }}>{'الكمية'}<span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.9 }}>Qty</span></th>
+            <th style={{ padding: '10px 12px', textAlign: 'end' }}>{'الصنف / الخدمة'}<span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.9 }}>Item / Service</span></th>
+            <th style={{ padding: '10px 12px', textAlign: 'center' }}>{'م'}<span style={{ display: 'block', fontSize: 9, fontWeight: 400, opacity: 0.9 }}>#</span></th>
           </tr>
         </thead>
         <tbody>
           {items.map((it, i) => (
-            <tr key={i} style={{ borderBottom: border }}>
-              <td style={{ padding: '9px 12px', wordBreak: 'break-word' }}>{it.description}</td>
-              <td style={{ padding: '9px 12px', textAlign: 'center' }}>{it.qty ?? 1}</td>
-              <td style={{ padding: '9px 12px', textAlign: 'end' }}><Money value={it.unitPrice} /></td>
-              <td style={{ padding: '9px 12px', textAlign: 'end', fontWeight: 600 }}><Money value={it.total} /></td>
+            <tr key={i} style={{ borderBottom: border, background: i % 2 ? '#fafafa' : '#fff' }}>
+              <td style={{ padding: '11px 12px', textAlign: 'start', fontWeight: 700 }}><Money value={it.total} /></td>
+              <td style={{ padding: '11px 12px', textAlign: 'start' }}><Money value={it.unitPrice} /></td>
+              <td style={{ padding: '11px 12px', textAlign: 'center' }}>{it.qty ?? 1}</td>
+              <td style={{ padding: '11px 12px', textAlign: 'end', wordBreak: 'break-word' }}>
+                <span style={{ fontWeight: 700, color: accent }}>{it.description}</span>
+                {it.descriptionEn && <span style={{ display: 'block', fontSize: 10, color: labelColor }}>{it.descriptionEn}</span>}
+              </td>
+              <td style={{ padding: '11px 12px', textAlign: 'center', color: labelColor }}>{i + 1}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* الملخص المالي + QR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
-        <div style={{ flex: 1 }}>
-          {qrPayload ? (
-            <div style={{ textAlign: 'center', display: 'inline-block' }}>
-              <img src={zatcaQrImageUrl(qrPayload, 120)} alt="ZATCA QR" style={{ width: 120, height: 120, border }} />
-              <div style={{ fontSize: 9, color: labelColor, marginTop: 4 }}>{'رمز الاستجابة الضريبي / ZATCA QR'}</div>
+      {/* الملخّص المالي (يمين) + QR وشكر (يسار) */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch', marginBottom: 18 }}>
+        {/* الملخّص المالي */}
+        <div style={{ flex: '0 0 46%', border, borderRadius: 12, overflow: 'hidden', boxShadow: cardShadow }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: border }}>
+            <span style={{ fontWeight: 700 }}><Money value={subtotal} /></span>
+            <FieldLabel ar="المجموع الفرعي" en="Subtotal" color={accent} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: border }}>
+            <span style={{ fontWeight: 700 }}><Money value={vat} /></span>
+            <FieldLabel ar="ضريبة القيمة المضافة (5%)" en="VAT (5%)" color={accent} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: primary, color: '#fff' }}>
+            <span style={{ fontWeight: 800, fontSize: 15 }}><Money value={total} symbolSize="1.25em" /></span>
+            <div style={{ lineHeight: 1.25 }}>
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800 }}>{'الإجمالي الكلي'}</span>
+              <span style={{ display: 'block', fontSize: 9, opacity: 0.9 }}>Total Amount</span>
             </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: accent, color: '#fff' }}>
+            <span style={{ fontWeight: 800, fontSize: 15 }}><Money value={isRental ? total : balance} symbolSize="1.25em" /></span>
+            <div style={{ lineHeight: 1.25 }}>
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800 }}>{'المبلغ المستحق'}</span>
+              <span style={{ display: 'block', fontSize: 9, opacity: 0.9 }}>Amount Due</span>
+            </div>
+          </div>
+        </div>
+
+        {/* QR */}
+        <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {qrPayload ? (
+            <img src={zatcaQrImageUrl(qrPayload, 130)} alt="ZATCA QR" style={{ width: 130, height: 130 }} />
           ) : settings.showQr !== false && !settings.vatNumber ? (
-            <div style={{ width: 120, height: 120, border: `1px dashed ${labelColor}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 10, color: labelColor, padding: 8 }}>
+            <div style={{ width: 130, height: 130, border: `1px dashed ${labelColor}`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: 10, color: labelColor, padding: 8 }}>
               {t('أدخل الرقم الضريبي في الإعدادات لإظهار رمز QR', 'Add a VAT number in Settings to show the QR code', lang)}
             </div>
           ) : null}
         </div>
-        <div style={{ width: 300 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: border }}>
-            <span style={{ color: labelColor, fontSize: 11, lineHeight: 1.35 }}>{'المبلغ قبل الضريبة'}<span style={{ display: 'block', fontSize: 9.5, opacity: 0.8 }}>Subtotal</span></span>
-            <span style={{ fontWeight: 600, textAlign: 'end' }}><Money value={subtotal} /></span>
+
+        {/* شكر وتعليمات QR */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: accent }}>{'شكراً لتعاملكم معنا'}</div>
+            <div style={{ fontSize: 10, color: labelColor }}>Thank you for your business</div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: border }}>
-            <span style={{ color: labelColor, fontSize: 11, lineHeight: 1.35 }}>{'ضريبة القيمة المضافة (15%)'}<span style={{ display: 'block', fontSize: 9.5, opacity: 0.8 }}>VAT (15%)</span></span>
-            <span style={{ fontWeight: 600, textAlign: 'end' }}><Money value={vat} /></span>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: accent }}>{'امسح رمز QR'}</div>
+            <div style={{ fontSize: 9.5, color: labelColor }}>{'للدفع أو التحقق من الفاتورة'}</div>
+            <div style={{ fontSize: 9, color: '#9ca3af' }}>Scan QR Code to pay or verify invoice</div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderTop: `2px solid ${primary}`, marginTop: 2 }}>
-            <span style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{'الإجمالي'}<span style={{ display: 'block', fontSize: 10, fontWeight: 500, opacity: 0.8 }}>Total</span></span>
-            <span style={{ fontWeight: 700, fontSize: 15, color: primary, textAlign: 'end' }}><Money value={total} symbolSize="1.25em" /></span>
-          </div>
-          {!isRental && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', color: labelColor }}>
-                <span style={{ fontSize: 11, lineHeight: 1.35 }}>{'المدفوع'}<span style={{ display: 'block', fontSize: 9.5, opacity: 0.8 }}>Paid</span></span>
-                <span style={{ textAlign: 'end' }}><Money value={paid} /></span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', fontWeight: 700, color: balance > 0 ? '#dc2626' : accent }}>
-                <span style={{ fontSize: 11, lineHeight: 1.35 }}>{'المتبقي'}<span style={{ display: 'block', fontSize: 9.5, opacity: 0.8, fontWeight: 500 }}>Balance Due</span></span>
-                <span style={{ textAlign: 'end' }}><Money value={balance} /></span>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
-      {/* خانتا الختم — للشركة وللعميل (فواتير التأجير المؤرشفة) */}
-      {isRental && (
-        <div style={{ display: 'flex', gap: 40, marginBottom: 16 }}>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: primary, marginBottom: 6 }}>{'ختم واعتماد الشركة'}<span style={{ display: 'block', fontSize: 9.5, fontWeight: 500, opacity: 0.8 }}>Company Stamp & Approval</span></div>
-            <div style={{ height: 90, border: `1px dashed ${labelColor}`, borderRadius: 8 }} />
+      {/* تفاصيل الحساب البنكي — صف واحد بأعمدة مرتبة */}
+      {(settings.iban || settings.bankName) && (
+        <div style={{ border, borderRadius: 12, overflow: 'hidden', marginBottom: 16, boxShadow: cardShadow }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderBottom: border, color: accent, fontWeight: 800, fontSize: 12 }}>
+            {'تفاصيل الحساب البنكي'}<span style={{ fontSize: 9, fontWeight: 500, color: labelColor }}>Bank Details</span>
           </div>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: primary, marginBottom: 6 }}>{'ختم واستلام العميل'}<span style={{ display: 'block', fontSize: 9.5, fontWeight: 500, opacity: 0.8 }}>Client Stamp & Receipt</span></div>
-            <div style={{ height: 90, border: `1px dashed ${labelColor}`, borderRadius: 8 }} />
+          <div style={{ display: 'flex', textAlign: 'center' }}>
+            {[
+              { ar: 'اسم الحساب', en: 'Account Name', value: settings.bankAccountName || settings.companyName },
+              { ar: 'رقم الآيبان', en: 'IBAN', value: settings.iban, ltr: true },
+              { ar: 'الفرع', en: 'Branch', value: settings.bankBranch },
+              { ar: 'اسم البنك', en: 'Bank Name', value: settings.bankName },
+              { ar: 'رقم الحساب', en: 'Account No.', value: settings.bankAccountNumber, ltr: true },
+              { ar: 'رمز السويفت', en: 'SWIFT Code', value: settings.swiftCode, ltr: true },
+            ].map((col, i, arr) => (
+              <div key={i} style={{ flex: 1, padding: '10px 8px', borderInlineStart: i > 0 ? border : 'none' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: accent }}>{col.ar}</div>
+                <div style={{ fontSize: 8.5, color: '#9ca3af', marginBottom: 4 }}>{col.en}</div>
+                <div dir={col.ltr ? 'ltr' : undefined} style={{ fontSize: 11, fontWeight: 600, color: '#374151', wordBreak: 'break-word' }}>{col.value || '—'}</div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* البيانات البنكية والشروط */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        {(settings.iban || settings.bankName) && (
-          <div style={{ flex: 1, border, borderRadius: 10, padding: 12, fontSize: 11 }}>
-            <div style={{ fontWeight: 700, color: primary, marginBottom: 4 }}>{'البيانات البنكية / Bank Details'}</div>
-            {settings.bankName && <div>{'البنك / Bank'}: {settings.bankName}</div>}
-            {settings.bankAccountName && <div>{'اسم الحساب / Account Name'}: {settings.bankAccountName}</div>}
-            {settings.iban && <div>{'الآيبان / IBAN'}: <span dir="ltr">{settings.iban}</span></div>}
-          </div>
-        )}
-        {settings.terms && (
-          <div style={{ flex: 1, border, borderRadius: 10, padding: 12, fontSize: 11, color: labelColor, whiteSpace: 'pre-wrap' }}>
-            <div style={{ fontWeight: 700, color: primary, marginBottom: 4 }}>{'الشروط والأحكام / Terms & Conditions'}</div>
-            {settings.terms}
-          </div>
-        )}
+      {/* خانتا التوقيع والختم */}
+      <div style={{ display: 'flex', gap: 40, marginBottom: 16 }}>
+        <div style={{ flex: 1, border, borderRadius: 12, padding: 12, textAlign: 'center', boxShadow: cardShadow }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: accent }}>{'توقيع وختم المستلم'}</div>
+          <div style={{ fontSize: 9, color: labelColor, marginBottom: 6 }}>Receiver Signature & Stamp</div>
+          <div style={{ height: 60 }} />
+        </div>
+        <div style={{ flex: 1, border, borderRadius: 12, padding: 12, textAlign: 'center', boxShadow: cardShadow }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: accent }}>{'توقيع وختم الشركة'}</div>
+          <div style={{ fontSize: 9, color: labelColor, marginBottom: 6 }}>Company Signature & Stamp</div>
+          <div style={{ height: 60 }} />
+        </div>
       </div>
 
-      {/* صورة فوتر مخصّصة إن رُفعت */}
+      {/* الشروط والأحكام — تظهر فقط إن أُدخلت في الإعدادات */}
+      {settings.terms && (
+        <div style={{ border, borderRadius: 12, padding: 12, fontSize: 11, color: labelColor, whiteSpace: 'pre-wrap', marginBottom: 16, boxShadow: cardShadow }}>
+          <div style={{ fontWeight: 700, color: accent, marginBottom: 4 }}>{'الشروط والأحكام / Terms & Conditions'}</div>
+          {settings.terms}
+        </div>
+      )}
+
+      {/* الفوتر — بيانات التواصل والعنوان */}
       {settings.footerImageUrl ? (
         <img src={settings.footerImageUrl} alt="footer" style={{ width: '100%', display: 'block', marginTop: 8 }} />
       ) : (
-        <p style={{ marginTop: 20, fontSize: 10, color: '#9ca3af', textAlign: 'center', borderTop: border, paddingTop: 10 }}>
-          {'فاتورة صادرة إلكترونياً — لا تحتاج إلى توقيع'}
-          <span style={{ display: 'block' }}>Electronically generated invoice — no signature required</span>
-          {settings.website ? settings.website : ''}
-        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', alignItems: 'center', borderTop: `2px solid ${primary}`, paddingTop: 12, fontSize: 10.5, color: '#374151' }}>
+          {settings.phone && <span dir="ltr" style={{ fontWeight: 600 }}>{settings.phone}</span>}
+          {settings.email && <span dir="ltr">{settings.email}</span>}
+          {settings.website && <span dir="ltr">{settings.website}</span>}
+          {(settings.address || settings.city) && <span>{[settings.address, settings.city].filter(Boolean).join('، ')}</span>}
+        </div>
       )}
     </div>
   );

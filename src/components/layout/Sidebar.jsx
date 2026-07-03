@@ -3,6 +3,7 @@ import { LayoutDashboard, Globe, X } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { canAccess } from '@/lib/permissions';
 import { CYCLES, cycleForTab } from '@/lib/cycles';
+import BinaaLogo from '@/components/shared/BinaaLogo';
 
 // Sidebar philosophy: Workspace-first. Each entry is a full cycle that opens a
 // unified screen with top tabs. No nested dropdowns — cycle names only.
@@ -34,7 +35,7 @@ export default function Sidebar({ onClose, currentUser, userLoaded = true }) {
 
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-        <div className="size-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow">ب</div>
+        <BinaaLogo className="size-10" />
         <div>
           <div className="font-bold text-lg text-foreground leading-tight">بِنَاء</div>
           <div className="text-xs text-muted-foreground">{lang === 'ar' ? 'نظام إدارة المقاولات' : 'Construction ERP'}</div>

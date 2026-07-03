@@ -4,8 +4,9 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
+import BinaaLogo from "@/components/shared/BinaaLogo";
 
 const BG_IMAGE =
   "https://media.base44.com/images/public/6a44ed8818188b4da27cc800/c4fc4ea30_Gemini_Generated_Image_xeuiioxeuiioxeui.png";
@@ -50,9 +51,7 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-md">
         <div className="rounded-2xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-2xl p-8">
           <div className="flex flex-col items-center text-center mb-7">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/30 mb-4">
-              <LogIn className="w-7 h-7 text-white" />
-            </div>
+            <BinaaLogo className="w-16 h-16 shadow-lg mb-4" rounded="rounded-2xl" />
             <h1 className="text-2xl font-bold text-white">مرحباً بعودتك</h1>
             <p className="text-sm text-white/70 mt-1">سجّل الدخول إلى حسابك</p>
           </div>

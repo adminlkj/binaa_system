@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Printer, X } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,29 @@ export default function InvoicePrintDialog({ open, onOpenChange, invoice }) {
   const { lang } = useStore();
   const { settings } = useCompanySettings();
   const printRef = useRef(null);
+  const [client, setClient] = useState(null);
+
+  // جلب سجل العميل الكامل لعرض تفاصيله (السجل، الرقم الضريبي، الهاتف، البريد، العنوان)
+  // في الفاتورة — بالمعرّف إن وُجد، وإلا بمطابقة الاسم.
+  useEffect(() => {
+    let active = true;
+    setClient(null);
+    if (!invoice) return;
+    (async () => {
+      try {
+        let found = null;
+        if (invoice.clientId) {
+          found = await base44.entities.Client.get(invoice.clientId).catch(() => null);
+        }
+        if (!found && invoice.clientName) {
+          const matches = await base44.entities.Client.filter({ name: invoice.clientName }).catch(() => []);
+          found = matches[0] || null;
+        }
+        if (active) setClient(found);
+      } catch { /* تفاصيل العميل اختيارية */ }
+    })();
+    return () => { active = false; };
+  }, [invoice?.clientId, invoice?.clientName]);
 
   if (!invoice) return null;
 
@@ -55,7 +79,7 @@ export default function InvoicePrintDialog({ open, onOpenChange, invoice }) {
 
         <div className="overflow-auto max-h-[80vh] bg-muted/30 p-4">
           <div className="bg-white mx-auto max-w-2xl p-8 rounded shadow-sm">
-            <InvoiceDocument invoice={invoice} settings={settings} lang={lang} innerRef={printRef} />
+            <InvoiceDocument invoice={invoice} settings={settings} client={client} lang={lang} innerRef={printRef} />
           </div>
         </div>
       </DialogContent>

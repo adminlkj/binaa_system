@@ -35,8 +35,17 @@ function resolveLineItems(invoice, lang) {
  * يتحكم فيه القالب (template) والألوان (primary/accent) وبيانات الشركة من الإعدادات.
  * innerRef يُمرّر إلى العنصر الجذر لالتقاط HTML عند الطباعة.
  */
-export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerRef }) {
+export default function InvoiceDocument({ invoice, settings, client, lang = 'ar', innerRef }) {
   if (!invoice) return null;
+
+  // تفاصيل العميل: نأخذها من سجل العميل الكامل إن مُرّر، وإلا من حقول الفاتورة نفسها.
+  const c = client || {};
+  const clientName = invoice.clientName || (lang === 'ar' ? (c.nameAr || c.name) : c.name) || '—';
+  const clientVat = invoice.clientVatNumber || c.taxNumber;
+  const clientPhone = invoice.clientPhone || c.phone;
+  const clientEmail = invoice.clientEmail || c.email;
+  const clientAddress = invoice.clientAddress || c.address;
+  const clientContact = c.contactPerson;
 
   const primary = settings.primaryColor || '#059669';
   const accent = settings.accentColor || '#047857';
@@ -130,15 +139,22 @@ export default function InvoiceDocument({ invoice, settings, lang = 'ar', innerR
         <div style={{ flex: 1, border, borderRadius: 10, padding: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: primary, marginBottom: 6 }}>{t('بيانات المُصدِر', 'Issued By', lang)}</div>
           <div style={{ fontWeight: 600 }}>{companyName}</div>
-          {settings.address && <div style={{ fontSize: 11, color: labelColor }}>{settings.address}{settings.city ? `، ${settings.city}` : ''}</div>}
+          {settings.crNumber && <div style={{ fontSize: 11, color: labelColor }}>{t('السجل التجاري', 'CR No', lang)}: {settings.crNumber}</div>}
+          {settings.vatNumber && <div style={{ fontSize: 11, color: labelColor }}>{t('الرقم الضريبي', 'VAT No', lang)}: {settings.vatNumber}</div>}
+          {(settings.address || settings.city) && <div style={{ fontSize: 11, color: labelColor }}>{[settings.address, settings.city].filter(Boolean).join('، ')}</div>}
           {settings.phone && <div style={{ fontSize: 11, color: labelColor }}>{t('هاتف', 'Phone', lang)}: {settings.phone}</div>}
-          {settings.email && <div style={{ fontSize: 11, color: labelColor }}>{settings.email}</div>}
+          {settings.email && <div style={{ fontSize: 11, color: labelColor }}>{t('البريد', 'Email', lang)}: {settings.email}</div>}
+          {settings.website && <div style={{ fontSize: 11, color: labelColor }}>{settings.website}</div>}
         </div>
         <div style={{ flex: 1, border, borderRadius: 10, padding: 12 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: primary, marginBottom: 6 }}>{t('بيانات العميل', 'Bill To', lang)}</div>
-          <div style={{ fontWeight: 600 }}>{invoice.clientName || '—'}</div>
+          <div style={{ fontWeight: 600 }}>{clientName}</div>
+          {clientContact && <div style={{ fontSize: 11, color: labelColor }}>{t('جهة الاتصال', 'Contact', lang)}: {clientContact}</div>}
+          {clientVat && <div style={{ fontSize: 11, color: labelColor }}>{t('الرقم الضريبي', 'VAT No', lang)}: {clientVat}</div>}
+          {clientAddress && <div style={{ fontSize: 11, color: labelColor }}>{clientAddress}</div>}
+          {clientPhone && <div style={{ fontSize: 11, color: labelColor }}>{t('هاتف', 'Phone', lang)}: {clientPhone}</div>}
+          {clientEmail && <div style={{ fontSize: 11, color: labelColor }}>{t('البريد', 'Email', lang)}: {clientEmail}</div>}
           {invoice.projectName && <div style={{ fontSize: 11, color: labelColor }}>{t('المشروع', 'Project', lang)}: {invoice.projectName}</div>}
-          {invoice.clientVatNumber && <div style={{ fontSize: 11, color: labelColor }}>{t('الرقم الضريبي', 'VAT No', lang)}: {invoice.clientVatNumber}</div>}
         </div>
       </div>
 

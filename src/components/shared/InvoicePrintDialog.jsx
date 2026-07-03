@@ -54,11 +54,11 @@ export default function InvoicePrintDialog({ open, onOpenChange, invoice }) {
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
             @font-face { font-family:'saudi_riyal'; src:url('https://cdn.jsdelivr.net/gh/emran-alhaddad/Saudi-Riyal-Font@1.1.1/fonts/regular/saudi_riyal.woff2') format('woff2'); unicode-range:U+20C1; }
             * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            body { font-family:'saudi_riyal','Cairo',sans-serif; color:#111827; padding:28px; margin:0; }
+            body { font-family:'saudi_riyal','Cairo',sans-serif; color:#111827; padding:28px; margin:0; direction:${lang === 'ar' ? 'rtl' : 'ltr'}; text-align:${lang === 'ar' ? 'right' : 'left'}; }
             img { max-width:100%; }
           </style>
         </head>
-        <body>${content}</body>
+        <body><div dir="${lang === 'ar' ? 'rtl' : 'ltr'}">${content}</div></body>
       </html>
     `);
     w.document.close();

@@ -101,6 +101,8 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
         fontSize: 13,
         lineHeight: 1.6,
         width: '100%',
+        direction: lang === 'ar' ? 'rtl' : 'ltr',
+        textAlign: lang === 'ar' ? 'right' : 'left',
       }}
     >
       {/* صورة هيدر مخصّصة إن رُفعت */}

@@ -3,8 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { initDb, pool } from './db.js';
-import { hashPassword, verifyPassword, signToken, requireUser, getUserFromRequest, isFirstUser } from './auth.js';
+import { hashPassword, verifyPassword, signToken, requireUser, isFirstUser } from './auth.js';
 import { bulkCreateEntity, bulkUpdateEntity, createEntity, deleteEntity, deleteManyEntity, getEntity, listEntity, loadSchema, updateEntity, updateManyEntity } from './entities.js';
+import { runStandaloneFunction } from './functionRunner.js';
 
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
@@ -164,9 +165,15 @@ async function handleApi(req, res) {
     if (route.startsWith('/api/auth/')) return await handleAuth(req, res, route);
     if (route.startsWith('/api/users/')) return await handleUsers(req, res, route);
     if (route.startsWith('/api/entities/')) return await handleEntity(req, res, route.split('/'));
-    if (route.startsWith('/api/functions/')) {
-      await getUserFromRequest(req);
-      return sendJson(res, { error: 'This backend function still needs migration to the standalone server.' }, 501);
+    if (route.startsWith('/api/functions/') && req.method === 'POST') {
+      const user = await requireUser(req);
+      const functionName = route.split('/')[3];
+      const payload = await readBody(req);
+      try {
+        return sendJson(res, await runStandaloneFunction(functionName, payload, user));
+      } catch (error) {
+        return sendJson(res, { success: false, error: error.message || 'فشل تنفيذ العملية' });
+      }
     }
     return sendJson(res, { error: 'Not found' }, 404);
   } catch (error) {

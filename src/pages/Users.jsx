@@ -11,26 +11,31 @@ import { APP_ROLES, resolveUserModules } from '@/lib/permissions';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import InviteUserDialog from '@/components/users/InviteUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
-import { UserPlus, Search, Pencil, ShieldCheck, ShieldAlert, Users as UsersIcon, Crown, Ban, CheckCircle2 } from 'lucide-react';
+import ApproveRegistrationDialog from '@/components/users/ApproveRegistrationDialog';
+import { UserPlus, Search, Pencil, ShieldCheck, ShieldAlert, Users as UsersIcon, Crown, Ban, CheckCircle2, Clock, XCircle } from 'lucide-react';
 
 export default function Users() {
   const { lang } = useStore();
   const { toast } = useToast();
   const [users, setUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
+  const [approveRequest, setApproveRequest] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [list, current] = await Promise.all([
+      const current = await base44.auth.me();
+      const [list, pendingRequests] = await Promise.all([
         base44.entities.User.list('-created_date', 200),
-        base44.auth.me(),
+        current.role === 'admin' ? base44.users.listRegistrationRequests() : Promise.resolve([]),
       ]);
       setUsers(list);
+      setRequests(pendingRequests);
       setMe(current);
     } catch (e) {
       toast({ title: t('تعذر تحميل المستخدمين', 'Failed to load users', lang), description: e.message, variant: 'destructive' });
@@ -67,11 +72,22 @@ export default function Users() {
     load();
   };
 
+  const rejectRequest = async (request) => {
+    try {
+      await base44.users.rejectRegistrationRequest(request.id);
+      toast({ title: t('تم رفض الطلب', 'Request rejected', lang) });
+      load();
+    } catch (e) {
+      toast({ title: t('تعذر رفض الطلب', 'Could not reject request', lang), description: e.message, variant: 'destructive' });
+    }
+  };
+
   const stats = {
     total: users.length,
     admins: users.filter(u => u.role === 'admin' || u.appRole === 'OWNER').length,
     active: users.filter(u => u.isActive !== false).length,
     inactive: users.filter(u => u.isActive === false).length,
+    pending: requests.length,
   };
 
   if (!loading && !isAdmin) {
@@ -103,12 +119,55 @@ export default function Users() {
         </Button>
       }
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard icon={UsersIcon} label={t('إجمالي المستخدمين', 'Total Users', lang)} value={stats.total} color="bg-slate-100 text-slate-600" />
         <StatCard icon={Crown} label={t('مدراء', 'Admins', lang)} value={stats.admins} color="bg-violet-100 text-violet-600" />
         <StatCard icon={CheckCircle2} label={t('نشط', 'Active', lang)} value={stats.active} color="bg-emerald-100 text-emerald-600" />
         <StatCard icon={Ban} label={t('معطّل', 'Inactive', lang)} value={stats.inactive} color="bg-rose-100 text-rose-600" />
+        <StatCard icon={Clock} label={t('طلبات التسجيل', 'Registration Requests', lang)} value={stats.pending} color="bg-amber-100 text-amber-700" />
       </div>
+
+      {requests.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="size-4 text-amber-600" />
+              <h2 className="font-semibold text-sm">{t('طلبات التسجيل بانتظار الاعتماد', 'Registration requests pending approval', lang)}</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
+                    <TableHead>{t('البريد', 'Email', lang)}</TableHead>
+                    <TableHead>{t('تاريخ الطلب', 'Requested at', lang)}</TableHead>
+                    <TableHead className="text-end">{t('إجراءات', 'Actions', lang)}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests.map(request => (
+                    <TableRow key={request.id}>
+                      <TableCell className="font-medium">{request.fullName || '—'}</TableCell>
+                      <TableCell dir="ltr" className="text-sm text-muted-foreground">{request.email}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{request.requestedDate ? new Date(request.requestedDate).toLocaleString('ar-SA') : '—'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button size="sm" onClick={() => setApproveRequest(request)} className="gap-1 bg-emerald-600 hover:bg-emerald-700">
+                            <CheckCircle2 className="size-3.5" />{t('اعتماد', 'Approve', lang)}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => rejectRequest(request)} className="gap-1 text-rose-600">
+                            <XCircle className="size-3.5" />{t('رفض', 'Reject', lang)}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-4">
@@ -202,6 +261,7 @@ export default function Users() {
 
       <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} onInvited={load} lang={lang} />
       <EditUserDialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)} user={editUser} onSaved={handleUserSaved} lang={lang} />
+      <ApproveRegistrationDialog open={!!approveRequest} onOpenChange={(o) => !o && setApproveRequest(null)} request={approveRequest} onDone={load} lang={lang} />
     </ModuleLayout>
   );
 }

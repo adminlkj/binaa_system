@@ -44,17 +44,18 @@ async function handleAuth(req, res, route) {
 
   if (route === '/api/auth/register' && req.method === 'POST') {
     const email = String(body.email || '').toLowerCase().trim();
-    if (!email || !body.password) return sendJson(res, { error: 'Email and password are required' }, 400);
+    const fullName = String(body.full_name || '').trim() || email.split('@')[0];
+    if (!email || !body.password) return sendJson(res, { error: 'البريد الإلكتروني وكلمة المرور مطلوبة' }, 400);
+    if (String(body.password).length < 6) return sendJson(res, { error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' }, 400);
     const { rows: existing } = await pool.query('SELECT id FROM app_users WHERE email = $1 LIMIT 1', [email]);
-    if (existing[0]) return sendJson(res, { error: 'Email is already registered' }, 409);
-    const first = await isFirstUser();
-    const id = crypto.randomUUID();
-    const role = first ? 'admin' : 'user';
+    if (existing[0]) return sendJson(res, { error: 'هذا البريد مسجل بالفعل' }, 409);
+    const { rows: pending } = await pool.query("SELECT id FROM registration_requests WHERE email = $1 AND status = 'PENDING' LIMIT 1", [email]);
+    if (pending[0]) return sendJson(res, { error: 'يوجد طلب تسجيل قيد المراجعة لهذا البريد' }, 409);
     await pool.query(
-      'INSERT INTO app_users (id, email, full_name, role, app_role, password_hash) VALUES ($1, $2, $3, $4, $5, $6)',
-      [id, email, body.full_name || email.split('@')[0], role, first ? 'OWNER' : 'VIEWER', hashPassword(body.password)]
+      'INSERT INTO registration_requests (id, email, full_name, password_hash) VALUES ($1, $2, $3, $4)',
+      [crypto.randomUUID(), email, fullName, hashPassword(body.password)]
     );
-    return sendJson(res, { success: true, message: 'Registered' });
+    return sendJson(res, { success: true, status: 'PENDING', message: 'تم إرسال طلب التسجيل للمالك لاعتماده' });
   }
 
   if (route === '/api/auth/verify-otp' && req.method === 'POST') {
@@ -117,6 +118,41 @@ async function handleUsers(req, res, route) {
       [id, email, email.split('@')[0], role, appRole, hashPassword(tempPassword)]
     );
     return sendJson(res, { success: true, tempPassword, email });
+  }
+
+  if (route === '/api/users/registration-requests/list' && req.method === 'POST') {
+    const { rows } = await pool.query(`SELECT id, email, full_name AS "fullName", status, requested_date AS "requestedDate" FROM registration_requests WHERE status = 'PENDING' ORDER BY requested_date ASC`);
+    return sendJson(res, rows);
+  }
+
+  if (route === '/api/users/registration-requests/approve' && req.method === 'POST') {
+    const requestId = body.id;
+    const appRole = body.appRole || 'VIEWER';
+    const role = appRole === 'OWNER' ? 'admin' : 'user';
+    const allowedModules = Array.isArray(body.allowedModules) ? body.allowedModules : [];
+    const modulePermissions = body.modulePermissions && typeof body.modulePermissions === 'object' ? body.modulePermissions : {};
+    const { rows } = await pool.query("SELECT * FROM registration_requests WHERE id = $1 AND status = 'PENDING'", [requestId]);
+    const request = rows[0];
+    if (!request) return sendJson(res, { error: 'طلب التسجيل غير موجود أو تمت مراجعته' }, 404);
+    const { rows: existing } = await pool.query('SELECT id FROM app_users WHERE email = $1 LIMIT 1', [request.email]);
+    if (existing[0]) return sendJson(res, { error: 'يوجد مستخدم بهذا البريد بالفعل' }, 409);
+    const newUserId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO app_users (id, email, full_name, role, app_role, password_hash, is_active, allowed_modules, module_permissions)
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7::jsonb, $8::jsonb)`,
+      [newUserId, request.email, request.full_name, role, appRole, request.password_hash, JSON.stringify(allowedModules), JSON.stringify(modulePermissions)]
+    );
+    await pool.query(
+      `UPDATE registration_requests SET status = 'APPROVED', app_role = $2, allowed_modules = $3::jsonb, module_permissions = $4::jsonb, reviewed_by_id = $5, reviewed_date = now() WHERE id = $1`,
+      [requestId, appRole, JSON.stringify(allowedModules), JSON.stringify(modulePermissions), user.id]
+    );
+    const { rows: publicRows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [newUserId]);
+    return sendJson(res, { success: true, user: publicRows[0] });
+  }
+
+  if (route === '/api/users/registration-requests/reject' && req.method === 'POST') {
+    await pool.query("UPDATE registration_requests SET status = 'REJECTED', reviewed_by_id = $2, reviewed_date = now() WHERE id = $1 AND status = 'PENDING'", [body.id, user.id]);
+    return sendJson(res, { success: true });
   }
 
   return sendJson(res, { error: 'Not found' }, 404);

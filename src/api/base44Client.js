@@ -97,6 +97,9 @@ export const base44 = {
       method: 'POST',
       body: JSON.stringify({ email, role, appRole }),
     }),
+    listRegistrationRequests: () => request('/api/users/registration-requests/list', { method: 'POST', body: JSON.stringify({}) }),
+    approveRegistrationRequest: (data) => request('/api/users/registration-requests/approve', { method: 'POST', body: JSON.stringify(data) }),
+    rejectRegistrationRequest: (id) => request('/api/users/registration-requests/reject', { method: 'POST', body: JSON.stringify({ id }) }),
   },
   functions: {
     invoke: (name, payload = {}) => request(`/api/functions/${name}`, {

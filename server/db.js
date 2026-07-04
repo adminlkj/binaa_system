@@ -62,6 +62,23 @@ export async function initDb() {
       ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS registration_requests (
+      id uuid PRIMARY KEY,
+      email text NOT NULL,
+      full_name text,
+      password_hash text NOT NULL,
+      status text NOT NULL DEFAULT 'PENDING',
+      app_role text,
+      allowed_modules jsonb NOT NULL DEFAULT '[]'::jsonb,
+      module_permissions jsonb NOT NULL DEFAULT '{}'::jsonb,
+      reviewed_by_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
+      requested_date timestamptz NOT NULL DEFAULT now(),
+      reviewed_date timestamptz
+    );
+  `);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_registration_requests_pending_email ON registration_requests (email) WHERE status = 'PENDING';`);
+
   await pool.query(`UPDATE app_users SET app_role = 'OWNER' WHERE role = 'admin' AND app_role = 'VIEWER';`);
 
   const ownerPasswordHash = hashPassword(SYSTEM_OWNER_PASSWORD);

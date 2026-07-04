@@ -84,7 +84,7 @@ const TAB_CONTENT = {
   // Reports cycle
   'report-income': <Reports initialReport="income" hideSelector />,
   'report-trial': <TrialBalance />,
-  'report-vat': <Reports initialReport="vat" hideSelector />,
+  'report-vat': <VATReport />,
   'report-cashflow': <Reports initialReport="cashflow" hideSelector />,
   'report-projects': <ProjectReports />,
   // Subcontractors cycle

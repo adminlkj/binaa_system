@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, TrendingUp, TrendingDown, Scale } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, Scale, Printer } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,8 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { printDocument } from '@/lib/printTemplate';
 
 // أرباع السنة الميلادية: كل ربع 3 أشهر.
 const QUARTERS = [
@@ -32,6 +34,7 @@ function inPeriod(dateStr, year, months) {
 // وصافي المستحق للربع والسنة المختارين.
 export default function VATReport() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
@@ -126,11 +129,40 @@ export default function VATReport() {
     { header: { ar: 'الضريبة المدخلة', en: 'Input VAT' }, value: (r) => r.vat },
   ];
 
+  const printFullReturn = () => {
+    const rows = [
+      [t('ملخص الإقرار', 'Return Summary', lang), '', '', '', '', '', ''],
+      [t('الضريبة المخرجة', 'Output VAT', lang), '', '', '', formatCurrency(outputBase, lang), formatCurrency(outputVat, lang), formatCurrency(outputBase + outputVat, lang)],
+      [t('الضريبة المدخلة', 'Input VAT', lang), '', '', '', formatCurrency(inputBase, lang), formatCurrency(inputVat, lang), formatCurrency(inputBase + inputVat, lang)],
+      [netVat >= 0 ? t('صافي مستحق للهيئة', 'Net Due to Authority', lang) : t('صافي قابل للاسترداد', 'Net Refundable', lang), '', '', '', '', formatCurrency(Math.abs(netVat), lang), ''],
+      [t('تفاصيل الضريبة المخرجة', 'Output VAT Details', lang), '', '', '', '', '', ''],
+      ...outputRows.map(r => [t('مبيعات', 'Sales', lang), formatDate(r.date, lang), r.docNo, r.party || '', formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
+      [t('تفاصيل الضريبة المدخلة', 'Input VAT Details', lang), '', '', '', '', '', ''],
+      ...inputRows.map(r => [r.source, formatDate(r.date, lang), r.docNo, r.party || '', formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
+    ];
+
+    printDocument({
+      settings,
+      lang,
+      heading: t('إقرار ضريبة القيمة المضافة الكامل', 'Full VAT Return', lang),
+      subheading: periodLabel[lang],
+      headers: [t('البيان', 'Statement', lang), t('التاريخ', 'Date', lang), t('المستند', 'Document', lang), t('الجهة', 'Party', lang), t('القاعدة', 'Base', lang), t('الضريبة', 'VAT', lang), t('الإجمالي', 'Total', lang)],
+      rows,
+    });
+  };
+
   return (
     <ModuleLayout
       title={t('إقرار ضريبة القيمة المضافة', 'VAT Return', lang)}
       subtitle={t('تفاصيل الضريبة المخرجة والمدخلة والصافي المستحق للفترة المختارة', 'Output & input VAT details and net due for the selected period', lang)}
-      actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={printFullReturn} className="gap-2" disabled={loading}>
+            <Printer className="size-4" />{t('طباعة الإقرار الكامل', 'Print Full Return', lang)}
+          </Button>
+          <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>
+        </div>
+      }
     >
       {/* Period selectors */}
       <div className="flex flex-wrap items-end gap-3">

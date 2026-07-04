@@ -135,6 +135,8 @@ export function canAccess(user, moduleKey) {
   // dashboard is always accessible for active signed-in users
   if (moduleKey === 'dashboard') return user?.isActive !== false;
   const modules = resolveUserModules(user);
+  // Report tabs live under the reports cycle; anyone with reports access can open them.
+  if (moduleKey?.startsWith('report-')) return modules.includes('reports') || modules.includes(moduleKey);
   // The equipment workspace is opened from the equipment registry — anyone who
   // can access the registry can open a piece of equipment's workspace.
   if (moduleKey === 'equipment-workspace') return modules.includes('equipment') || modules.includes('equipment-workspace');

@@ -724,6 +724,53 @@ async function createGoodsReceipt(base44, data) {
   return receipt;
 }
 
+// ─── إنشاء حساب مع رصيد افتتاحي ──────────────────────────────────────────────
+function openingBalanceDate(fiscalYears) {
+  const openCurrent = (fiscalYears || []).find((y) => y.isCurrent && y.status === 'OPEN' && y.startDate);
+  if (openCurrent) return openCurrent.startDate;
+  const openAny = (fiscalYears || []).find((y) => y.status === 'OPEN' && y.startDate);
+  return openAny?.startDate || new Date().toISOString().slice(0, 10);
+}
+
+function buildOpeningBalanceJE(account, amount, accounts, date) {
+  const equity = (accounts || []).find((a) => a.semanticRole === 'OPENING_BALANCE_EQUITY' && a.isActive !== false)
+    || (accounts || []).find((a) => a.accountType === 'EQUITY' && a.isPostable && a.isActive !== false)
+    || ACCOUNTS.OPENING_BALANCE_EQUITY;
+  const value = +Math.abs(num(amount)).toFixed(2);
+  const onDebit = account.nature === 'DEBIT';
+  const desc = `رصيد افتتاحي — ${account.name}`;
+  return {
+    entryNo: `OB-${account.code}`,
+    date,
+    description: desc,
+    sourceType: 'OPENING_BALANCE',
+    isPosted: true,
+    totalDebit: value,
+    totalCredit: value,
+    lines: [
+      { accountCode: account.code, accountName: account.name, debit: onDebit ? value : 0, credit: onDebit ? 0 : value, description: desc },
+      { accountCode: equity.code, accountName: equity.name, debit: onDebit ? 0 : value, credit: onDebit ? value : 0, description: desc },
+    ],
+  };
+}
+
+async function createChartAccount(base44, data, openingBalance) {
+  const account = await base44.asServiceRole.entities.ChartAccount.create(data);
+  try {
+    if (Math.abs(num(openingBalance)) > 0.001) {
+      const [accounts, fiscalYears] = await Promise.all([
+        base44.asServiceRole.entities.ChartAccount.list('code', 1000),
+        base44.asServiceRole.entities.FiscalYear.filter({}),
+      ]);
+      await autoPostJE(base44, buildOpeningBalanceJE(account, openingBalance, accounts, openingBalanceDate(fiscalYears)));
+    }
+  } catch (e) {
+    await rollback(base44, 'ChartAccount', account.id);
+    throw e;
+  }
+  return account;
+}
+
 // ─── حارس سلامة القيد ─────────────────────────────────────────────────────────
 function assertJEIntegrity(je) {
   if (!je) throw new Error('قيد فارغ — لا يوجد قيد لترحيله');
@@ -1290,6 +1337,7 @@ async function restoreStatus(base44, entityName, id, prevStatus) {
 
 // ─── التوجيه ──────────────────────────────────────────────────────────────────
 const HANDLERS = {
+  CHART_ACCOUNT:   { create: (b, p) => createChartAccount(b, p.data, p.openingBalance) },
   SALES_INVOICE:   { create: (b, p) => createSalesInvoice(b, p.data), update: (b, p) => updateSalesInvoice(b, p.id, p.data, p.prevStatus), approve: (b, p) => approveSalesInvoice(b, p.id) },
   PURCHASE_ORDER:  { create: (b, p) => createPurchaseOrder(b, p.data), update: (b, p) => updatePurchaseOrder(b, p.id, p.data, p.prevStatus) },
   EXPENSE:         { create: (b, p) => createExpense(b, p.data), update: (b, p) => updateExpense(b, p.id, p.data) },

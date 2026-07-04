@@ -88,6 +88,10 @@ const nameOf = (list, id, current) => (list || []).find(x => x.id === id)?.name 
 
 export const OperationEngine = {
 
+  async createChartAccount(data, openingBalance = 0) {
+    return await runOperation({ operation: 'CHART_ACCOUNT', mode: 'create', data, openingBalance });
+  },
+
   async createSalesInvoice(data, projects, clients) {
     const payload = { ...data, projectName: nameOf(projects, data.projectId, data.projectName), clientName: nameOf(clients, data.clientId, data.clientName) };
     return await runOperation({ operation: 'SALES_INVOICE', mode: 'create', data: payload });

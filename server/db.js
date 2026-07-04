@@ -2,9 +2,15 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is not set. On Render, deploy from render.yaml as a Blueprint or add a PostgreSQL database and connect its Internal Database URL to DATABASE_URL.');
+}
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  connectionString: databaseUrl,
+  ssl: databaseUrl.includes('.render.com') ? { rejectUnauthorized: false } : false,
 });
 
 export async function initDb() {

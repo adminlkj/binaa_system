@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, FileText, Globe, Info } from 'lucide-react';
+import { Building2, CalendarClock, FileText, Globe, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
@@ -7,6 +7,7 @@ import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import CompanySettingsCard from '@/components/settings/CompanySettingsCard';
 import PrintSettingsCard from '@/components/settings/PrintSettingsCard';
+import FiscalControlCard from '@/components/settings/FiscalControlCard';
 
 export default function Settings() {
   const { lang, toggleLang } = useStore();
@@ -15,6 +16,7 @@ export default function Settings() {
   const SECTIONS = [
     { key: 'general', ar: 'عام', en: 'General', Icon: Globe },
     { key: 'company', ar: 'بيانات الشركة', en: 'Company', Icon: Building2 },
+    { key: 'fiscal', ar: 'التحكم المالي', en: 'Fiscal Control', Icon: CalendarClock },
     { key: 'print', ar: 'الطباعة والفاتورة', en: 'Print & Invoice', Icon: FileText },
     { key: 'about', ar: 'حول النظام', en: 'About', Icon: Info },
   ];
@@ -57,6 +59,8 @@ export default function Settings() {
         )}
 
         {tab === 'company' && <CompanySettingsCard />}
+
+        {tab === 'fiscal' && <FiscalControlCard />}
 
         {tab === 'print' && <PrintSettingsCard />}
 

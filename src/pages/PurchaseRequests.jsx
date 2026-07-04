@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -65,7 +65,7 @@ export default function PurchaseRequests() {
     setEditing(null);
     setForm({
       ...empty,
-      requestNo: genCode('PR', items.length + 1),
+      requestNo: nextCodeFromList(items, 'PR', 'requestNo'),
       date: new Date().toISOString().slice(0, 10),
       projectId: activeProjectId || '',
       projectName: activeProjectName || '',
@@ -79,7 +79,7 @@ export default function PurchaseRequests() {
     if (!form.requestNo?.trim()) return toast.error(t('رقم الطلب مطلوب', 'Request No. required', lang));
     setSaving(true);
     try {
-      const data = { ...form, estimatedAmount: Number(form.estimatedAmount) || 0 };
+      const data = { ...form, requestNo: form.requestNo || nextCodeFromList(items, 'PR', 'requestNo'), estimatedAmount: Number(form.estimatedAmount) || 0 };
       if (editing) { await base44.entities.PurchaseRequest.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.PurchaseRequest.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
       setDialogOpen(false); load();
@@ -174,7 +174,7 @@ export default function PurchaseRequests() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل الطلب', 'Edit Request', lang) : t('طلب شراء جديد', 'New Purchase Request', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم الطلب', 'Request No.', lang)} *</Label><Input value={form.requestNo} onChange={e => setForm(f => ({ ...f, requestNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم الطلب', 'Request No.', lang)} *</Label><Input value={form.requestNo} readOnly className="bg-muted" /></div>
             <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('المشروع', 'Project', lang)}</Label>

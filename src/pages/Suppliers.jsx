@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t } from '@/lib/utils-binaa';
+import { t, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -42,16 +42,17 @@ export default function Suppliers() {
 
   const filtered = items.filter(i => !search || i.name?.toLowerCase().includes(search.toLowerCase()) || i.code?.toLowerCase().includes(search.toLowerCase()));
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...empty, code: nextCodeFromList(items, 'SUP') }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
-    if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name required', lang));
+    if (!form.name) return toast.error(t('اسم المورد مطلوب', 'Supplier name required', lang));
     setSaving(true);
     try {
-      if (editing) { await base44.entities.Supplier.update(editing.id, form); toast.success(t('تم التحديث', 'Updated', lang)); }
-      else { await base44.entities.Supplier.create(form); toast.success(t('تمت الإضافة', 'Added', lang)); }
+      const data = { ...form, code: form.code || nextCodeFromList(items, 'SUP') };
+      if (editing) { await base44.entities.Supplier.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
+      else { await base44.entities.Supplier.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
       setDialogOpen(false); load();
     } catch (err) { toast.error(errorMessage(err, t('فشل الحفظ', 'Save failed', lang))); }
     setSaving(false);
@@ -152,7 +153,7 @@ export default function Suppliers() {
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>{editing ? t('تعديل المورد', 'Edit Supplier', lang) : t('مورد جديد', 'New Supplier', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            {fields.map(([field, label]) => <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>)}
+            {fields.map(([field, label]) => <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} readOnly={field === 'code'} className={field === 'code' ? 'bg-muted' : ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>)}
             <div className="col-span-2 space-y-1.5"><Label>{t('العنوان', 'Address', lang)}</Label><Textarea value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2} /></div>
             <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency } from '@/lib/utils-binaa';
+import { t, formatCurrency, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -39,16 +39,16 @@ export default function Subcontractors() {
 
   const filtered = items.filter(i => !search || i.name?.toLowerCase().includes(search.toLowerCase()) || i.code?.toLowerCase().includes(search.toLowerCase()));
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...empty, code: nextCodeFromList(items, 'SUB') }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
   const openWorkspace = (item) => { setSubcontractorContext(item.id, item.name); setActiveItem('subcontractor-workspace'); };
 
   const save = async () => {
-    if (!form.code || !form.name) return toast.error(t('الكود والاسم مطلوبان', 'Code and name required', lang));
+    if (!form.name) return toast.error(t('اسم مقاول الباطن مطلوب', 'Subcontractor name required', lang));
     setSaving(true);
     try {
-      const data = { ...form, totalContracts: parseFloat(form.totalContracts) || 0, totalPaid: parseFloat(form.totalPaid) || 0 };
+      const data = { ...form, code: form.code || nextCodeFromList(items, 'SUB'), totalContracts: parseFloat(form.totalContracts) || 0, totalPaid: parseFloat(form.totalPaid) || 0 };
       if (editing) { await base44.entities.Subcontractor.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.Subcontractor.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
       setDialogOpen(false); load();
@@ -134,7 +134,7 @@ export default function Subcontractors() {
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>{editing ? t('تعديل مقاول', 'Edit Subcontractor', lang) : t('مقاول جديد', 'New Subcontractor', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            {fields.map(([field, label]) => <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>)}
+            {fields.map(([field, label]) => <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} readOnly={field === 'code'} className={field === 'code' ? 'bg-muted' : ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>)}
             <div className="space-y-1.5"><Label>{t('إجمالي العقود', 'Total Contracts', lang)}</Label><Input type="number" value={form.totalContracts || ''} onChange={e => setForm(f => ({ ...f, totalContracts: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('إجمالي المدفوع', 'Total Paid', lang)}</Label><Input type="number" value={form.totalPaid || ''} onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))} /></div>
             <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>

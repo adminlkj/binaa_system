@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, PROJECT_STATUS, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -58,7 +58,7 @@ export default function Projects() {
     return matchSearch && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...emptyForm, code: nextCodeFromList(items, 'PRJ') }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...emptyForm, ...item, contractValue: item.contractValue || '' }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
@@ -70,7 +70,7 @@ export default function Projects() {
     setSaving(true);
     try {
       const cl = clients.find(c => c.id === form.clientId);
-      const data = { ...form, contractValue: parseFloat(form.contractValue) || 0, clientName: cl?.name || form.clientName };
+      const data = { ...form, code: form.code || nextCodeFromList(items, 'PRJ'), contractValue: parseFloat(form.contractValue) || 0, clientName: cl?.name || form.clientName };
       if (editing) { await base44.entities.Project.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.Project.create(data); toast.success(t('تم إنشاء المشروع', 'Project created', lang)); }
       setDialogOpen(false); load();
@@ -205,7 +205,7 @@ export default function Projects() {
             <DialogTitle>{editing ? t('تعديل المشروع', 'Edit Project', lang) : t('مشروع جديد', 'New Project', lang)}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('كود المشروع', 'Project Code', lang)} *</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="PRJ-0001" /></div>
+            <div className="space-y-1.5"><Label>{t('كود المشروع', 'Project Code', lang)} *</Label><Input value={form.code} readOnly className="bg-muted" placeholder="PRJ-0001" /></div>
             <div className="space-y-1.5"><Label>{t('اسم المشروع', 'Project Name', lang)} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('الاسم بالعربية', 'Name in Arabic', lang)}</Label><Input value={form.nameAr} onChange={e => setForm(f => ({ ...f, nameAr: e.target.value }))} dir="rtl" /></div>
             <div className="space-y-1.5">

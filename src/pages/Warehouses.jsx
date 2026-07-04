@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t } from '@/lib/utils-binaa';
+import { t, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -53,7 +53,7 @@ export default function Warehouses() {
     !search || w.name?.toLowerCase().includes(search.toLowerCase()) || w.code?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...empty, code: nextCodeFromList(warehouses, 'WH') }); setDialogOpen(true); };
   const openEdit = (w) => { setEditing(w); setForm({ ...empty, ...w }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -65,7 +65,7 @@ export default function Warehouses() {
     try {
       const project = projects.find(p => p.id === form.projectId);
       const data = {
-        code: form.code, name: form.name, type: form.type,
+        code: form.code || nextCodeFromList(warehouses, 'WH'), name: form.name, type: form.type,
         projectId: form.type === 'PROJECT' ? form.projectId : '',
         projectName: form.type === 'PROJECT' ? (project?.name || '') : '',
         costCenter: form.costCenter, keeper: form.keeper, location: form.location,
@@ -159,7 +159,7 @@ export default function Warehouses() {
         <DialogContent className="max-w-lg" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <DialogHeader><DialogTitle>{editing ? t('تعديل المخزن', 'Edit Warehouse', lang) : t('مخزن جديد', 'New Warehouse', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="space-y-1"><Label>{t('الرمز', 'Code', lang)} *</Label><Input value={form.code} onChange={e => set('code', e.target.value)} /></div>
+            <div className="space-y-1"><Label>{t('الرمز', 'Code', lang)} *</Label><Input value={form.code} readOnly className="bg-muted" /></div>
             <div className="space-y-1">
               <Label>{t('النوع', 'Type', lang)}</Label>
               <Select value={form.type} onValueChange={v => set('type', v)}>

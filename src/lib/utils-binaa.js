@@ -50,6 +50,15 @@ export function genCode(prefix, num) {
   return `${prefix}-${String(num).padStart(4, '0')}`;
 }
 
+export function nextCodeFromList(list = [], prefix, field = 'code') {
+  const max = (list || []).reduce((highest, item) => {
+    const value = item?.[field] || '';
+    const match = String(value).match(/(\d+)$/);
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+  return genCode(prefix, max + 1);
+}
+
 /**
  * أنماط الحالات الموحّدة على مستوى النظام — مصدر واحد للألوان.
  * كل شارات الحالة في كل الشاشات يجب أن تشتق درجتها من هنا حسب "المعنى".

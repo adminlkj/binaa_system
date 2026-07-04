@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, STATUS_TONE, nextCodeFromList } from '@/lib/utils-binaa';
+import QuickSupplierDialog from '@/components/purchase/QuickSupplierDialog';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
@@ -48,6 +49,7 @@ export default function PurchaseOrders() {
   const [search, setSearch]       = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [dialogOpen, setDialogOpen]     = useState(false);
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [confirmOpen, setConfirmOpen]   = useState(false);
   const [deleteId, setDeleteId]         = useState(null);
   const [editing, setEditing]           = useState(null);
@@ -78,6 +80,8 @@ export default function PurchaseOrders() {
 
   const buildDefaultForm = () => ({
     ...empty,
+    orderNo: nextCodeFromList(items, 'PO', 'orderNo'),
+    date: new Date().toISOString().slice(0, 10),
     projectId:   activeProjectId   || '',
     projectName: activeProjectName || '',
   });
@@ -96,19 +100,20 @@ export default function PurchaseOrders() {
   const { vat: vatAmt, total: grandTotal } = calcVAT(linesTotal);
 
   const save = async () => {
-    if (!form.orderNo || !form.supplierId)
-      return toast.error(t('رقم الأمر والمورد مطلوبان', 'Order No. and supplier required', lang));
+    if (!form.supplierId)
+      return toast.error(t('المورد مطلوب', 'Supplier required', lang));
     if (!(form.items || []).some(l => (Number(l.orderedQty) || 0) > 0 && l.description))
       return toast.error(t('أضف بنداً واحداً على الأقل بكمية', 'Add at least one item with a quantity', lang));
     if (!form.warehouseId)
       return toast.error(t('اختر مخزن الوجهة — يلزم لاستلام المخزون', 'Select a destination warehouse — required for receiving', lang));
     setSaving(true);
     try {
+      const data = { ...form, orderNo: form.orderNo || nextCodeFromList(items, 'PO', 'orderNo') };
       if (editing) {
-        await OperationEngine.updatePurchaseOrder(editing.id, form, suppliers, projects, editing.status, warehouses);
+        await OperationEngine.updatePurchaseOrder(editing.id, data, suppliers, projects, editing.status, warehouses);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
-        await OperationEngine.createPurchaseOrder(form, suppliers, projects, warehouses);
+        await OperationEngine.createPurchaseOrder(data, suppliers, projects, warehouses);
         toast.success(t('تمت الإضافة', 'Added', lang));
       }
       setDialogOpen(false); load();
@@ -209,13 +214,16 @@ export default function PurchaseOrders() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل أمر الشراء', 'Edit Order', lang) : t('أمر شراء جديد', 'New Purchase Order', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم الأمر', 'Order No.', lang)} *</Label><Input value={form.orderNo} onChange={e => setForm(f => ({ ...f, orderNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم الأمر', 'Order No.', lang)} *</Label><Input value={form.orderNo} readOnly className="bg-muted" /></div>
             <div className="space-y-1.5">
               <Label>{t('المورد', 'Supplier', lang)} *</Label>
-              <Select value={form.supplierId} onValueChange={v => { const s = suppliers.find(s => s.id === v); setForm(f => ({ ...f, supplierId: v, supplierName: s?.name || '' })); }}>
-                <SelectTrigger><SelectValue placeholder={t('اختر مورد', 'Select supplier', lang)} /></SelectTrigger>
-                <SelectContent>{suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select value={form.supplierId} onValueChange={v => { const s = suppliers.find(s => s.id === v); setForm(f => ({ ...f, supplierId: v, supplierName: s?.name || '' })); }}>
+                  <SelectTrigger><SelectValue placeholder={t('اختر مورد', 'Select supplier', lang)} /></SelectTrigger>
+                  <SelectContent>{suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+                <Button type="button" variant="outline" className="shrink-0 gap-1" onClick={() => setSupplierDialogOpen(true)}><Plus className="size-4" />{t('جديد', 'New', lang)}</Button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>{t('المشروع', 'Project', lang)}</Label>
@@ -260,6 +268,17 @@ export default function PurchaseOrders() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <QuickSupplierDialog
+        open={supplierDialogOpen}
+        onOpenChange={setSupplierDialogOpen}
+        suppliers={suppliers}
+        lang={lang}
+        onCreated={(supplier) => {
+          setSuppliers(prev => [supplier, ...prev]);
+          setForm(f => ({ ...f, supplierId: supplier.id, supplierName: supplier.name }));
+        }}
+      />
 
       <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
         title={t('حذف أمر الشراء', 'Delete Purchase Order', lang)}

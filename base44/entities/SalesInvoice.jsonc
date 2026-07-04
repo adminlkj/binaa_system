@@ -66,6 +66,7 @@
       "type": "string",
       "enum": [
         "DRAFT",
+        "APPROVED",
         "SENT",
         "PARTIALLY_PAID",
         "PAID",

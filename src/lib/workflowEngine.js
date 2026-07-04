@@ -12,7 +12,8 @@
 // خريطة الانتقالات المسموحة لكل نوع مستند: { الحالة الحالية: [الحالات المسموح الانتقال إليها] }
 const TRANSITIONS = {
   SALES_INVOICE: {
-    DRAFT:          ['SENT', 'CANCELLED'],
+    DRAFT:          ['APPROVED', 'CANCELLED'],
+    APPROVED:       ['SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED'],
     SENT:           ['PARTIALLY_PAID', 'PAID', 'OVERDUE', 'CANCELLED'],
     PARTIALLY_PAID: ['PAID', 'OVERDUE', 'CANCELLED'],
     OVERDUE:        ['PARTIALLY_PAID', 'PAID', 'CANCELLED'],

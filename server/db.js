@@ -55,6 +55,16 @@ export async function initDb() {
 
   await pool.query(`UPDATE app_users SET app_role = 'OWNER' WHERE role = 'admin' AND app_role = 'VIEWER';`);
 
+  // The first registered account is the system owner. Keep it protected from accidental
+  // downgrade through invitations or permission edits, so the system is never left
+  // without the original administrator.
+  await pool.query(`
+    UPDATE app_users
+    SET role = 'admin', app_role = 'OWNER', is_active = true, updated_date = now()
+    WHERE id = (SELECT id FROM app_users ORDER BY created_date ASC LIMIT 1)
+      AND (role <> 'admin' OR app_role <> 'OWNER' OR is_active = false);
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS entity_records (
       entity_name text NOT NULL,

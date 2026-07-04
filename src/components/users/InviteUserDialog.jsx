@@ -24,14 +24,21 @@ export default function InviteUserDialog({ open, onOpenChange, onInvited, lang }
     }
     setSending(true);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const existingUsers = await base44.entities.User.list('-created_date', 500);
+      if (existingUsers.some(u => String(u.email || '').toLowerCase() === normalizedEmail)) {
+        toast({ title: t('البريد مستخدم بالفعل', 'Email already exists', lang), description: t('لا يمكن إنشاء دعوتين أو صلاحيتين لنفس البريد. عدّل المستخدم الموجود بدلاً من دعوته مرة أخرى.', 'You cannot create duplicate access for the same email. Edit the existing user instead.', lang), variant: 'destructive' });
+        return;
+      }
       // System role: OWNER maps to admin, others to user
       const systemRole = appRole === 'OWNER' ? 'admin' : 'user';
-      const result = await base44.users.inviteUser(email, systemRole, appRole);
+      const result = await base44.users.inviteUser(normalizedEmail, systemRole, appRole);
       setInviteResult(result);
       toast({ title: t('تم إنشاء حساب المستخدم', 'User account created', lang), description: t('انسخ كلمة المرور المؤقتة وأرسلها للمستخدم.', 'Copy the temporary password and send it to the user.', lang) });
       onInvited?.();
     } catch (e) {
-      toast({ title: t('تعذر إرسال الدعوة', 'Could not send invite', lang), description: e.message, variant: 'destructive' });
+      const duplicate = e.message?.includes('already') || e.message?.includes('exists') || e.message?.includes('409');
+      toast({ title: duplicate ? t('البريد مستخدم بالفعل', 'Email already exists', lang) : t('تعذر إرسال الدعوة', 'Could not send invite', lang), description: duplicate ? t('هذا البريد مرتبط بمستخدم موجود ولا يمكن تغيير صلاحياته عبر دعوة جديدة.', 'This email belongs to an existing user and cannot be changed through a new invite.', lang) : e.message, variant: 'destructive' });
     } finally {
       setSending(false);
     }

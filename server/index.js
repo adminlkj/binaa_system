@@ -43,6 +43,8 @@ async function handleAuth(req, res, route) {
   if (route === '/api/auth/register' && req.method === 'POST') {
     const email = String(body.email || '').toLowerCase().trim();
     if (!email || !body.password) return sendJson(res, { error: 'Email and password are required' }, 400);
+    const { rows: existing } = await pool.query('SELECT id FROM app_users WHERE email = $1 LIMIT 1', [email]);
+    if (existing[0]) return sendJson(res, { error: 'Email is already registered' }, 409);
     const first = await isFirstUser();
     const id = crypto.randomUUID();
     const role = first ? 'admin' : 'user';
@@ -99,12 +101,17 @@ async function handleUsers(req, res, route) {
   if (route === '/api/users/invite' && req.method === 'POST') {
     const email = String(body.email || '').toLowerCase().trim();
     if (!email) return sendJson(res, { error: 'Email is required' }, 400);
+    if (email === String(user.email || '').toLowerCase().trim()) {
+      return sendJson(res, { error: 'Cannot invite the currently signed-in email' }, 409);
+    }
+    const { rows: existing } = await pool.query('SELECT id FROM app_users WHERE email = $1 LIMIT 1', [email]);
+    if (existing[0]) return sendJson(res, { error: 'A user with this email already exists' }, 409);
     const tempPassword = crypto.randomBytes(9).toString('base64url');
     const id = crypto.randomUUID();
     const appRole = body.appRole || (body.role === 'admin' ? 'OWNER' : 'VIEWER');
     const role = appRole === 'OWNER' || body.role === 'admin' ? 'admin' : 'user';
     await pool.query(
-      'INSERT INTO app_users (id, email, full_name, role, app_role, password_hash) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, app_role = EXCLUDED.app_role, updated_date = now()',
+      'INSERT INTO app_users (id, email, full_name, role, app_role, password_hash) VALUES ($1, $2, $3, $4, $5, $6)',
       [id, email, email.split('@')[0], role, appRole, hashPassword(tempPassword)]
     );
     return sendJson(res, { success: true, tempPassword, email });
@@ -126,6 +133,11 @@ async function handleUserEntity(req, res, action, id, body, user) {
     return sendJson(res, rows[0] || null);
   }
   if (action === 'update' && req.method === 'PATCH') {
+    const { rows: ownerRows } = await pool.query('SELECT id FROM app_users ORDER BY created_date ASC LIMIT 1');
+    const isOriginalOwner = ownerRows[0]?.id === id;
+    if (isOriginalOwner && (body.role === 'user' || (body.appRole && body.appRole !== 'OWNER') || body.isActive === false)) {
+      return sendJson(res, { error: 'Original owner permissions cannot be downgraded or disabled' }, 400);
+    }
     await pool.query(
       `UPDATE app_users SET
         full_name = COALESCE($2, full_name), role = COALESCE($3, role), app_role = COALESCE($4, app_role),

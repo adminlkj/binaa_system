@@ -206,6 +206,10 @@ export const OperationEngine = {
     return await runOperation({ operation: 'SUBCONTRACTOR_INVOICE', mode: 'approve', id });
   },
 
+  async createSubcontractorPayment(data) {
+    return await runOperation({ operation: 'SUBCONTRACTOR_PAYMENT', mode: 'create', data });
+  },
+
   async createRentalInvoice(data) {
     return await runOperation({ operation: 'RENTAL_INVOICE', mode: 'create', data });
   },

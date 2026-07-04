@@ -107,7 +107,7 @@ export default function SubcontractorWorkspace() {
       {tab === 'change-orders' && <SubChangeOrdersTab subcontractorId={activeSubcontractorId} contracts={contracts} />}
       {tab === 'invoices' && <SubInvoicesTab subcontractorId={activeSubcontractorId} subcontractorName={sub.name} contracts={contracts} />}
       {tab === 'penalties' && <SubPenaltiesTab subcontractorId={activeSubcontractorId} contracts={contracts} />}
-      {tab === 'payments' && <SubPaymentsTab subcontractorId={activeSubcontractorId} invoices={invoices} />}
+      {tab === 'payments' && <SubPaymentsTab subcontractorId={activeSubcontractorId} invoices={invoices} onChanged={loadAll} />}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import CycleScreen from '@/pages/CycleScreen';
 import ProjectWorkspace from '@/pages/ProjectWorkspace';
 import EquipmentWorkspace from '@/pages/EquipmentWorkspace';
 import EmployeeWorkspace from '@/pages/EmployeeWorkspace';
+import SubcontractorWorkspace from '@/pages/SubcontractorWorkspace';
 import Profile from '@/pages/Profile';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -31,6 +32,7 @@ const STANDALONE = {
   'project-workspace': <ProjectWorkspace />,
   'equipment-workspace': <EquipmentWorkspace />,
   'employee-workspace': <EmployeeWorkspace />,
+  'subcontractor-workspace': <SubcontractorWorkspace />,
 };
 
 // Resolve the active screen: a cycle key -> CycleScreen; a tab key -> its cycle;

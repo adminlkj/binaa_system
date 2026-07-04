@@ -126,6 +126,12 @@ const RULES = {
     { m: 'اختيار مقاول الباطن مطلوب', t: (d) => !isBlank(d.subcontractorId) },
     { m: 'المبلغ الأساسي يجب أن يكون أكبر من صفر', t: (d) => num(d.baseAmount) > 0 },
   ],
+  SUBCONTRACTOR_PAYMENT: [
+    { m: 'اختيار مقاول الباطن مطلوب', t: (d) => !isBlank(d.subcontractorId) },
+    { m: 'تاريخ السند مطلوب', t: (d) => !isBlank(d.date) },
+    { m: 'مبلغ السداد يجب أن يكون أكبر من صفر', t: (d) => num(d.amount) > 0 },
+    { m: 'اختيار حساب السداد مطلوب — لا يمكن ترحيل سند صرف بلا حساب نقدي/بنكي', t: (d) => !isBlank(d.cashAccountCode) },
+  ],
   RENTAL_INVOICE: [
     { m: 'رقم الفاتورة مطلوب', t: (d) => !isBlank(d.invoiceNo) },
     { m: 'تاريخ الفاتورة مطلوب', t: (d) => !isBlank(d.date) },
@@ -385,7 +391,7 @@ function buildSubcontractorInvoiceJE({ invoiceNo, subcontractorId, subcontractor
   const payable = +(net + num(vatAmount)).toFixed(2);
   return {
     entryNo: `JE-SUBINV-${invoiceNo}`, date: date || new Date().toISOString().slice(0, 10), description: `مستخلص مقاول باطن ${invoiceNo} — ${subcontractorName || ''}`, sourceType: 'SubcontractorInvoice', isPosted: true,
-    totalDebit: totalAmount, totalCredit: totalAmount,
+    totalDebit: +(num(baseAmount) + num(vatAmount)).toFixed(2), totalCredit: +(num(baseAmount) + num(vatAmount)).toFixed(2),
     lines: [
       { accountCode: expense.code, accountName: expense.name, debit: num(baseAmount), credit: 0, description: 'أعمال مقاول باطن' },
       ...(num(vatAmount) > 0 ? [{ accountCode: vatRec.code, accountName: vatRec.name, debit: num(vatAmount), credit: 0, description: 'ضريبة مدفوعة' }] : []),
@@ -396,6 +402,20 @@ function buildSubcontractorInvoiceJE({ invoiceNo, subcontractorId, subcontractor
 }
 
 // فاتورة تأجير (إيراد): من ح/ ذمم العملاء (مدين) إلى ح/ إيراد التأجير + ضريبة محصلة (دائن)
+function buildSubcontractorPaymentJE({ paymentNo, date, subcontractorId, subcontractorName, amount, cashAccountCode, cashAccountName }, accounts) {
+  const subPay = resolveAccount('SUB_PAYABLES', accounts);
+  const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
+  const ref = paymentNo || `${date}-${subcontractorName || ''}`;
+  return {
+    entryNo: `JE-SUBPAY-${ref}`, date, description: `سداد مقاول باطن ${subcontractorName || ''}`, sourceType: 'SubcontractorPayment', isPosted: true,
+    totalDebit: amount, totalCredit: amount,
+    lines: [
+      { accountCode: subPay.code, accountName: subPay.name, debit: amount, credit: 0, description: `سداد ذمة ${subcontractorName || ''}`, partyType: 'SUBCONTRACTOR', partyId: subcontractorId, partyName: subcontractorName },
+      { accountCode: cash.code, accountName: cash.name, debit: 0, credit: amount, description: `دفع من ${cash.name}` },
+    ],
+  };
+}
+
 function buildRentalInvoiceJE({ invoiceNo, date, clientId, clientName, baseAmount, vatAmount, totalAmount }, accounts) {
   const receivables = resolveAccount('RECEIVABLES', accounts);
   const revenue = resolveAccount('REVENUE_RENTAL', accounts);
@@ -1153,6 +1173,38 @@ async function approveSubcontractorInvoice(base44, id) {
   return await base44.asServiceRole.entities.SubcontractorInvoice.update(id, { status: 'APPROVED' });
 }
 
+async function createSubcontractorPayment(base44, data) {
+  assertValid('SUBCONTRACTOR_PAYMENT', data);
+  const payload = { ...data, amount: num(data.amount) };
+  let subName = payload.subcontractorName;
+  if (!subName && payload.subcontractorId) {
+    try { subName = (await base44.asServiceRole.entities.Subcontractor.get(payload.subcontractorId))?.name; } catch { /* قد لا يوجد */ }
+  }
+  payload.subcontractorName = subName || '';
+  let linkedInvoice = null;
+  if (payload.subcontractorInvoiceId) {
+    linkedInvoice = await base44.asServiceRole.entities.SubcontractorInvoice.get(payload.subcontractorInvoiceId);
+    if (!linkedInvoice) throw new Error('المستخلص المرتبط غير موجود');
+    if (!['APPROVED', 'PARTIALLY_PAID'].includes(linkedInvoice.status)) throw new Error('لا يمكن السداد إلا على مستخلص معتمد وغير مدفوع بالكامل');
+    const outstanding = +(num(linkedInvoice.totalAmount) - num(linkedInvoice.paidAmount)).toFixed(2);
+    if (payload.amount > outstanding + 0.01) throw new Error(`مبلغ السداد يتجاوز المتبقي على المستخلص (${outstanding})`);
+  }
+  const rec = await base44.asServiceRole.entities.SubcontractorPayment.create(payload);
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    await autoPostJE(base44, buildSubcontractorPaymentJE({ ...payload, subcontractorName: subName }, accounts));
+    if (linkedInvoice) {
+      const paidAmount = +(num(linkedInvoice.paidAmount) + payload.amount).toFixed(2);
+      const status = paidAmount >= num(linkedInvoice.totalAmount) - 0.01 ? 'PAID' : 'PARTIALLY_PAID';
+      await base44.asServiceRole.entities.SubcontractorInvoice.update(linkedInvoice.id, { paidAmount, status });
+    }
+  } catch (e) {
+    await rollback(base44, 'SubcontractorPayment', rec.id);
+    throw e;
+  }
+  return rec;
+}
+
 // ─── فواتير التأجير ───────────────────────────────────────────────────────────
 function buildRentalInvoicePayload(data) {
   const baseAmount = num(data.baseAmount);
@@ -1389,6 +1441,7 @@ const HANDLERS = {
   SUPPLIER_PAYMENT:{ create: (b, p) => createSupplierPayment(b, p.data), update: (b, p) => updateSupplierPayment(b, p.id, p.data) },
   SUPPLIER_INVOICE:{ create: (b, p) => createSupplierInvoice(b, p.data), update: (b, p) => updateSupplierInvoice(b, p.id, p.data), approve: (b, p) => approveSupplierInvoice(b, p.id) },
   SUBCONTRACTOR_INVOICE: { create: (b, p) => createSubcontractorInvoice(b, p.data), update: (b, p) => updateSubcontractorInvoice(b, p.id, p.data), approve: (b, p) => approveSubcontractorInvoice(b, p.id) },
+  SUBCONTRACTOR_PAYMENT: { create: (b, p) => createSubcontractorPayment(b, p.data) },
   RENTAL_INVOICE:  { create: (b, p) => createRentalInvoice(b, p.data), update: (b, p) => updateRentalInvoice(b, p.id, p.data), approve: (b, p) => approveRentalInvoice(b, p.id) },
   STOCK_MOVEMENT:  { create: (b, p) => createStockMovement(b, p.data) },
   GOODS_RECEIPT:   { create: (b, p) => createGoodsReceipt(b, p.data) },

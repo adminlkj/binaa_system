@@ -8,14 +8,15 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 export default function SubStatementTab({ invoices = [], payments = [], penalties = [] }) {
   const { lang } = useStore();
 
-  const totalInvoiced = invoices.reduce((s, r) => s + (r.totalAmount || 0), 0);
+  const payableInvoices = invoices.filter(r => ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(r.status));
+  const totalInvoiced = payableInvoices.reduce((s, r) => s + (r.totalAmount || 0), 0);
   const totalPenalties = penalties.filter(p => p.status === 'APPLIED').reduce((s, r) => s + (r.amount || 0), 0);
   const totalPaid = payments.reduce((s, r) => s + (r.amount || 0), 0);
   const balance = totalInvoiced - totalPenalties - totalPaid;
 
   // بناء سطور موحّدة مرتبة بالتاريخ.
   const rows = [
-    ...invoices.map(r => ({ date: r.date, type: t('مستخلص', 'Invoice', lang), ref: r.invoiceNo, credit: r.totalAmount || 0, debit: 0 })),
+    ...payableInvoices.map(r => ({ date: r.date, type: t('مستخلص معتمد', 'Approved Invoice', lang), ref: r.invoiceNo, credit: r.totalAmount || 0, debit: 0 })),
     ...penalties.filter(p => p.status === 'APPLIED').map(r => ({ date: r.date, type: t('غرامة', 'Penalty', lang), ref: r.penaltyNo, credit: 0, debit: r.amount || 0 })),
     ...payments.map(r => ({ date: r.date, type: t('دفعة', 'Payment', lang), ref: r.paymentNo, credit: 0, debit: r.amount || 0 })),
   ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));

@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { base44 } from '@/api/base44Client';
+import { OperationEngine } from '@/lib/businessEngine';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const METHODS = {
@@ -14,23 +16,41 @@ const METHODS = {
   CARD: { ar: 'بطاقة', en: 'Card' },
 };
 
-export default function SubPaymentsTab({ subcontractorId, invoices = [] }) {
+export default function SubPaymentsTab({ subcontractorId, invoices = [], onChanged }) {
   const { lang } = useStore();
+  const [cashAccounts, setCashAccounts] = useState([]);
+
+  useEffect(() => {
+    base44.entities.ChartAccount.list('code', 1000).then((rows = []) => {
+      setCashAccounts(rows.filter(a => a.isActive !== false && a.isPostable !== false && ['CASH', 'BANK'].includes(a.semanticRole)));
+    });
+  }, []);
+
   return (
     <CrudTab
       entityName="SubcontractorPayment"
       filter={{ subcontractorId }}
+      operationHandlers={{ create: (payload) => OperationEngine.createSubcontractorPayment(payload) }}
+      onChanged={onChanged}
+      canEditRow={() => false}
+      canDeleteRow={() => false}
       defaults={(rows) => ({
         subcontractorId, subcontractorInvoiceId: '', paymentNo: genCode('SPAY', rows.length + 1),
-        date: new Date().toISOString().slice(0, 10), amount: 0, method: 'BANK_TRANSFER', reference: '', notes: '',
+        date: new Date().toISOString().slice(0, 10), amount: 0, method: 'BANK_TRANSFER', cashAccountCode: '', cashAccountName: '', reference: '', notes: '',
       })}
-      validate={(f) => (!Number(f.amount) ? t('أدخل المبلغ', 'Enter amount', lang) : null)}
+      validate={(f) => {
+        if (!Number(f.amount)) return t('أدخل المبلغ', 'Enter amount', lang);
+        if (!f.cashAccountCode) return t('اختر حساب السداد', 'Select payment account', lang);
+        return null;
+      }}
       buildPayload={(f) => ({
         subcontractorId, subcontractorInvoiceId: f.subcontractorInvoiceId || '', paymentNo: f.paymentNo,
-        date: f.date || null, amount: Number(f.amount) || 0, method: f.method, reference: f.reference, notes: f.notes,
+        date: f.date || null, amount: Number(f.amount) || 0, method: f.method,
+        cashAccountCode: f.cashAccountCode || '', cashAccountName: f.cashAccountName || '',
+        reference: f.reference, notes: f.notes,
       })}
       labels={{
-        new: { ar: 'سند صرف', en: 'New Payment' }, edit: { ar: 'تعديل السند', en: 'Edit Payment' },
+        new: { ar: 'سند صرف', en: 'New Payment' }, edit: { ar: 'عرض السند', en: 'View Payment' },
         empty: { ar: 'لا توجد سندات صرف', en: 'No payments' }, title: { ar: 'حذف السند', en: 'Delete Payment' },
       }}
       summary={(rows) => {
@@ -41,6 +61,7 @@ export default function SubPaymentsTab({ subcontractorId, invoices = [] }) {
         { header: { ar: 'الرقم', en: 'No' }, cell: r => <span className="font-mono text-xs">{r.paymentNo}</span> },
         { header: { ar: 'التاريخ', en: 'Date' }, cell: r => <span className="text-xs text-muted-foreground">{formatDate(r.date, lang)}</span> },
         { header: { ar: 'الطريقة', en: 'Method' }, cell: r => <span className="text-xs text-muted-foreground">{lang === 'ar' ? METHODS[r.method]?.ar : METHODS[r.method]?.en}</span> },
+        { header: { ar: 'حساب السداد', en: 'Payment Account' }, cell: r => <span className="text-xs text-muted-foreground">{r.cashAccountName || r.cashAccountCode || '—'}</span> },
         { header: { ar: 'المرجع', en: 'Reference' }, cell: r => <span className="text-xs">{r.reference || '—'}</span> },
         { header: { ar: 'المبلغ', en: 'Amount' }, cell: r => <span className="text-emerald-600 font-medium">{formatCurrency(r.amount, lang)}</span> },
       ]}
@@ -53,7 +74,7 @@ export default function SubPaymentsTab({ subcontractorId, invoices = [] }) {
               <Label>{t('المستخلص المرتبط', 'Linked Invoice', lang)}</Label>
               <Select value={form.subcontractorInvoiceId || ''} onValueChange={v => set('subcontractorInvoiceId', v)}>
                 <SelectTrigger><SelectValue placeholder={t('اختياري', 'Optional', lang)} /></SelectTrigger>
-                <SelectContent>{invoices.map(i => <SelectItem key={i.id} value={i.id}>{i.invoiceNo} — {formatCurrency(i.totalAmount, lang)}</SelectItem>)}</SelectContent>
+                <SelectContent>{invoices.filter(i => ['APPROVED', 'PARTIALLY_PAID'].includes(i.status)).map(i => <SelectItem key={i.id} value={i.id}>{i.invoiceNo} — {formatCurrency((i.totalAmount || 0) - (i.paidAmount || 0), lang)}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           )}
@@ -63,6 +84,13 @@ export default function SubPaymentsTab({ subcontractorId, invoices = [] }) {
             <Select value={form.method || 'BANK_TRANSFER'} onValueChange={v => set('method', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{Object.entries(METHODS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>{t('حساب السداد', 'Payment Account', lang)} *</Label>
+            <Select value={form.cashAccountCode || ''} onValueChange={v => { const a = cashAccounts.find(x => x.code === v); set('cashAccountCode', v); set('cashAccountName', a?.name || ''); }}>
+              <SelectTrigger><SelectValue placeholder={t('اختر الصندوق أو البنك', 'Select cash/bank account', lang)} /></SelectTrigger>
+              <SelectContent>{cashAccounts.map(a => <SelectItem key={a.code} value={a.code}>{a.code} — {lang === 'ar' ? a.name : (a.nameEn || a.name)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5 md:col-span-2"><Label>{t('المرجع / رقم الشيك', 'Reference', lang)}</Label><Input value={form.reference || ''} onChange={e => set('reference', e.target.value)} /></div>

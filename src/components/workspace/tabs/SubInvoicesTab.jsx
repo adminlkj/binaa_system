@@ -79,7 +79,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
           projectId: f.projectId || '', projectName: f.projectName || '',
           invoiceNo: f.invoiceNo, invoiceType: f.invoiceType, date: f.date || null, dueDate: f.dueDate || null,
           baseAmount: Number(f.baseAmount) || 0, retentionAmount: Number(f.retentionAmount) || 0,
-          vatAmount: vat, totalAmount: total, paidAmount: Number(f.paidAmount) || 0,
+          vatAmount: vat, totalAmount: total, paidAmount: 0,
           status: 'DRAFT', description: f.description, notes: f.notes,
           invoiceAttachmentUrl: f.invoiceAttachmentUrl || '', invoiceAttachmentName: f.invoiceAttachmentName || '', invoiceAttachmentType: f.invoiceAttachmentType || '',
         };
@@ -137,7 +137,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
             <div className="space-y-1.5"><Label>{t('تاريخ الاستحقاق', 'Due Date', lang)}</Label><Input type="date" value={form.dueDate || ''} onChange={e => set('dueDate', e.target.value)} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ الأساسي', 'Base Amount', lang)}</Label><Input type="number" value={form.baseAmount ?? 0} onChange={e => set('baseAmount', e.target.value)} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ المحتجز', 'Retention', lang)}</Label><Input type="number" value={form.retentionAmount ?? 0} onChange={e => set('retentionAmount', e.target.value)} /></div>
-            <div className="space-y-1.5"><Label>{t('المدفوع', 'Paid Amount', lang)}</Label><Input type="number" value={form.paidAmount ?? 0} onChange={e => set('paidAmount', e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t('المدفوع', 'Paid Amount', lang)}</Label><Input readOnly value={`${formatCurrency(form.paidAmount || 0, lang)} — ${t('يُسجل من سندات السداد فقط', 'Recorded from payment vouchers only', lang)}`} className="bg-muted text-muted-foreground" /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
               <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />

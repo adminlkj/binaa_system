@@ -1,16 +1,25 @@
 import pg from 'pg';
+import { existsSync, readFileSync } from 'fs';
 
 const { Pool } = pg;
+
+function readSecretFile(path) {
+  if (!path || !existsSync(path)) return '';
+  return readFileSync(path, 'utf8').trim();
+}
 
 const databaseUrl =
   process.env.DATABASE_URL ||
   process.env.DATABASE_INTERNAL_URL ||
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_INTERNAL_URL ||
-  process.env.DATABASE_CONNECTION_STRING;
+  process.env.DATABASE_CONNECTION_STRING ||
+  readSecretFile(process.env.DATABASE_URL_FILE) ||
+  readSecretFile('/etc/secrets/DATABASE_URL') ||
+  readSecretFile('/etc/secrets/database_url');
 
 if (!databaseUrl) {
-  throw new Error('PostgreSQL connection is missing. In Render, add a PostgreSQL database, then add an environment variable named DATABASE_URL with the database Internal Connection String. If you deployed manually, render.yaml envVars are not applied automatically.');
+  throw new Error('PostgreSQL connection is missing. Add DATABASE_URL as an Environment Variable on the Render Web Service, or add a Secret File mounted at /etc/secrets/DATABASE_URL containing the connection string.');
 }
 
 export const pool = new Pool({

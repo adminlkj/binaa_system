@@ -2,10 +2,15 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.DATABASE_INTERNAL_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_INTERNAL_URL ||
+  process.env.DATABASE_CONNECTION_STRING;
 
 if (!databaseUrl) {
-  throw new Error('DATABASE_URL is not set. On Render, deploy from render.yaml as a Blueprint or add a PostgreSQL database and connect its Internal Database URL to DATABASE_URL.');
+  throw new Error('PostgreSQL connection is missing. In Render, add a PostgreSQL database, then add an environment variable named DATABASE_URL with the database Internal Connection String. If you deployed manually, render.yaml envVars are not applied automatically.');
 }
 
 export const pool = new Pool({

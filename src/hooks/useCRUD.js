@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 
+const errorMessage = (err, fallback) => err?.data?.error || err?.message || fallback;
+
 export function useCRUD(entity, { defaultSort = '-created_date', relatedLoaders = [] } = {}) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ export function useCRUD(entity, { defaultSort = '-created_date', relatedLoaders 
       return results;
     } catch (err) {
       console.error('Load error:', err);
-      toast.error('فشل تحميل البيانات — Load failed');
+      toast.error(errorMessage(err, 'فشل تحميل البيانات — Load failed'));
       setLoading(false);
       return null;
     }
@@ -36,7 +38,7 @@ export function useCRUD(entity, { defaultSort = '-created_date', relatedLoaders 
       setSaving(false);
       return true;
     } catch (err) {
-      toast.error('فشل الحفظ — Save failed');
+      toast.error(errorMessage(err, 'فشل الحفظ — Save failed'));
       setSaving(false);
       return false;
     }
@@ -51,7 +53,7 @@ export function useCRUD(entity, { defaultSort = '-created_date', relatedLoaders 
       setSaving(false);
       return true;
     } catch (err) {
-      toast.error('فشل التحديث — Update failed');
+      toast.error(errorMessage(err, 'فشل التحديث — Update failed'));
       setSaving(false);
       return false;
     }
@@ -66,7 +68,7 @@ export function useCRUD(entity, { defaultSort = '-created_date', relatedLoaders 
       setSaving(false);
       return true;
     } catch (err) {
-      toast.error('فشل الحذف — Delete failed');
+      toast.error(errorMessage(err, 'فشل الحذف — Delete failed'));
       setSaving(false);
       return false;
     }

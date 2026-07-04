@@ -17,6 +17,7 @@ import PartyStatementSection from '@/components/partners/PartyStatementSection';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', nameAr: '', phone: '', email: '', address: '', taxNumber: '', contactPerson: '', notes: '' };
+const errorMessage = (err, fallback) => err?.data?.error || err?.message || fallback;
 
 export default function Clients() {
   const { lang } = useStore();
@@ -34,7 +35,7 @@ export default function Clients() {
   const load = async () => {
     setLoading(true);
     try { setItems(await base44.entities.Client.list('-created_date', 200)); }
-    catch { toast.error(t('فشل تحميل البيانات', 'Failed to load', lang)); }
+    catch (err) { toast.error(errorMessage(err, t('فشل تحميل البيانات', 'Failed to load', lang))); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -52,13 +53,13 @@ export default function Clients() {
       if (editing) { await base44.entities.Client.update(editing.id, form); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.Client.create(form); toast.success(t('تمت الإضافة', 'Added', lang)); }
       setDialogOpen(false); load();
-    } catch { toast.error(t('فشل الحفظ', 'Save failed', lang)); }
+    } catch (err) { toast.error(errorMessage(err, t('فشل الحفظ', 'Save failed', lang))); }
     setSaving(false);
   };
 
   const remove = async () => {
     try { await base44.entities.Client.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    catch (err) { toast.error(errorMessage(err, t('فشل الحذف', 'Delete failed', lang))); }
   };
 
   const fields = [

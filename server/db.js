@@ -50,7 +50,8 @@ export async function initDb() {
       ADD COLUMN IF NOT EXISTS phone text,
       ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true,
       ADD COLUMN IF NOT EXISTS allowed_modules jsonb NOT NULL DEFAULT '[]'::jsonb,
-      ADD COLUMN IF NOT EXISTS module_permissions jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ADD COLUMN IF NOT EXISTS module_permissions jsonb NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;
   `);
 
   await pool.query(`UPDATE app_users SET app_role = 'OWNER' WHERE role = 'admin' AND app_role = 'VIEWER';`);

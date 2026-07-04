@@ -58,6 +58,15 @@ export default function Users() {
     }
   };
 
+  const handleUserSaved = (updatedUser, passwordChanged) => {
+    if (passwordChanged && updatedUser?.id === me?.id) {
+      base44.auth.logout();
+      window.location.href = '/login';
+      return;
+    }
+    load();
+  };
+
   const stats = {
     total: users.length,
     admins: users.filter(u => u.role === 'admin' || u.appRole === 'OWNER').length,
@@ -192,7 +201,7 @@ export default function Users() {
       </Card>
 
       <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} onInvited={load} lang={lang} />
-      <EditUserDialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)} user={editUser} onSaved={load} lang={lang} />
+      <EditUserDialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)} user={editUser} onSaved={handleUserSaved} lang={lang} />
     </ModuleLayout>
   );
 }

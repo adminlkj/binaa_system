@@ -29,6 +29,7 @@ export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang
         department: user.department || '',
         phone: user.phone || '',
         isActive: user.isActive !== false,
+        password: '',
       });
       const hasCustom = Array.isArray(user.allowedModules) && user.allowedModules.length > 0;
       setUseCustom(hasCustom);
@@ -88,13 +89,14 @@ export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang
         department: form.department,
         phone: form.phone,
         isActive: form.isActive,
+        ...(form.password ? { password: form.password } : {}),
         allowedModules: useCustom ? customModules : [],
         modulePermissions: useCustom && !isOwner ? cleanedActions : {},
       };
-      await base44.entities.User.update(user.id, payload);
-      toast({ title: t('تم حفظ التغييرات', 'Changes saved', lang), variant: 'success' });
+      const updatedUser = await base44.entities.User.update(user.id, payload);
+      toast({ title: form.password ? t('تم حفظ التغييرات وتغيير كلمة المرور', 'Changes saved and password updated', lang) : t('تم حفظ التغييرات', 'Changes saved', lang), variant: 'success' });
       onOpenChange(false);
-      onSaved?.();
+      onSaved?.(updatedUser, Boolean(form.password));
     } catch (e) {
       toast({ title: t('تعذر الحفظ', 'Save failed', lang), description: e.message, variant: 'destructive' });
     } finally {
@@ -126,6 +128,10 @@ export default function EditUserDialog({ open, onOpenChange, user, onSaved, lang
             <div className="space-y-1.5">
               <Label>{t('الهاتف', 'Phone', lang)}</Label>
               <Input dir="ltr" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('كلمة مرور جديدة', 'New Password', lang)}</Label>
+              <Input type="password" dir="ltr" autoComplete="new-password" placeholder={t('اتركها فارغة بدون تغيير', 'Leave blank to keep current', lang)} value={form.password || ''} onChange={e => setForm({ ...form, password: e.target.value })} />
             </div>
             <div className="space-y-1.5">
               <Label>{t('الدور الوظيفي', 'Business Role', lang)}</Label>

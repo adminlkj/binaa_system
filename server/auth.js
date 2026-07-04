@@ -29,6 +29,7 @@ export function signToken(user) {
     sub: user.id,
     email: user.email,
     role: user.role,
+    sessionVersion: user.tokenVersion ?? user.token_version ?? 0,
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
   }));
   const signature = crypto.createHmac('sha256', tokenSecret()).update(`${header}.${payload}`).digest('base64url');
@@ -54,10 +55,11 @@ export async function getUserFromRequest(req) {
   const { rows } = await pool.query(`
     SELECT id, email, full_name, role, app_role AS "appRole", job_title AS "jobTitle",
       department, phone, is_active AS "isActive", allowed_modules AS "allowedModules",
-      module_permissions AS "modulePermissions", created_date, updated_date
+      module_permissions AS "modulePermissions", token_version AS "tokenVersion", created_date, updated_date
     FROM app_users WHERE id = $1
   `, [decoded.sub]);
   if (rows[0]?.isActive === false) return null;
+  if (rows[0]?.tokenVersion > 0 && decoded.sessionVersion !== rows[0].tokenVersion) return null;
   return rows[0] || null;
 }
 

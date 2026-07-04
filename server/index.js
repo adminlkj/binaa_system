@@ -9,7 +9,7 @@ import { runStandaloneFunction } from './functionRunner.js';
 
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
-const USER_PUBLIC_FIELDS = `id, email, full_name, role, app_role AS "appRole", job_title AS "jobTitle", department, phone, is_active AS "isActive", allowed_modules AS "allowedModules", module_permissions AS "modulePermissions", created_date, updated_date`;
+const USER_PUBLIC_FIELDS = `id, email, full_name, role, app_role AS "appRole", job_title AS "jobTitle", department, phone, is_active AS "isActive", allowed_modules AS "allowedModules", module_permissions AS "modulePermissions", token_version AS "tokenVersion", created_date, updated_date`;
 
 function sendJson(res, data, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -138,17 +138,22 @@ async function handleUserEntity(req, res, action, id, body, user) {
     if (isOriginalOwner && (body.role === 'user' || (body.appRole && body.appRole !== 'OWNER') || body.isActive === false)) {
       return sendJson(res, { error: 'Original owner permissions cannot be downgraded or disabled' }, 400);
     }
+    const newPassword = body.password === undefined || body.password === '' ? null : String(body.password);
+    if (newPassword && newPassword.length < 6) return sendJson(res, { error: 'Password must be at least 6 characters' }, 400);
+    const newPasswordHash = newPassword ? hashPassword(newPassword) : null;
     await pool.query(
       `UPDATE app_users SET
         full_name = COALESCE($2, full_name), role = COALESCE($3, role), app_role = COALESCE($4, app_role),
         job_title = COALESCE($5, job_title), department = COALESCE($6, department), phone = COALESCE($7, phone),
         is_active = COALESCE($8, is_active), allowed_modules = COALESCE($9::jsonb, allowed_modules),
-        module_permissions = COALESCE($10::jsonb, module_permissions), updated_date = now()
+        module_permissions = COALESCE($10::jsonb, module_permissions), password_hash = COALESCE($11, password_hash),
+        token_version = CASE WHEN $11 IS NULL THEN token_version ELSE token_version + 1 END, updated_date = now()
       WHERE id = $1`,
       [id, body.full_name, body.role, body.appRole, body.jobTitle, body.department, body.phone,
         body.isActive,
         body.allowedModules === undefined ? null : JSON.stringify(body.allowedModules),
-        body.modulePermissions === undefined ? null : JSON.stringify(body.modulePermissions)]
+        body.modulePermissions === undefined ? null : JSON.stringify(body.modulePermissions),
+        newPasswordHash]
     );
     const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [id]);
     return sendJson(res, rows[0] || null);
@@ -158,7 +163,7 @@ async function handleUserEntity(req, res, action, id, body, user) {
     await pool.query('DELETE FROM app_users WHERE id = $1', [id]);
     return sendJson(res, { success: true });
   }
-  if (action === 'schema' && req.method === 'GET') return sendJson(res, { name: 'User', properties: { full_name: { type: 'string' }, email: { type: 'string' }, role: { type: 'string' }, appRole: { type: 'string' }, jobTitle: { type: 'string' }, department: { type: 'string' }, phone: { type: 'string' }, isActive: { type: 'boolean' }, allowedModules: { type: 'array' }, modulePermissions: { type: 'object' } } });
+  if (action === 'schema' && req.method === 'GET') return sendJson(res, { name: 'User', properties: { full_name: { type: 'string' }, email: { type: 'string' }, role: { type: 'string' }, appRole: { type: 'string' }, jobTitle: { type: 'string' }, department: { type: 'string' }, phone: { type: 'string' }, isActive: { type: 'boolean' }, allowedModules: { type: 'array' }, modulePermissions: { type: 'object' }, password: { type: 'string' } } });
   return sendJson(res, { error: 'Not found' }, 404);
 }
 

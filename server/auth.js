@@ -51,7 +51,13 @@ export async function getUserFromRequest(req) {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   const decoded = verifyToken(token);
   if (!decoded?.sub) return null;
-  const { rows } = await pool.query('SELECT id, email, full_name, role, created_date, updated_date FROM app_users WHERE id = $1', [decoded.sub]);
+  const { rows } = await pool.query(`
+    SELECT id, email, full_name, role, app_role AS "appRole", job_title AS "jobTitle",
+      department, phone, is_active AS "isActive", allowed_modules AS "allowedModules",
+      module_permissions AS "modulePermissions", created_date, updated_date
+    FROM app_users WHERE id = $1
+  `, [decoded.sub]);
+  if (rows[0]?.isActive === false) return null;
   return rows[0] || null;
 }
 

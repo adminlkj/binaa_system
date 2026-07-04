@@ -43,6 +43,19 @@ export async function initDb() {
   `);
 
   await pool.query(`
+    ALTER TABLE app_users
+      ADD COLUMN IF NOT EXISTS app_role text NOT NULL DEFAULT 'VIEWER',
+      ADD COLUMN IF NOT EXISTS job_title text,
+      ADD COLUMN IF NOT EXISTS department text,
+      ADD COLUMN IF NOT EXISTS phone text,
+      ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS allowed_modules jsonb NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS module_permissions jsonb NOT NULL DEFAULT '{}'::jsonb;
+  `);
+
+  await pool.query(`UPDATE app_users SET app_role = 'OWNER' WHERE role = 'admin' AND app_role = 'VIEWER';`);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS entity_records (
       entity_name text NOT NULL,
       id uuid NOT NULL,

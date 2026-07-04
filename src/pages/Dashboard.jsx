@@ -63,32 +63,26 @@ export default function Dashboard() {
 
   const load = async () => {
     setLoading(true);
-    // Load entities one at a time with backoff so rate limits never crash the dashboard.
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const step = async (fn, fallback = []) => {
-      for (let attempt = 0; attempt < 5; attempt++) {
-        try {
-          const r = await fn();
-          await sleep(300);
-          return r;
-        } catch (err) {
-          const isRateLimit = String(err?.message || '').toLowerCase().includes('rate limit');
-          if (!isRateLimit || attempt === 4) return fallback;
-          await sleep(1500 * (attempt + 1));
-        }
-      }
-      return fallback;
-    };
+    const safe = (result) => result.status === 'fulfilled' && Array.isArray(result.value) ? result.value : [];
+    const results = await Promise.allSettled([
+      base44.entities.Project.list('-created_date', 100),
+      base44.entities.Equipment.list('-created_date', 100),
+      base44.entities.Employee.filter({ isActive: true }),
+      base44.entities.SalesInvoice.list('-created_date', 100),
+      base44.entities.Expense.list('-created_date', 50),
+      base44.entities.PurchaseOrder.list('-created_date', 50),
+      base44.entities.RentalContract.list('-created_date', 50),
+    ]);
 
-    const projects        = await step(() => base44.entities.Project.list('-created_date', 100));
-    const equipment       = await step(() => base44.entities.Equipment.list('-created_date', 100));
-    const employees       = await step(() => base44.entities.Employee.filter({ isActive: true }));
-    const invoices        = await step(() => base44.entities.SalesInvoice.list('-created_date', 100));
-    const expenses        = await step(() => base44.entities.Expense.list('-created_date', 50));
-    const purchaseOrders  = await step(() => base44.entities.PurchaseOrder.list('-created_date', 50));
-    const rentalContracts = await step(() => base44.entities.RentalContract.list('-created_date', 50));
-
-    setData({ projects, equipment, employees, invoices, expenses, purchaseOrders, rentalContracts });
+    setData({
+      projects: safe(results[0]),
+      equipment: safe(results[1]),
+      employees: safe(results[2]),
+      invoices: safe(results[3]),
+      expenses: safe(results[4]),
+      purchaseOrders: safe(results[5]),
+      rentalContracts: safe(results[6]),
+    });
     setLoading(false);
   };
   useEffect(() => { load(); }, []);

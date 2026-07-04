@@ -15,6 +15,7 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import ExpenseDialog from '@/components/expenses/ExpenseDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
+import { requiredFields, missingFieldsMessage } from '@/lib/formValidation';
 
 const empty = {
   expenseType: 'COMPANY',
@@ -90,8 +91,12 @@ export default function Expenses() {
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
-    if (!form.description || !form.amount)
-      return toast.error(t('الوصف والمبلغ مطلوبان', 'Description and amount required', lang));
+    const missing = requiredFields(form, [
+      { key: 'description', label: t('الوصف', 'Description', lang) },
+      { key: 'amount', label: t('المبلغ', 'Amount', lang) },
+      { key: 'date', label: t('التاريخ', 'Date', lang) },
+    ]);
+    if (missing.length) return toast.error(missingFieldsMessage(missing, lang));
     setSaving(true);
     try {
       const data = { ...form, _vatEnabled: form._vatEnabled };

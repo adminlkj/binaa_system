@@ -20,6 +20,7 @@ import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { loadAccounts, selectCashAccounts } from '@/lib/postingEngine';
 import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
+import { requiredFields, missingFieldsMessage } from '@/lib/formValidation';
 
 const METHODS = {
   CASH:          { ar: 'نقدي',       en: 'Cash' },
@@ -75,12 +76,13 @@ export default function SupplierPayments() {
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
   const save = async () => {
-    if (!form.supplierId || !form.amount)
-      return toast.error(t('المورد والمبلغ مطلوبان', 'Supplier and amount required', lang));
-    if (!form.date)
-      return toast.error(t('التاريخ مطلوب', 'Date is required', lang));
-    if (!form.cashAccountCode)
-      return toast.error(t('اختيار الحساب النقدي (صندوق/بنك) مطلوب — كل سداد يُنشئ قيداً محاسبياً', 'A cash/bank account is required — every payment posts a journal entry', lang));
+    const missing = requiredFields(form, [
+      { key: 'supplierId', label: t('المورد', 'Supplier', lang) },
+      { key: 'date', label: t('التاريخ', 'Date', lang) },
+      { key: 'amount', label: t('المبلغ', 'Amount', lang) },
+      { key: 'cashAccountCode', label: t('الحساب النقدي', 'Cash / Bank Account', lang) },
+    ]);
+    if (missing.length) return toast.error(missingFieldsMessage(missing, lang));
     setSaving(true);
     try {
       const data = { ...form, amount: parseFloat(form.amount) || 0 };

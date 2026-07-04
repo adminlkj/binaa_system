@@ -15,6 +15,7 @@ export default function InviteUserDialog({ open, onOpenChange, onInvited, lang }
   const [email, setEmail] = useState('');
   const [appRole, setAppRole] = useState('VIEWER');
   const [sending, setSending] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null);
 
   const handleInvite = async () => {
     if (!email || !email.includes('@')) {
@@ -25,11 +26,9 @@ export default function InviteUserDialog({ open, onOpenChange, onInvited, lang }
     try {
       // System role: OWNER maps to admin, others to user
       const systemRole = appRole === 'OWNER' ? 'admin' : 'user';
-      await base44.users.inviteUser(email, systemRole);
-      toast({ title: t('تم إرسال الدعوة', 'Invitation sent', lang), description: email });
-      setEmail('');
-      setAppRole('VIEWER');
-      onOpenChange(false);
+      const result = await base44.users.inviteUser(email, systemRole, appRole);
+      setInviteResult(result);
+      toast({ title: t('تم إنشاء حساب المستخدم', 'User account created', lang), description: t('انسخ كلمة المرور المؤقتة وأرسلها للمستخدم.', 'Copy the temporary password and send it to the user.', lang) });
       onInvited?.();
     } catch (e) {
       toast({ title: t('تعذر إرسال الدعوة', 'Could not send invite', lang), description: e.message, variant: 'destructive' });
@@ -38,8 +37,15 @@ export default function InviteUserDialog({ open, onOpenChange, onInvited, lang }
     }
   };
 
+  const close = () => {
+    setEmail('');
+    setAppRole('VIEWER');
+    setInviteResult(null);
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => next ? onOpenChange(true) : close()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -50,11 +56,11 @@ export default function InviteUserDialog({ open, onOpenChange, onInvited, lang }
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label>{t('البريد الإلكتروني', 'Email', lang)}</Label>
-            <Input type="email" dir="ltr" placeholder="name@company.com" value={email} onChange={e => setEmail(e.target.value)} />
+            <Input type="email" dir="ltr" placeholder="name@company.com" value={email} onChange={e => setEmail(e.target.value)} disabled={!!inviteResult} />
           </div>
           <div className="space-y-1.5">
             <Label>{t('الدور الوظيفي', 'Business Role', lang)}</Label>
-            <Select value={appRole} onValueChange={setAppRole}>
+            <Select value={appRole} onValueChange={setAppRole} disabled={!!inviteResult}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {APP_ROLE_KEYS.map(k => (
@@ -63,16 +69,31 @@ export default function InviteUserDialog({ open, onOpenChange, onInvited, lang }
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {t('سيتم منح المستخدم صلاحيات هذا الدور. يمكنك تعديلها لاحقاً بعد قبوله الدعوة.',
-                 'The user will get this role\'s permissions. You can adjust them after they accept.', lang)}
+              {t('البريد الإلكتروني غير مفعّل في النسخة المنشورة حالياً؛ سيتم إنشاء الحساب وعرض كلمة مرور مؤقتة لإرسالها للمستخدم.',
+                 'Email sending is not enabled in this deployment; the account will be created and a temporary password shown for you to send.', lang)}
             </p>
           </div>
+          {inviteResult?.tempPassword && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+              <p className="text-sm font-semibold text-emerald-800">{t('تم إنشاء الحساب', 'Account created', lang)}</p>
+              <p className="text-xs text-emerald-700">{t('أرسل هذه البيانات للمستخدم لتسجيل الدخول:', 'Send these credentials to the user:', lang)}</p>
+              <div className="rounded bg-white border p-2 text-xs" dir="ltr">
+                <div>Email: {inviteResult.email}</div>
+                <div>Password: {inviteResult.tempPassword}</div>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(`Email: ${inviteResult.email}\nPassword: ${inviteResult.tempPassword}`)}>
+                {t('نسخ البيانات', 'Copy credentials', lang)}
+              </Button>
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
-          <Button onClick={handleInvite} disabled={sending} className="bg-emerald-600 hover:bg-emerald-700">
-            {sending ? t('جارٍ الإرسال...', 'Sending...', lang) : t('إرسال الدعوة', 'Send Invite', lang)}
-          </Button>
+          <Button variant="outline" onClick={close}>{inviteResult ? t('إغلاق', 'Close', lang) : t('إلغاء', 'Cancel', lang)}</Button>
+          {!inviteResult && (
+            <Button onClick={handleInvite} disabled={sending} className="bg-emerald-600 hover:bg-emerald-700">
+              {sending ? t('جارٍ الإنشاء...', 'Creating...', lang) : t('إنشاء الدعوة', 'Create Invite', lang)}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

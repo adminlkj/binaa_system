@@ -132,8 +132,8 @@ export function resolveUserModules(user) {
 }
 
 export function canAccess(user, moduleKey) {
-  // dashboard is always accessible
-  if (moduleKey === 'dashboard') return true;
+  // dashboard is always accessible for active signed-in users
+  if (moduleKey === 'dashboard') return user?.isActive !== false;
   const modules = resolveUserModules(user);
   // The equipment workspace is opened from the equipment registry — anyone who
   // can access the registry can open a piece of equipment's workspace.
@@ -149,12 +149,13 @@ export function canAccess(user, moduleKey) {
 // - a per-module override on user.modulePermissions[moduleKey] wins
 // - otherwise: full actions on any module the user can access (legacy behaviour)
 export function resolveModuleActions(user, moduleKey) {
-  if (!user) return [];
+  if (!user || user.isActive === false) return [];
   if (!canAccess(user, moduleKey)) return [];
   if (isAdmin(user)) return ACTION_KEYS;
   const map = user.modulePermissions;
   if (map && Array.isArray(map[moduleKey])) return map[moduleKey];
-  // No explicit override → user has access, grant full in-screen actions by default.
+  if ((user.appRole || 'VIEWER') === 'VIEWER') return [];
+  // No explicit override → operational roles can act inside their accessible screens.
   return ACTION_KEYS;
 }
 

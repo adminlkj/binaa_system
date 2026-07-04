@@ -93,9 +93,9 @@ export const base44 = {
   },
   entities: new Proxy({}, { get: (_, entityName) => entityClient(entityName) }),
   users: {
-    inviteUser: (email, role = 'user') => request('/api/users/invite', {
+    inviteUser: (email, role = 'user', appRole = 'VIEWER') => request('/api/users/invite', {
       method: 'POST',
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, role, appRole }),
     }),
   },
   functions: {

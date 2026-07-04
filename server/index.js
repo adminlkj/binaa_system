@@ -9,6 +9,7 @@ import { runStandaloneFunction } from './functionRunner.js';
 
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
+const USER_PUBLIC_FIELDS = `id, email, full_name, role, app_role AS "appRole", job_title AS "jobTitle", department, phone, is_active AS "isActive", allowed_modules AS "allowedModules", module_permissions AS "modulePermissions", created_date, updated_date`;
 
 function sendJson(res, data, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -46,16 +47,17 @@ async function handleAuth(req, res, route) {
     const id = crypto.randomUUID();
     const role = first ? 'admin' : 'user';
     await pool.query(
-      'INSERT INTO app_users (id, email, full_name, role, password_hash) VALUES ($1, $2, $3, $4, $5)',
-      [id, email, body.full_name || email.split('@')[0], role, hashPassword(body.password)]
+      'INSERT INTO app_users (id, email, full_name, role, app_role, password_hash) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, email, body.full_name || email.split('@')[0], role, first ? 'OWNER' : 'VIEWER', hashPassword(body.password)]
     );
     return sendJson(res, { success: true, message: 'Registered' });
   }
 
   if (route === '/api/auth/verify-otp' && req.method === 'POST') {
     const email = String(body.email || '').toLowerCase().trim();
-    const { rows } = await pool.query('SELECT id, email, full_name, role, created_date, updated_date FROM app_users WHERE email = $1', [email]);
+    const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE email = $1`, [email]);
     if (!rows[0]) return sendJson(res, { error: 'User not found' }, 404);
+    if (rows[0].isActive === false) return sendJson(res, { error: 'Account is inactive' }, 403);
     return sendJson(res, { access_token: signToken(rows[0]), user: rows[0] });
   }
 
@@ -64,8 +66,9 @@ async function handleAuth(req, res, route) {
     const { rows } = await pool.query('SELECT * FROM app_users WHERE email = $1', [email]);
     const user = rows[0];
     if (!user || !verifyPassword(body.password || '', user.password_hash)) return sendJson(res, { error: 'Invalid email or password' }, 401);
-    delete user.password_hash;
-    return sendJson(res, { access_token: signToken(user), user });
+    if (user.is_active === false) return sendJson(res, { error: 'Account is inactive' }, 403);
+    const { rows: publicRows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [user.id]);
+    return sendJson(res, { access_token: signToken(publicRows[0]), user: publicRows[0] });
   }
 
   if (route === '/api/auth/me' && req.method === 'GET') {
@@ -77,7 +80,7 @@ async function handleAuth(req, res, route) {
     const user = await requireUser(req);
     const allowed = { full_name: body.full_name };
     await pool.query('UPDATE app_users SET full_name = COALESCE($2, full_name), updated_date = now() WHERE id = $1', [user.id, allowed.full_name]);
-    const { rows } = await pool.query('SELECT id, email, full_name, role, created_date, updated_date FROM app_users WHERE id = $1', [user.id]);
+    const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [user.id]);
     return sendJson(res, rows[0]);
   }
 
@@ -98,11 +101,13 @@ async function handleUsers(req, res, route) {
     if (!email) return sendJson(res, { error: 'Email is required' }, 400);
     const tempPassword = crypto.randomBytes(9).toString('base64url');
     const id = crypto.randomUUID();
+    const appRole = body.appRole || (body.role === 'admin' ? 'OWNER' : 'VIEWER');
+    const role = appRole === 'OWNER' || body.role === 'admin' ? 'admin' : 'user';
     await pool.query(
-      'INSERT INTO app_users (id, email, full_name, role, password_hash) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (email) DO NOTHING',
-      [id, email, email.split('@')[0], body.role || 'user', hashPassword(tempPassword)]
+      'INSERT INTO app_users (id, email, full_name, role, app_role, password_hash) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, app_role = EXCLUDED.app_role, updated_date = now()',
+      [id, email, email.split('@')[0], role, appRole, hashPassword(tempPassword)]
     );
-    return sendJson(res, { success: true, tempPassword });
+    return sendJson(res, { success: true, tempPassword, email });
   }
 
   return sendJson(res, { error: 'Not found' }, 404);
@@ -111,18 +116,29 @@ async function handleUsers(req, res, route) {
 async function handleUserEntity(req, res, action, id, body, user) {
   if (user.role !== 'admin' && action !== 'get') return sendJson(res, { error: 'Forbidden' }, 403);
   if ((action === 'list' || action === 'filter') && req.method === 'POST') {
-    const { rows } = await pool.query('SELECT id, email, full_name, role, created_date, updated_date FROM app_users ORDER BY created_date DESC');
+    const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users ORDER BY created_date DESC`);
     return sendJson(res, rows);
   }
   if (action === 'get' && req.method === 'GET') {
     const targetId = id || user.id;
     if (targetId !== user.id && user.role !== 'admin') return sendJson(res, { error: 'Forbidden' }, 403);
-    const { rows } = await pool.query('SELECT id, email, full_name, role, created_date, updated_date FROM app_users WHERE id = $1', [targetId]);
+    const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [targetId]);
     return sendJson(res, rows[0] || null);
   }
   if (action === 'update' && req.method === 'PATCH') {
-    await pool.query('UPDATE app_users SET full_name = COALESCE($2, full_name), role = COALESCE($3, role), updated_date = now() WHERE id = $1', [id, body.full_name, body.role]);
-    const { rows } = await pool.query('SELECT id, email, full_name, role, created_date, updated_date FROM app_users WHERE id = $1', [id]);
+    await pool.query(
+      `UPDATE app_users SET
+        full_name = COALESCE($2, full_name), role = COALESCE($3, role), app_role = COALESCE($4, app_role),
+        job_title = COALESCE($5, job_title), department = COALESCE($6, department), phone = COALESCE($7, phone),
+        is_active = COALESCE($8, is_active), allowed_modules = COALESCE($9::jsonb, allowed_modules),
+        module_permissions = COALESCE($10::jsonb, module_permissions), updated_date = now()
+      WHERE id = $1`,
+      [id, body.full_name, body.role, body.appRole, body.jobTitle, body.department, body.phone,
+        body.isActive,
+        body.allowedModules === undefined ? null : JSON.stringify(body.allowedModules),
+        body.modulePermissions === undefined ? null : JSON.stringify(body.modulePermissions)]
+    );
+    const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [id]);
     return sendJson(res, rows[0] || null);
   }
   if (action === 'delete' && req.method === 'DELETE') {
@@ -130,7 +146,7 @@ async function handleUserEntity(req, res, action, id, body, user) {
     await pool.query('DELETE FROM app_users WHERE id = $1', [id]);
     return sendJson(res, { success: true });
   }
-  if (action === 'schema' && req.method === 'GET') return sendJson(res, { name: 'User', properties: { full_name: { type: 'string' }, email: { type: 'string' }, role: { type: 'string' } } });
+  if (action === 'schema' && req.method === 'GET') return sendJson(res, { name: 'User', properties: { full_name: { type: 'string' }, email: { type: 'string' }, role: { type: 'string' }, appRole: { type: 'string' }, jobTitle: { type: 'string' }, department: { type: 'string' }, phone: { type: 'string' }, isActive: { type: 'boolean' }, allowedModules: { type: 'array' }, modulePermissions: { type: 'object' } } });
   return sendJson(res, { error: 'Not found' }, 404);
 }
 

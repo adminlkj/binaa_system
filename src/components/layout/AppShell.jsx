@@ -32,6 +32,7 @@ export default function AppShell({ children }) {
     // (We intentionally do NOT call base44.auth.logout() — it redirects to the
     // hosted Base44 login page instead of our in-app one.)
     try {
+      localStorage.removeItem('binaa-auth-token');
       localStorage.removeItem('base44_access_token');
       localStorage.removeItem('token');
     } catch (e) { /* ignore */ }

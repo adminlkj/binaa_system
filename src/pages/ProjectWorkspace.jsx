@@ -29,21 +29,30 @@ export default function ProjectWorkspace() {
   const [invoices, setInvoices] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [clientPayments, setClientPayments] = useState([]);
+  const [stockMovements, setStockMovements] = useState([]);
+  const [supplierInvoices, setSupplierInvoices] = useState([]);
+  const [subcontractorInvoices, setSubcontractorInvoices] = useState([]);
 
   useEffect(() => {
     if (!activeProjectId) { setLoading(false); return; }
     (async () => {
       setLoading(true);
       try {
-        const [p, c, inv, po, exp] = await Promise.all([
+        const [p, c, inv, po, exp, cp, sm, si, subInv] = await Promise.all([
           base44.entities.Project.filter({ id: activeProjectId }),
           base44.entities.Contract.filter({ projectId: activeProjectId }),
           base44.entities.SalesInvoice.filter({ projectId: activeProjectId }),
           base44.entities.PurchaseOrder.filter({ projectId: activeProjectId }),
           base44.entities.Expense.filter({ projectId: activeProjectId }),
+          base44.entities.ClientPayment.filter({ projectId: activeProjectId }),
+          base44.entities.StockMovement.filter({ projectId: activeProjectId }),
+          base44.entities.SupplierInvoice.filter({ projectId: activeProjectId }),
+          base44.entities.SubcontractorInvoice.filter({ projectId: activeProjectId }),
         ]);
         setProject(p[0] || null);
         setContracts(c); setInvoices(inv); setPurchases(po); setExpenses(exp);
+        setClientPayments(cp); setStockMovements(sm); setSupplierInvoices(si); setSubcontractorInvoices(subInv);
       } finally {
         setLoading(false);
       }
@@ -78,9 +87,17 @@ export default function ProjectWorkspace() {
     );
   }
 
-  const revenue = invoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
-  const costs = purchases.reduce((s, p) => s + (p.totalAmount || 0) + (p.vatAmount || 0), 0)
-    + expenses.reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
+  const postedInvoiceStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+  const postedInvoices = invoices.filter(i => postedInvoiceStatuses.includes(i.status));
+  const revenue = postedInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
+  const stockIssueCost = stockMovements.filter(m => m.type === 'ISSUE').reduce((s, m) => s + (m.totalCost || 0), 0);
+  const directSupplierCost = supplierInvoices
+    .filter(i => !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status))
+    .reduce((s, i) => s + (i.totalAmount || 0), 0);
+  const subcontractorCost = subcontractorInvoices
+    .filter(i => ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(i.status))
+    .reduce((s, i) => s + (i.totalAmount || 0), 0);
+  const costs = expenses.reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0) + stockIssueCost + directSupplierCost + subcontractorCost;
 
   const st = PROJECT_STATUS[project.status] || PROJECT_STATUS.PLANNING;
   const badge = <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span>;
@@ -171,7 +188,7 @@ export default function ProjectWorkspace() {
       {tab === 'daily-reports' && <DailyReportsTab projectId={activeProjectId} />}
       {tab === 'billing' && <ProgressBillingTab projectId={activeProjectId} />}
       {tab === 'profitability' && <ProfitabilityTab revenue={revenue} costs={costs} contractValue={project.contractValue || 0} />}
-      {tab === 'statement' && <StatementTab invoices={invoices} purchases={purchases} expenses={expenses} />}
+      {tab === 'statement' && <StatementTab invoices={postedInvoices} purchases={purchases} expenses={expenses} clientPayments={clientPayments} stockMovements={stockMovements} supplierInvoices={supplierInvoices} subcontractorInvoices={subcontractorInvoices} />}
       {tab === 'documents' && <DocumentsTab projectId={activeProjectId} />}
     </div>
   );

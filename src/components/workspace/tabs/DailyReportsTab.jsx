@@ -1,4 +1,5 @@
 import React from 'react';
+import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,6 +20,7 @@ export default function DailyReportsTab({ projectId }) {
         workDone: '',
         workforce: 0,
         weather: '',
+        photos: [],
         notes: '',
       }}
       validate={(f) => (!f.date ? t('أدخل التاريخ', 'Enter date', lang) : null)}
@@ -28,6 +30,7 @@ export default function DailyReportsTab({ projectId }) {
         workDone: f.workDone,
         workforce: Number(f.workforce) || 0,
         weather: f.weather,
+        photos: f.photos || [],
         notes: f.notes,
       })}
       labels={{
@@ -44,6 +47,7 @@ export default function DailyReportsTab({ projectId }) {
         { header: { ar: 'الأعمال المنجزة', en: 'Work Done' }, cell: r => <span className="text-sm line-clamp-1 max-w-[280px]">{r.workDone || '—'}</span> },
         { header: { ar: 'العمالة', en: 'Workforce' }, cell: r => <span className="tabular-nums">{r.workforce || 0}</span> },
         { header: { ar: 'الطقس', en: 'Weather' }, cell: r => <span className="text-sm text-muted-foreground">{r.weather || '—'}</span> },
+        { header: { ar: 'الصور', en: 'Photos' }, cell: r => <span className="text-sm tabular-nums">{(r.photos || []).length}</span> },
       ]}
       fields={(form, set) => (
         <>
@@ -62,6 +66,16 @@ export default function DailyReportsTab({ projectId }) {
           <div className="space-y-1.5 md:col-span-2">
             <Label>{t('الأعمال المنجزة', 'Work Done', lang)}</Label>
             <Textarea value={form.workDone || ''} onChange={e => set('workDone', e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label>{t('صور التقرير', 'Report Photos', lang)}</Label>
+            <Input type="file" multiple accept="image/*" onChange={async e => {
+              const files = Array.from(e.target.files || []);
+              if (!files.length) return;
+              const uploaded = await Promise.all(files.map(file => base44.integrations.Core.UploadFile({ file })));
+              set('photos', [...(form.photos || []), ...uploaded.map(r => r.file_url)]);
+            }} />
+            {(form.photos || []).length > 0 && <p className="text-xs text-muted-foreground">{(form.photos || []).length} {t('صورة مرفوعة', 'uploaded photos', lang)}</p>}
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label>{t('ملاحظات', 'Notes', lang)}</Label>

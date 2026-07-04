@@ -80,6 +80,23 @@ export default function Projects() {
 
   const remove = async () => {
     try {
+      const checks = await Promise.all([
+        base44.entities.Contract.filter({ projectId: deleteId }),
+        base44.entities.BOQItem.filter({ projectId: deleteId }),
+        base44.entities.ProgressBilling.filter({ projectId: deleteId }),
+        base44.entities.ChangeOrder.filter({ projectId: deleteId }),
+        base44.entities.ProjectDocument.filter({ projectId: deleteId }),
+        base44.entities.SalesInvoice.filter({ projectId: deleteId }),
+        base44.entities.PurchaseOrder.filter({ projectId: deleteId }),
+        base44.entities.Expense.filter({ projectId: deleteId }),
+        base44.entities.WorkOrder.filter({ projectId: deleteId }),
+        base44.entities.DailyReport.filter({ projectId: deleteId }),
+        base44.entities.ContractItem.filter({ projectId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف مشروع عليه مستندات أو حركات مرتبطة', 'Cannot delete a project with linked documents or transactions', lang));
+        return;
+      }
       await base44.entities.Project.delete(deleteId);
       toast.success(t('تم الحذف', 'Deleted', lang)); load();
     } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, FileText, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/components/ui/use-toast';
@@ -60,9 +60,16 @@ export default function ProjectContractsTab({ project }) {
   };
 
   const openEdit = (row) => {
+    if (row.status !== 'DRAFT') return;
     setEditingId(row.id);
-    setForm({ ...row });
+    setForm({ ...row, status: 'DRAFT' });
     setDialogOpen(true);
+  };
+
+  const setStatus = async (row, status) => {
+    await base44.entities.Contract.update(row.id, { status });
+    toast({ title: t('تم تحديث الحالة', 'Status updated', lang) });
+    await load();
   };
 
   const save = async () => {
@@ -81,7 +88,7 @@ export default function ProjectContractsTab({ project }) {
         totalValue: Number(form.totalValue) || 0,
         startDate: form.startDate || null,
         endDate: form.endDate || null,
-        status: form.status,
+        status: 'DRAFT',
         description: form.description,
         notes: form.notes,
       };
@@ -159,12 +166,11 @@ export default function ProjectContractsTab({ project }) {
                     <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.color}`}>{lang === 'ar' ? s.ar : s.en}</span></TableCell>
                     <TableCell className="text-end">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(row)}>
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="size-8 text-rose-600 hover:text-rose-700" onClick={() => setDeleteTarget(row)}>
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                        {row.status === 'DRAFT' && <Button size="sm" variant="outline" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => setStatus(row, 'ACTIVE')}><CheckCircle2 className="size-3.5" />{t('تفعيل', 'Activate', lang)}</Button>}
+                        {row.status === 'ACTIVE' && <Button size="sm" variant="outline" className="h-8 gap-1 text-teal-700 border-teal-200 hover:bg-teal-50" onClick={() => setStatus(row, 'COMPLETED')}><CheckCircle2 className="size-3.5" />{t('إكمال', 'Complete', lang)}</Button>}
+                        {['DRAFT', 'ACTIVE'].includes(row.status) && <Button size="sm" variant="outline" className="h-8 text-rose-700 border-rose-200 hover:bg-rose-50" onClick={() => setStatus(row, 'CANCELLED')}>{t('إلغاء', 'Cancel', lang)}</Button>}
+                        {row.status === 'DRAFT' && <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(row)}><Pencil className="size-3.5" /></Button>}
+                        {row.status === 'DRAFT' && <Button size="icon" variant="ghost" className="size-8 text-rose-600 hover:text-rose-700" onClick={() => setDeleteTarget(row)}><Trash2 className="size-3.5" /></Button>}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -196,14 +202,7 @@ export default function ProjectContractsTab({ project }) {
             </div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status || 'DRAFT'} onValueChange={v => set('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CONTRACT_STATUS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُفعّل لاحقاً)', 'Draft (activate later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
             <div className="space-y-1.5">
               <Label>{t('تاريخ البدء', 'Start Date', lang)}</Label>

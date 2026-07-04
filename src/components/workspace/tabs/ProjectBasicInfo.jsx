@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/components/ui/use-toast';
 import { t, formatCurrency, formatDate, PROJECT_STATUS } from '@/lib/utils-binaa';
+import { canTransition, nextStates } from '@/lib/workflowEngine';
 
 const PROJECT_TYPES = {
   CONSTRUCTION: { ar: 'مقاولات', en: 'Construction' },
@@ -59,12 +60,17 @@ export default function ProjectBasicInfo({ project, revenue, costs, onUpdated })
   const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
   const st = PROJECT_STATUS[project.status] || PROJECT_STATUS.PLANNING;
   const pt = PROJECT_TYPES[project.projectType] || PROJECT_TYPES.CONSTRUCTION;
+  const availableStatuses = nextStates('PROJECT', project.status) || Object.keys(PROJECT_STATUS);
 
   const startEdit = () => { setForm(project); setEditing(true); };
   const cancel = () => { setEditing(false); setForm(project); };
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   const save = async () => {
+    if (!canTransition('PROJECT', project.status, form.status)) {
+      toast({ title: t('انتقال غير مسموح', 'Invalid transition', lang), description: t('لا يمكن تغيير حالة المشروع إلى الحالة المحددة من حالته الحالية', 'This project status change is not allowed from the current state', lang), variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -205,9 +211,10 @@ export default function ProjectBasicInfo({ project, revenue, costs, onUpdated })
               <Select value={form.status || 'PLANNING'} onValueChange={v => set('status', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(PROJECT_STATUS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>
-                  ))}
+                  {availableStatuses.map(k => {
+                    const v = PROJECT_STATUS[k];
+                    return <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>;
+                  })}
                 </SelectContent>
               </Select>
             </div>

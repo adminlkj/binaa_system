@@ -17,27 +17,38 @@ export default function ProjectReports() {
   const [invoices, setInvoices] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [stockMovements, setStockMovements] = useState([]);
+  const [supplierInvoices, setSupplierInvoices] = useState([]);
+  const [subcontractorInvoices, setSubcontractorInvoices] = useState([]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [pr, inv, po, exp] = await Promise.all([
+      const [pr, inv, po, exp, sm, si, subInv] = await Promise.all([
         base44.entities.Project.list('-created_date', 500),
         base44.entities.SalesInvoice.list('-date', 1000),
         base44.entities.PurchaseOrder.list('-date', 1000),
         base44.entities.Expense.list('-date', 1000),
+        base44.entities.StockMovement.list('-date', 1000),
+        base44.entities.SupplierInvoice.list('-date', 1000),
+        base44.entities.SubcontractorInvoice.list('-date', 1000),
       ]);
       setProjects(pr); setInvoices(inv); setPurchases(po); setExpenses(exp);
+      setStockMovements(sm); setSupplierInvoices(si); setSubcontractorInvoices(subInv);
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => { load(); }, []);
 
+  const postedInvoiceStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
   const rows = projects.map(p => {
-    const revenue = invoices.filter(i => i.projectId === p.id).reduce((s, i) => s + (i.totalAmount || 0), 0);
-    const cost = purchases.filter(po => po.projectId === p.id).reduce((s, po) => s + (po.totalAmount || 0) + (po.vatAmount || 0), 0)
-      + expenses.filter(e => e.projectId === p.id).reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
+    const revenue = invoices.filter(i => i.projectId === p.id && postedInvoiceStatuses.includes(i.status)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const expenseCost = expenses.filter(e => e.projectId === p.id).reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
+    const stockCost = stockMovements.filter(m => m.projectId === p.id && m.type === 'ISSUE').reduce((s, m) => s + (m.totalCost || 0), 0);
+    const supplierCost = supplierInvoices.filter(i => i.projectId === p.id && !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const subcontractorCost = subcontractorInvoices.filter(i => i.projectId === p.id && ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(i.status)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const cost = expenseCost + stockCost + supplierCost + subcontractorCost;
     const profit = revenue - cost;
     const margin = revenue ? (profit / revenue) * 100 : 0;
     return { ...p, revenue, cost, profit, margin };

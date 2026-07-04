@@ -70,8 +70,8 @@ export default function ClientPayments() {
   });
 
   const openNew = () => { setEditing(null); setForm({ ...empty, date: new Date().toISOString().slice(0, 10) }); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
-  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+  const openEdit = () => toast.error(t('لا يمكن تعديل سند قبض مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot edit a posted receipt — use a reversing entry to correct it', lang));
+  const askDelete = () => toast.error(t('لا يمكن حذف سند قبض مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot delete a posted receipt — use a reversing entry to correct it', lang));
 
   const save = async () => {
     if (!form.clientId || !form.date || !form.amount)

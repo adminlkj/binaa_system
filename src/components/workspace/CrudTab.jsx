@@ -25,7 +25,7 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog';
  *  - onChanged: () => void  — optional callback after any mutation
  */
 export default function CrudTab({
-  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions, beforeSave, operationHandlers,
+  entityName, filter, defaults, columns, fields, validate, buildPayload, labels, summary, onChanged, rowActions, beforeSave, operationHandlers, canEditRow, canDeleteRow,
 }) {
   const { lang } = useStore();
   const { toast } = useToast();
@@ -153,12 +153,16 @@ export default function CrudTab({
                   <TableCell className="text-end">
                     <div className="flex items-center justify-end gap-1">
                       {rowActions?.(row, load)}
-                      <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(row)}>
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="size-8 text-rose-600 hover:text-rose-700" onClick={() => setDeleteTarget(row)}>
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      {(canEditRow ? canEditRow(row) : true) && (
+                        <Button size="icon" variant="ghost" className="size-8" onClick={() => openEdit(row)}>
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      )}
+                      {(canDeleteRow ? canDeleteRow(row) : true) && (
+                        <Button size="icon" variant="ghost" className="size-8 text-rose-600 hover:text-rose-700" onClick={() => setDeleteTarget(row)}>
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

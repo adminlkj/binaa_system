@@ -134,8 +134,8 @@ export default function SalesInvoices() {
         await OperationEngine.updateSalesInvoice(editing.id, form, projects, clients, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
-        await OperationEngine.createSalesInvoice(form, projects, clients);
-        toast.success(t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang));
+        await OperationEngine.createSalesInvoice({ ...form, status: 'DRAFT' }, projects, clients);
+        toast.success(t('تمت الإضافة كمسودة — اعتمدها لاحقاً لترحيل القيد', 'Added as draft — approve later to post', lang));
       }
       setDialogOpen(false); load();
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
@@ -321,7 +321,7 @@ export default function SalesInvoices() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
             <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-              {saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ + قيد محاسبي', 'Save + Post JE', lang)}
+              {saving ? t('جاري الحفظ...', 'Saving...', lang) : t('حفظ كمسودة', 'Save as Draft', lang)}
             </Button>
           </DialogFooter>
         </DialogContent>

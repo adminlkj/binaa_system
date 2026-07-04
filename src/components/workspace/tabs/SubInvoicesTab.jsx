@@ -63,6 +63,8 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
           <CheckCircle2 className="size-3.5" />{approvingId === row.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
         </Button>
       )}
+      canEditRow={(row) => row.status === 'DRAFT'}
+      canDeleteRow={(row) => row.status === 'DRAFT'}
       defaults={(rows) => ({
         subcontractorId, subcontractorContractId: '', invoiceNo: genCode('SINV', rows.length + 1), invoiceType: 'PROGRESS',
         date: new Date().toISOString().slice(0, 10), dueDate: '',
@@ -78,7 +80,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
           invoiceNo: f.invoiceNo, invoiceType: f.invoiceType, date: f.date || null, dueDate: f.dueDate || null,
           baseAmount: Number(f.baseAmount) || 0, retentionAmount: Number(f.retentionAmount) || 0,
           vatAmount: vat, totalAmount: total, paidAmount: Number(f.paidAmount) || 0,
-          status: f.status, description: f.description, notes: f.notes,
+          status: 'DRAFT', description: f.description, notes: f.notes,
           invoiceAttachmentUrl: f.invoiceAttachmentUrl || '', invoiceAttachmentName: f.invoiceAttachmentName || '', invoiceAttachmentType: f.invoiceAttachmentType || '',
         };
       }}
@@ -138,10 +140,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
             <div className="space-y-1.5"><Label>{t('المدفوع', 'Paid Amount', lang)}</Label><Input type="number" value={form.paidAmount ?? 0} onChange={e => set('paidAmount', e.target.value)} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status || 'DRAFT'} onValueChange={v => set('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
             <div className="md:col-span-2 rounded-lg bg-muted/50 p-3 text-xs space-y-1">
               <div className="flex justify-between"><span className="text-muted-foreground">{t('الصافي بعد المحتجز', 'Net after retention', lang)}</span><span className="tabular-nums">{formatCurrency(net, lang)}</span></div>

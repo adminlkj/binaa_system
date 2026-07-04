@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
@@ -39,7 +39,11 @@ export default function ProgressBillingTab({ projectId }) {
   useEffect(() => { load(); }, [projectId]);
 
   const openNew = () => { setForm(empty); setEditingId(null); setOpen(true); };
-  const openEdit = (r) => { setForm({ ...empty, ...r }); setEditingId(r.id); setOpen(true); };
+  const openEdit = (r) => {
+    if (r.status !== 'DRAFT') return;
+    setForm({ ...empty, ...r, status: 'DRAFT' }); setEditingId(r.id); setOpen(true);
+  };
+  const approve = async (r) => { await base44.entities.ProgressBilling.update(r.id, { status: 'APPROVED' }); load(); };
 
   const save = async () => {
     const gross = Number(form.grossAmount) || 0;
@@ -54,7 +58,7 @@ export default function ProgressBillingTab({ projectId }) {
       retentionAmount: retention,
       previousAmount: previous,
       netAmount: gross - retention - previous,
-      status: form.status,
+      status: 'DRAFT',
       notes: form.notes,
     };
     if (editingId) await base44.entities.ProgressBilling.update(editingId, payload);
@@ -111,8 +115,9 @@ export default function ProgressBillingTab({ projectId }) {
                     <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.color}`}>{lang === 'ar' ? s.ar : s.en}</span></TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(r)}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-7 text-rose-600" onClick={() => setDeleteId(r.id)}><Trash2 className="size-3.5" /></Button>
+                        {r.status === 'DRAFT' && <Button variant="outline" size="sm" className="h-7 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => approve(r)}><CheckCircle2 className="size-3.5" />{t('اعتماد', 'Approve', lang)}</Button>}
+                        {r.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-7" onClick={() => openEdit(r)}><Pencil className="size-3.5" /></Button>}
+                        {r.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-7 text-rose-600" onClick={() => setDeleteId(r.id)}><Trash2 className="size-3.5" /></Button>}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -135,12 +140,7 @@ export default function ProgressBillingTab({ projectId }) {
             <div className="space-y-1"><Label>{t('السابق', 'Previous', lang)}</Label><Input type="number" value={form.previousAmount} onChange={e => setForm({ ...form, previousAmount: e.target.value })} /></div>
             <div className="space-y-1 col-span-2">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
           </div>
           <DialogFooter>

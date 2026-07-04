@@ -97,6 +97,8 @@ export default function RentalInvoicesTab({ equipmentId }) {
         </>
       )}
       filter={{ equipmentId }}
+      canEditRow={(row) => row.status === 'DRAFT'}
+      canDeleteRow={(row) => row.status === 'DRAFT'}
       defaults={(rows) => ({
         equipmentId,
         invoiceNo: genInvoiceNo('RNT', new Date().getFullYear(), rows.length + 1),
@@ -159,7 +161,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
           vatAmount: vat,
           totalAmount: total,
           paidAmount: Number(f.paidAmount) || 0,
-          status: f.status,
+          status: 'DRAFT',
           notes: f.notes,
         };
       }}
@@ -285,14 +287,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
             </div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status || 'DRAFT'} onValueChange={v => set('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(INVOICE_STATUS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
             <div className="space-y-1.5">
               <Label>{t('قيمة الإيجار', 'Base Amount', lang)}</Label>

@@ -127,6 +127,7 @@ export default function SupplierInvoices() {
         ...form,
         baseAmount: base, vatAmount, totalAmount,
         paidAmount: parseFloat(form.paidAmount) || 0,
+        status: 'DRAFT',
       };
       delete data.vatRate;
       if (editing) { await OperationEngine.updateSupplierInvoice(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
@@ -327,10 +328,7 @@ export default function SupplierInvoices() {
             <div className="space-y-1.5"><Label>{t('المبلغ المسدد', 'Paid Amount', lang)}</Label><Input type="number" value={form.paidAmount} onChange={e => setForm(f => ({ ...f, paidAmount: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
             <InvoiceAttachmentField
               className="col-span-2"

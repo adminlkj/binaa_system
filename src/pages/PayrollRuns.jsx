@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, Calculator, Printer } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Calculator, Printer, CheckCircle2, CreditCard } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,7 @@ export default function PayrollRuns() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -63,8 +64,16 @@ export default function PayrollRuns() {
   const filtered = items.filter(i => !search || i.code?.toLowerCase().includes(search.toLowerCase()));
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
-  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+  const openEdit = (item) => {
+    if (item.status !== 'DRAFT') return toast.error(t('لا يمكن تعديل مسير معتمد أو مدفوع', 'Cannot edit an approved or paid payroll run', lang));
+    setEditing(item); setForm({ ...empty, ...item, status: 'DRAFT' }); setDialogOpen(true);
+  };
+  const openPay = (item) => { setEditing(item); setForm({ ...empty, ...item, status: 'PAID', paymentDate: item.paymentDate || new Date().toISOString().slice(0, 10) }); setDialogOpen(true); };
+  const askDelete = (item) => {
+    if (item.status !== 'DRAFT') return toast.error(t('لا يمكن حذف مسير معتمد أو مدفوع', 'Cannot delete an approved or paid payroll run', lang));
+    setDeleteId(item.id);
+    setConfirmOpen(true);
+  };
 
   const sal = parseFloat(form.totalSalaries) || 0;
   const all = parseFloat(form.totalAllowances) || 0;
@@ -78,24 +87,34 @@ export default function PayrollRuns() {
     const dup = items.find(i => i.month === m && i.year === y && i.id !== editing?.id);
     if (dup) return toast.error(t(`يوجد مسيّر لهذا الشهر بالفعل (${dup.code})`, `A payroll run already exists for this month (${dup.code})`, lang));
     if (netAmount <= 0) return toast.error(t('صافي المسير يجب أن يكون أكبر من صفر', 'Net amount must be greater than zero', lang));
-    if (form.status === 'PAID' && !form.paymentAccountCode) return toast.error(t('لا يمكن اعتماد مسير مدفوع دون تحديد طريقة الدفع', 'A paid run requires a payment method', lang));
-    if (form.status === 'PAID' && !form.paymentDate) return toast.error(t('لا يمكن اعتماد مسير مدفوع دون تحديد تاريخ الدفع', 'A paid run requires a payment date', lang));
+    if (form.status === 'PAID' && !form.paymentAccountCode) return toast.error(t('لا يمكن تسجيل السداد دون تحديد طريقة الدفع', 'Payment requires a payment method', lang));
+    if (form.status === 'PAID' && !form.paymentDate) return toast.error(t('لا يمكن تسجيل السداد دون تحديد تاريخ الدفع', 'Payment requires a payment date', lang));
     setSaving(true);
     try {
       const data = { ...form, month: m, year: y, totalSalaries: sal, totalAllowances: all, totalDeductions: ded, netAmount };
-      if (editing) {
-        await OperationEngine.updatePayrollRun(editing.id, data, editing.status);
+      if (editing && form.status === 'PAID') {
+        await OperationEngine.payPayrollRun(editing.id, data);
+        toast.success(t('تم تسجيل السداد وترحيل قيد الدفع', 'Payment recorded and posted', lang));
+      } else if (editing) {
+        await OperationEngine.updatePayrollRun(editing.id, { ...data, status: 'DRAFT' });
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
-        await OperationEngine.createPayrollRun(data);
-        const msg = data.status === 'PAID'
-          ? t('تمت الإضافة + قيد استحقاق + قيد سداد', 'Added + accrual & payment entries', lang)
-          : t('تمت الإضافة + قيد الاستحقاق', 'Added + accrual entry', lang);
-        toast.success(msg);
+        await OperationEngine.createPayrollRun({ ...data, status: 'DRAFT' });
+        toast.success(t('تمت الإضافة كمسودة — اعتمدها لاحقاً لترحيل قيد الاستحقاق', 'Added as draft — approve later to post accrual', lang));
       }
       setDialogOpen(false); load();
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
+  };
+
+  const approve = async (item) => {
+    setApprovingId(item.id);
+    try {
+      await OperationEngine.approvePayrollRun(item.id);
+      toast.success(t('تم اعتماد المسير وترحيل قيد الاستحقاق', 'Payroll approved and accrual posted', lang));
+      load();
+    } catch (e) { toast.error(e?.message || t('فشل الاعتماد', 'Approval failed', lang)); }
+    setApprovingId(null);
   };
 
   const doPrint = () => printHtml(printRef.current?.innerHTML, { title: printRun?.code || 'Payroll', lang });
@@ -185,9 +204,11 @@ export default function PayrollRuns() {
                       <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          {item.status === 'DRAFT' && <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" disabled={approvingId === item.id} onClick={() => approve(item)}><CheckCircle2 className="size-3.5" />{approvingId === item.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}</Button>}
+                          {item.status === 'APPROVED' && <Button variant="outline" size="sm" className="h-8 gap-1 text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => openPay(item)}><CreditCard className="size-3.5" />{t('سداد', 'Pay', lang)}</Button>}
                           <Button variant="ghost" size="icon" className="size-8 text-violet-600" onClick={() => setPrintRun(item)}><Printer className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                          {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
+                          {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item)}><Trash2 className="size-3.5" /></Button>}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -213,10 +234,7 @@ export default function PayrollRuns() {
             <div className="space-y-1.5"><Label>{t('السنة', 'Year', lang)} *</Label><Input type="number" value={form.year} onChange={e => setForm(f => ({ ...f, year: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <Input readOnly value={form.status === 'PAID' ? t('سداد مسير معتمد', 'Pay approved payroll', lang) : t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
 
             {/* Auto-fill button */}

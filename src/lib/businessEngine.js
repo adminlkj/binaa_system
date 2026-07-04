@@ -152,8 +152,16 @@ export const OperationEngine = {
     return await runOperation({ operation: 'PAYROLL', mode: 'create', data });
   },
 
-  async updatePayrollRun(id, data, prevStatus) {
-    return await runOperation({ operation: 'PAYROLL', mode: 'update', id, data, prevStatus });
+  async updatePayrollRun(id, data) {
+    return await runOperation({ operation: 'PAYROLL', mode: 'update', id, data });
+  },
+
+  async approvePayrollRun(id) {
+    return await runOperation({ operation: 'PAYROLL', mode: 'approve', id });
+  },
+
+  async payPayrollRun(id, data) {
+    return await runOperation({ operation: 'PAYROLL', mode: 'pay', id, data });
   },
 
   async createClientPayment(data) {

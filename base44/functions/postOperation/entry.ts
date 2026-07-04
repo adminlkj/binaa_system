@@ -985,32 +985,42 @@ async function postPayrollEntries(base44, data) {
 }
 
 async function createPayrollRun(base44, data) {
-  assertValid('PAYROLL', data);
-  const payroll = await base44.asServiceRole.entities.PayrollRun.create(data);
-  try {
-    await postPayrollEntries(base44, data);
-  } catch (e) {
-    await rollback(base44, 'PayrollRun', payroll.id);
-    throw e;
-  }
-  return payroll;
+  assertValid('PAYROLL', { ...data, status: 'DRAFT' });
+  const payload = { ...data, status: 'DRAFT' };
+  return await base44.asServiceRole.entities.PayrollRun.create(payload);
 }
 
-async function updatePayrollRun(base44, id, data, prevStatus) {
-  assertValid('PAYROLL', data);
-  assertTransition('PAYROLL', prevStatus, data.status);
-  const payroll = await base44.asServiceRole.entities.PayrollRun.update(id, data);
-  // قيد السداد يُرحّل فقط عند أول انتقال إلى "مدفوع". قيد الاستحقاق مُنشأ سلفاً (autoPostJE يمنع التكرار).
-  if (data.status === 'PAID' && prevStatus !== 'PAID') {
-    try {
-      const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
-      await autoPostJE(base44, buildPayrollPaymentJE(data, accounts));
-    } catch (e) {
-      await restoreStatus(base44, 'PayrollRun', id, prevStatus);
-      throw e;
-    }
+async function updatePayrollRun(base44, id, data) {
+  const existing = await base44.asServiceRole.entities.PayrollRun.get(id);
+  if (!existing) throw new Error('مسير الرواتب غير موجود');
+  if (existing.status !== 'DRAFT') throw new Error('لا يمكن تعديل مسير معتمد أو مدفوع — أنشئ إجراء اعتماد/سداد بدلاً من تعديل الماضي');
+  const payload = { ...data, status: 'DRAFT' };
+  assertValid('PAYROLL', payload);
+  return await base44.asServiceRole.entities.PayrollRun.update(id, payload);
+}
+
+async function approvePayrollRun(base44, id) {
+  const run = await base44.asServiceRole.entities.PayrollRun.get(id);
+  if (!run) throw new Error('مسير الرواتب غير موجود');
+  if (run.status !== 'DRAFT') throw new Error('لا يمكن اعتماد إلا مسير في حالة مسودة');
+  assertValid('PAYROLL', { ...run, status: 'APPROVED' });
+  await postPayrollEntries(base44, { ...run, status: 'APPROVED' });
+  return await base44.asServiceRole.entities.PayrollRun.update(id, { status: 'APPROVED' });
+}
+
+async function payPayrollRun(base44, id, data) {
+  const run = await base44.asServiceRole.entities.PayrollRun.get(id);
+  if (!run) throw new Error('مسير الرواتب غير موجود');
+  if (run.status !== 'APPROVED') throw new Error('لا يمكن سداد إلا مسير معتمد');
+  const payload = { ...run, paymentAccountCode: data.paymentAccountCode, paymentAccountName: data.paymentAccountName, paymentDate: data.paymentDate, status: 'PAID' };
+  assertValid('PAYROLL', payload);
+  try {
+    const accounts = await base44.asServiceRole.entities.ChartAccount.list('code', 1000);
+    await autoPostJE(base44, buildPayrollPaymentJE(payload, accounts));
+  } catch (e) {
+    throw e;
   }
-  return payroll;
+  return await base44.asServiceRole.entities.PayrollRun.update(id, { paymentAccountCode: payload.paymentAccountCode, paymentAccountName: payload.paymentAccountName, paymentDate: payload.paymentDate, status: 'PAID' });
 }
 
 // ─── تحصيلات العملاء ──────────────────────────────────────────────────────────
@@ -1029,9 +1039,7 @@ async function createClientPayment(base44, data) {
 }
 
 async function updateClientPayment(base44, id, data) {
-  assertValid('CLIENT_PAYMENT', data);
-  const payload = { ...data, amount: num(data.amount) };
-  return await base44.asServiceRole.entities.ClientPayment.update(id, payload);
+  throw new Error('لا يمكن تعديل سند قبض مُرحّل — استخدم قيداً عكسياً للتصحيح');
 }
 
 // ─── سداد الموردين ────────────────────────────────────────────────────────────
@@ -1050,9 +1058,7 @@ async function createSupplierPayment(base44, data) {
 }
 
 async function updateSupplierPayment(base44, id, data) {
-  assertValid('SUPPLIER_PAYMENT', data);
-  const payload = { ...data, amount: num(data.amount) };
-  return await base44.asServiceRole.entities.SupplierPayment.update(id, payload);
+  throw new Error('لا يمكن تعديل سند صرف مُرحّل — استخدم قيداً عكسياً للتصحيح');
 }
 
 // ─── فواتير الموردين ──────────────────────────────────────────────────────────
@@ -1076,8 +1082,11 @@ async function createSupplierInvoice(base44, data) {
 }
 
 async function updateSupplierInvoice(base44, id, data) {
-  assertValid('SUPPLIER_INVOICE', data);
-  const payload = buildSupplierInvoicePayload(data);
+  const existing = await base44.asServiceRole.entities.SupplierInvoice.get(id);
+  if (!existing) throw new Error('الفاتورة غير موجودة');
+  if (existing.status !== 'DRAFT') throw new Error('لا يمكن تعديل فاتورة معتمدة — استخدم العكس/الإلغاء المحاسبي بدلاً من تعديل الماضي');
+  const payload = { ...buildSupplierInvoicePayload(data), status: 'DRAFT' };
+  assertValid('SUPPLIER_INVOICE', payload);
   return await base44.asServiceRole.entities.SupplierInvoice.update(id, payload);
 }
 
@@ -1122,8 +1131,12 @@ async function createSubcontractorInvoice(base44, data) {
 }
 
 async function updateSubcontractorInvoice(base44, id, data) {
-  assertValid('SUBCONTRACTOR_INVOICE', data);
-  return await base44.asServiceRole.entities.SubcontractorInvoice.update(id, data);
+  const existing = await base44.asServiceRole.entities.SubcontractorInvoice.get(id);
+  if (!existing) throw new Error('المستخلص غير موجود');
+  if (existing.status !== 'DRAFT') throw new Error('لا يمكن تعديل مستخلص معتمد — استخدم العكس/الإلغاء المحاسبي بدلاً من تعديل الماضي');
+  const payload = { ...data, status: 'DRAFT' };
+  assertValid('SUBCONTRACTOR_INVOICE', payload);
+  return await base44.asServiceRole.entities.SubcontractorInvoice.update(id, payload);
 }
 
 // اعتماد مستخلص مقاول باطن: يرحّل قيد الالتزام (بالصافي + محتجز) ويحوّل الحالة إلى معتمد.
@@ -1163,9 +1176,12 @@ async function createRentalInvoice(base44, data) {
 }
 
 async function updateRentalInvoice(base44, id, data) {
-  assertValid('RENTAL_INVOICE', data);
+  const existing = await base44.asServiceRole.entities.RentalInvoice.get(id);
+  if (!existing) throw new Error('الفاتورة غير موجودة');
+  if (existing.status !== 'DRAFT') throw new Error('لا يمكن تعديل فاتورة معتمدة — استخدم العكس/الإلغاء المحاسبي بدلاً من تعديل الماضي');
   const p = buildRentalInvoicePayload(data);
-  const payload = { ...p }; delete payload.net;
+  const payload = { ...p, status: 'DRAFT' }; delete payload.net;
+  assertValid('RENTAL_INVOICE', payload);
   return await base44.asServiceRole.entities.RentalInvoice.update(id, payload);
 }
 
@@ -1368,7 +1384,7 @@ const HANDLERS = {
   PURCHASE_ORDER:  { create: (b, p) => createPurchaseOrder(b, p.data), update: (b, p) => updatePurchaseOrder(b, p.id, p.data, p.prevStatus) },
   EXPENSE:         { create: (b, p) => createExpense(b, p.data), update: (b, p) => updateExpense(b, p.id, p.data) },
   RENTAL_CONTRACT: { create: (b, p) => createRentalContract(b, p.data), update: (b, p) => updateRentalContract(b, p.id, p.data, p.prevStatus, p.prevEquipmentStatus) },
-  PAYROLL:         { create: (b, p) => createPayrollRun(b, p.data), update: (b, p) => updatePayrollRun(b, p.id, p.data, p.prevStatus) },
+  PAYROLL:         { create: (b, p) => createPayrollRun(b, p.data), update: (b, p) => updatePayrollRun(b, p.id, p.data), approve: (b, p) => approvePayrollRun(b, p.id), pay: (b, p) => payPayrollRun(b, p.id, p.data || {}) },
   CLIENT_PAYMENT:  { create: (b, p) => createClientPayment(b, p.data), update: (b, p) => updateClientPayment(b, p.id, p.data) },
   SUPPLIER_PAYMENT:{ create: (b, p) => createSupplierPayment(b, p.data), update: (b, p) => updateSupplierPayment(b, p.id, p.data) },
   SUPPLIER_INVOICE:{ create: (b, p) => createSupplierInvoice(b, p.data), update: (b, p) => updateSupplierInvoice(b, p.id, p.data), approve: (b, p) => approveSupplierInvoice(b, p.id) },

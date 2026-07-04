@@ -72,8 +72,8 @@ export default function SupplierPayments() {
   const supplierInvoices = invoices.filter(inv => inv.supplierId === form.supplierId);
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
-  const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+  const openEdit = () => toast.error(t('لا يمكن تعديل سند صرف مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot edit a posted payment — use a reversing entry to correct it', lang));
+  const askDelete = () => toast.error(t('لا يمكن حذف سند صرف مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot delete a posted payment — use a reversing entry to correct it', lang));
 
   const save = async () => {
     const missing = requiredFields(form, [

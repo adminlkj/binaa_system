@@ -15,11 +15,11 @@ export const READY_TABS = new Set([
   'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
   'purchase-requests', 'purchase-orders', 'goods-receipts', 'supplier-invoices', 'supplier-payments',
   'expenses',
-  'employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances',
-  'chart-accounts', 'accounting', 'general-ledger', 'trial-balance', 'cost-centers', 'vat', 'reports', 'fiscal-years', 'fixed-assets', 'audit',
+  'employees', 'payroll-runs', 'attendance', 'advances',
+  'chart-accounts', 'accounting', 'cost-centers', 'fiscal-years', 'fixed-assets',
   'clients', 'suppliers', 'inventory', 'warehouses', 'stock-movements', 'users', 'settings',
   // Reports cycle
-  'report-income', 'report-trial', 'report-vat', 'report-cashflow', 'report-projects',
+  'report-income', 'report-balance', 'report-cashflow', 'report-ledger', 'report-trial', 'report-vat', 'report-projects', 'report-inventory', 'report-partners', 'report-employees',
   // Subcontractors cycle
   'sub-registry', 'sub-contracts', 'sub-invoices', 'sub-payments', 'sub-penalties',
 ]);
@@ -81,7 +81,6 @@ export const CYCLES = [
     tabs: [
       { key: 'employees',    ar: 'ملفات الموظفين',    en: 'Employee Files', Icon: UsersRound },
       { key: 'payroll-runs', ar: 'مسيرات الرواتب',    en: 'Payroll Runs',   Icon: Wallet },
-      { key: 'payroll-sheets', ar: 'كشوفات الرواتب',  en: 'Payroll Sheets', Icon: FileText },
       { key: 'attendance',   ar: 'الحضور والإجازات',  en: 'Attendance',     Icon: CalendarDays },
       { key: 'advances',     ar: 'السلف والاستقطاعات', en: 'Advances',      Icon: HandCoins },
     ],
@@ -94,14 +93,9 @@ export const CYCLES = [
     tabs: [
       { key: 'chart-accounts', ar: 'الدليل المحاسبي',   en: 'Chart of Accounts', Icon: Network },
       { key: 'accounting',     ar: 'دفتر اليومية',      en: 'Journal Entries',   Icon: BookOpen },
-      { key: 'general-ledger', ar: 'الأستاذ العام',     en: 'General Ledger',    Icon: Landmark },
-      { key: 'trial-balance',  ar: 'ميزان المراجعة',    en: 'Trial Balance',     Icon: Scale },
       { key: 'cost-centers',   ar: 'مراكز التكلفة',     en: 'Cost Centers',      Icon: PieChart },
-      { key: 'vat',            ar: 'ضريبة القيمة المضافة', en: 'VAT',            Icon: Shield },
-      { key: 'reports',        ar: 'التقارير المالية',   en: 'Financial Reports', Icon: BarChart3 },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },
       { key: 'fixed-assets',   ar: 'الأصول والإهلاك',    en: 'Fixed Assets',      Icon: Landmark },
-      { key: 'audit',          ar: 'التحقق المحاسبي',    en: 'Accounting Audit',  Icon: ShieldQuestion },
     ],
   },
   {
@@ -123,11 +117,16 @@ export const CYCLES = [
     Icon: BarChart3,
     color: { text: 'text-indigo-600', border: 'border-indigo-500', light: 'bg-indigo-50', bg: 'bg-indigo-600' },
     tabs: [
-      { key: 'report-income',   ar: 'قائمة الدخل',            en: 'Income Statement', Icon: TrendingUp },
-      { key: 'report-trial',    ar: 'ميزان المراجعة',         en: 'Trial Balance',    Icon: Scale },
-      { key: 'report-vat',      ar: 'ضريبة القيمة المضافة',   en: 'VAT Report',       Icon: Shield },
-      { key: 'report-cashflow', ar: 'التدفق النقدي',          en: 'Cash Flow',        Icon: Waves },
-      { key: 'report-projects', ar: 'تقارير المشاريع',        en: 'Project Reports',  Icon: PieChart },
+      { key: 'report-income',    ar: 'قائمة الدخل',              en: 'Income Statement', Icon: TrendingUp },
+      { key: 'report-balance',   ar: 'المركز المالي',            en: 'Balance Sheet',    Icon: Landmark },
+      { key: 'report-cashflow',  ar: 'التدفقات النقدية',         en: 'Cash Flow',        Icon: Waves },
+      { key: 'report-ledger',    ar: 'كشوفات الحساب',            en: 'Account Statements', Icon: BookOpen },
+      { key: 'report-trial',     ar: 'ميزان المراجعة',           en: 'Trial Balance',    Icon: Scale },
+      { key: 'report-vat',       ar: 'ضريبة القيمة المضافة',     en: 'VAT Report',       Icon: Shield },
+      { key: 'report-projects',  ar: 'تقارير المشاريع التفصيلية', en: 'Detailed Project Reports', Icon: PieChart },
+      { key: 'report-inventory', ar: 'تقارير المخازن',           en: 'Inventory Reports', Icon: Warehouse },
+      { key: 'report-partners',  ar: 'متابعة العملاء والموردين', en: 'Clients & Suppliers Follow-up', Icon: UsersRound },
+      { key: 'report-employees', ar: 'تقارير الموظفين',          en: 'Employee Reports', Icon: Users },
     ],
   },
   {

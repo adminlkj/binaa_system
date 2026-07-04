@@ -83,10 +83,15 @@ const TAB_CONTENT = {
   audit: <AuditSuite />,
   // Reports cycle
   'report-income': <Reports initialReport="income" hideSelector />,
+  'report-balance': <Reports initialReport="balance" hideSelector />,
+  'report-cashflow': <Reports initialReport="cashflow" hideSelector />,
+  'report-ledger': <GeneralLedger />,
   'report-trial': <TrialBalance />,
   'report-vat': <VATReport />,
-  'report-cashflow': <Reports initialReport="cashflow" hideSelector />,
   'report-projects': <ProjectReports />,
+  'report-inventory': <ComingSoon title="تقارير المخازن" titleEn="Inventory Reports" />,
+  'report-partners': <ComingSoon title="متابعة العملاء والموردين" titleEn="Clients & Suppliers Follow-up" />,
+  'report-employees': <PayrollSheets />,
   // Subcontractors cycle
   'sub-registry': <Subcontractors />,
   'sub-contracts': <SubContractsAll />,

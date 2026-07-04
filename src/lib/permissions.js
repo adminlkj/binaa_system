@@ -37,11 +37,8 @@ export const MODULES = [
   // Accounting
   { key: 'chart-accounts', ar: 'الدليل المحاسبي', en: 'Chart of Accounts', group: 'accounting' },
   { key: 'accounting', ar: 'دفتر اليومية', en: 'Journal', group: 'accounting' },
-  { key: 'general-ledger', ar: 'الأستاذ العام', en: 'General Ledger', group: 'accounting' },
-  { key: 'trial-balance', ar: 'ميزان المراجعة', en: 'Trial Balance', group: 'accounting' },
   { key: 'cost-centers', ar: 'مراكز التكلفة', en: 'Cost Centers', group: 'accounting' },
-  { key: 'vat', ar: 'ضريبة القيمة المضافة', en: 'VAT', group: 'accounting' },
-  { key: 'reports', ar: 'التقارير المالية', en: 'Reports', group: 'accounting' },
+  { key: 'reports', ar: 'التقارير', en: 'Reports', group: 'reports' },
   { key: 'fiscal-years', ar: 'السنوات المالية', en: 'Fiscal Years', group: 'accounting' },
   { key: 'fixed-assets', ar: 'الأصول والإهلاك', en: 'Fixed Assets', group: 'accounting' },
   // Master data & settings
@@ -100,7 +97,7 @@ export const APP_ROLES = {
   HR: {
     ar: 'موارد بشرية', en: 'Human Resources',
     color: 'bg-blue-100 text-blue-700 border border-blue-200',
-    modules: ['employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances'],
+    modules: ['employees', 'payroll-runs', 'attendance', 'advances', 'reports'],
   },
   OPERATOR: {
     ar: 'مشغّل معدات', en: 'Equipment Operator',

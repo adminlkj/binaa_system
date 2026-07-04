@@ -20,17 +20,19 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const [expenses, setExpenses] = useState([]);
   const [journal, setJournal] = useState([]);
   const [payroll, setPayroll] = useState([]);
+  const [accounts, setAccounts] = useState([]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, exp, je, pay] = await Promise.all([
+      const [inv, exp, je, pay, acc] = await Promise.all([
         base44.entities.SalesInvoice.list('-date'),
         base44.entities.Expense.list('-date'),
         base44.entities.JournalEntry.list('-date'),
         base44.entities.PayrollRun.list('-created_date'),
+        base44.entities.ChartAccount.list('code'),
       ]);
-      setInvoices(inv); setExpenses(exp); setJournal(je); setPayroll(pay);
+      setInvoices(inv); setExpenses(exp); setJournal(je); setPayroll(pay); setAccounts(acc);
     } catch (e) {
       console.error(e);
     }
@@ -70,12 +72,22 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     });
   });
   const trialBalanceRows = Object.values(accountBalances);
+  const accountMeta = Object.fromEntries(accounts.map(a => [a.code, a]));
+  const balanceRows = trialBalanceRows.map(row => {
+    const type = accountMeta[row.code]?.accountType || 'ASSET';
+    const amount = type === 'ASSET' ? row.debit - row.credit : row.credit - row.debit;
+    return { ...row, type, amount };
+  }).filter(r => ['ASSET', 'LIABILITY', 'EQUITY'].includes(r.type));
+  const totalAssets = balanceRows.filter(r => r.type === 'ASSET').reduce((s, r) => s + r.amount, 0);
+  const totalLiabilities = balanceRows.filter(r => r.type === 'LIABILITY').reduce((s, r) => s + r.amount, 0);
+  const totalEquity = balanceRows.filter(r => r.type === 'EQUITY').reduce((s, r) => s + r.amount, 0);
 
   const reports = [
-    { key: 'income', ar: 'قائمة الدخل', en: 'Income Statement' },
-    { key: 'trial', ar: 'ميزان المراجعة', en: 'Trial Balance' },
-    { key: 'vat', ar: 'تقرير ضريبة القيمة المضافة', en: 'VAT Report' },
-    { key: 'cashflow', ar: 'التدفق النقدي', en: 'Cash Flow' },
+    { key: 'income', ar: 'قائمة الدخل', en: 'Income Statement', groupAr: 'تقارير مالية', groupEn: 'Financial Reports' },
+    { key: 'balance', ar: 'المركز المالي (الميزانية)', en: 'Balance Sheet', groupAr: 'تقارير مالية', groupEn: 'Financial Reports' },
+    { key: 'cashflow', ar: 'التدفقات النقدية', en: 'Cash Flow', groupAr: 'تقارير مالية', groupEn: 'Financial Reports' },
+    { key: 'trial', ar: 'ميزان المراجعة', en: 'Trial Balance', groupAr: 'تقارير مالية', groupEn: 'Financial Reports' },
+    { key: 'vat', ar: 'تقرير ضريبة القيمة المضافة', en: 'VAT Report', groupAr: 'تقارير مالية', groupEn: 'Financial Reports' },
   ];
 
   const fmt = (n) => formatCurrency(n, lang);
@@ -102,6 +114,13 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     { header: { ar: 'الرصيد', en: 'Balance' }, value: (r) => `${fmt(Math.abs(r.debit - r.credit))} ${r.debit >= r.credit ? t('مدين', 'Dr', lang) : t('دائن', 'Cr', lang)}` },
   ];
 
+  const balanceColumns = [
+    { header: { ar: 'النوع', en: 'Type' }, value: (r) => r.type },
+    { header: { ar: 'كود الحساب', en: 'Account Code' }, value: (r) => r.code },
+    { header: { ar: 'اسم الحساب', en: 'Account Name' }, value: (r) => r.name },
+    { header: { ar: 'الرصيد', en: 'Balance' }, value: (r) => fmt(r.amount) },
+  ];
+
   const vatRows = [
     { label: t('ضريبة محصلة (مبيعات)', 'VAT Collected (Sales)', lang), amount: fmt(vatCollected) },
     { label: t('ضريبة مدفوعة (مشتريات)', 'VAT Paid (Purchases)', lang), amount: fmt(vatPaid) },
@@ -123,13 +142,16 @@ export default function Reports({ initialReport = 'income', hideSelector = false
       actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
     >
       {/* Report Selector */}
-      <div className={`flex gap-2 flex-wrap ${hideSelector ? 'hidden' : ''}`}>
-        {reports.map(r => (
-          <button key={r.key} onClick={() => setActiveReport(r.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeReport === r.key ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}>
-            {t(r.ar, r.en, lang)}
-          </button>
-        ))}
+      <div className={`space-y-2 ${hideSelector ? 'hidden' : ''}`}>
+        <p className="text-xs font-semibold text-muted-foreground">{t('تقارير مالية', 'Financial Reports', lang)}</p>
+        <div className="flex gap-2 flex-wrap">
+          {reports.map(r => (
+            <button key={r.key} onClick={() => setActiveReport(r.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeReport === r.key ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}>
+              {t(r.ar, r.en, lang)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -191,6 +213,49 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                         <TableCell>{t('صافي الربح', 'Net Profit', lang)}</TableCell>
                         <TableCell className={`text-end ${netProfit >= 0 ? 'text-teal-700' : 'text-amber-700'}`}>{formatCurrency(netProfit, lang)}</TableCell>
                       </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Balance Sheet */}
+          {activeReport === 'balance' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card className="border-t-4 border-t-emerald-500"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{t('إجمالي الأصول', 'Total Assets', lang)}</p><p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(totalAssets, lang)}</p></CardContent></Card>
+                <Card className="border-t-4 border-t-amber-500"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{t('إجمالي الالتزامات', 'Total Liabilities', lang)}</p><p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrency(totalLiabilities, lang)}</p></CardContent></Card>
+                <Card className="border-t-4 border-t-sky-500"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{t('حقوق الملكية', 'Equity', lang)}</p><p className="text-2xl font-bold text-sky-600 mt-1">{formatCurrency(totalEquity, lang)}</p></CardContent></Card>
+              </div>
+              <Card>
+                <CardHeader className="flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-base">{t('تفاصيل المركز المالي', 'Balance Sheet Details', lang)}</CardTitle>
+                  <TableToolbar columns={balanceColumns} rows={balanceRows} title={{ ar: 'المركز المالي', en: 'Balance Sheet' }} />
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('نوع الحساب', 'Account Type', lang)}</TableHead>
+                        <TableHead>{t('كود الحساب', 'Account Code', lang)}</TableHead>
+                        <TableHead>{t('اسم الحساب', 'Account Name', lang)}</TableHead>
+                        <TableHead className="text-end">{t('الرصيد', 'Balance', lang)}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {balanceRows.length === 0 ? (
+                        <TableRow><TableCell colSpan={4} className="text-center py-10 text-muted-foreground">{t('لا توجد أرصدة مرحّلة', 'No posted balances', lang)}</TableCell></TableRow>
+                      ) : balanceRows.map(row => (
+                        <TableRow key={row.code}>
+                          <TableCell>{row.type === 'ASSET' ? t('أصول', 'Assets', lang) : row.type === 'LIABILITY' ? t('التزامات', 'Liabilities', lang) : t('حقوق ملكية', 'Equity', lang)}</TableCell>
+                          <TableCell className="font-mono text-xs">{row.code}</TableCell>
+                          <TableCell className="font-medium">{row.name}</TableCell>
+                          <TableCell className="text-end font-semibold">{formatCurrency(row.amount, lang)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-bold bg-muted/50"><TableCell colSpan={3}>{t('إجمالي الأصول', 'Total Assets', lang)}</TableCell><TableCell className="text-end text-emerald-700">{formatCurrency(totalAssets, lang)}</TableCell></TableRow>
+                      <TableRow className="font-bold bg-muted/50"><TableCell colSpan={3}>{t('إجمالي الالتزامات وحقوق الملكية', 'Total Liabilities & Equity', lang)}</TableCell><TableCell className="text-end text-sky-700">{formatCurrency(totalLiabilities + totalEquity, lang)}</TableCell></TableRow>
                     </TableBody>
                   </Table>
                 </CardContent>

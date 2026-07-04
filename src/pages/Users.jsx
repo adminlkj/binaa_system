@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import { APP_ROLES, resolveUserModules } from '@/lib/permissions';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import SmartEntityCard from '@/components/shared/SmartEntityCard';
 import InviteUserDialog from '@/components/users/InviteUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
 import ApproveRegistrationDialog from '@/components/users/ApproveRegistrationDialog';
@@ -181,83 +182,39 @@ export default function Users() {
           </div>
 
           {loading ? (
-            <div className="py-16 text-center text-muted-foreground">{t('جارٍ التحميل...', 'Loading...', lang)}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => <Card key={i} className="h-44 bg-muted animate-pulse" />)}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">{t('لا يوجد مستخدمون', 'No users found', lang)}</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('المستخدم', 'User', lang)}</TableHead>
-                    <TableHead>{t('الدور الوظيفي', 'Role', lang)}</TableHead>
-                    <TableHead>{t('القسم', 'Department', lang)}</TableHead>
-                    <TableHead>{t('الصلاحيات', 'Access', lang)}</TableHead>
-                    <TableHead>{t('الحالة', 'Status', lang)}</TableHead>
-                    <TableHead className="text-end">{t('إجراءات', 'Actions', lang)}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map(u => {
-                    const roleMeta = APP_ROLES[u.appRole || 'VIEWER'];
-                    const moduleCount = resolveUserModules(u).length;
-                    const active = u.isActive !== false;
-                    return (
-                      <TableRow key={u.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            <div className="size-8 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center shrink-0">
-                              {(u.full_name || u.email || 'U').slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-medium text-sm truncate flex items-center gap-1">
-                                {u.full_name || '—'}
-                                {(u.role === 'admin' || u.appRole === 'OWNER') && <Crown className="size-3 text-violet-500" />}
-                              </div>
-                              <div className="text-xs text-muted-foreground truncate" dir="ltr">{u.email}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleMeta.color}`}>
-                            {lang === 'ar' ? roleMeta.ar : roleMeta.en}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{u.department || '—'}</TableCell>
-                        <TableCell>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <ShieldCheck className="size-3.5 text-emerald-500" />
-                            {(u.role === 'admin' || u.appRole === 'OWNER')
-                              ? t('كامل', 'Full', lang)
-                              : `${moduleCount} ${t('وحدة', 'modules', lang)}`}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                            {active ? t('نشط', 'Active', lang) : t('معطّل', 'Inactive', lang)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => setEditUser(u)} className="gap-1">
-                              <Pencil className="size-3.5" />{t('تعديل', 'Edit', lang)}
-                            </Button>
-                            {u.id !== me?.id && (
-                              <Button size="sm" variant="ghost" onClick={() => toggleActive(u)}
-                                className={active ? 'text-rose-600' : 'text-emerald-600'}>
-                                {active ? <Ban className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                      {t('لا يوجد مستخدمون', 'No users found', lang)}
-                    </TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filtered.map(u => {
+                const roleMeta = APP_ROLES[u.appRole || 'VIEWER'];
+                const moduleCount = resolveUserModules(u).length;
+                const active = u.isActive !== false;
+                const isOwner = u.role === 'admin' || u.appRole === 'OWNER';
+                return (
+                  <SmartEntityCard
+                    key={u.id}
+                    accent={isOwner ? 'violet' : 'slate'}
+                    title={u.full_name || u.email}
+                    subtitle={u.email}
+                    initials={(u.full_name || u.email || 'U').slice(0, 2).toUpperCase()}
+                    badges={[
+                      { label: lang === 'ar' ? roleMeta.ar : roleMeta.en, className: roleMeta.color },
+                      { label: active ? t('نشط', 'Active', lang) : t('معطّل', 'Inactive', lang), className: active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' },
+                    ]}
+                    meta={[
+                      { label: t('البريد', 'Email', lang), value: u.email, dir: 'ltr' },
+                      { label: t('القسم', 'Department', lang), value: u.department },
+                      { label: t('الصلاحيات', 'Access', lang), value: isOwner ? t('كامل', 'Full', lang) : `${moduleCount} ${t('وحدة', 'modules', lang)}` },
+                      { label: t('الدور', 'Role', lang), value: u.role || u.appRole },
+                    ]}
+                    actions={<><Button size="sm" variant="ghost" onClick={() => setEditUser(u)} className="size-8 p-0"><Pencil className="size-3.5" /></Button>{u.id !== me?.id && <Button size="sm" variant="ghost" onClick={() => toggleActive(u)} className={`size-8 p-0 ${active ? 'text-rose-600' : 'text-emerald-600'}`}>{active ? <Ban className="size-3.5" /> : <CheckCircle2 className="size-3.5" />}</Button>}</>}
+                  />
+                );
+              })}
             </div>
           )}
         </CardContent>

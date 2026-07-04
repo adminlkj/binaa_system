@@ -14,10 +14,11 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
+import SmartEntityCard from '@/components/shared/SmartEntityCard';
 import { toast } from 'sonner';
 
 const STATUSES = { ACTIVE: { ar: 'نشط', en: 'Active', color: 'bg-emerald-100 text-emerald-700' }, ON_LEAVE: { ar: 'إجازة', en: 'On Leave', color: 'bg-amber-100 text-amber-700' }, TERMINATED: { ar: 'منتهي', en: 'Terminated', color: 'bg-rose-100 text-rose-700' } };
-const empty = { code: '', name: '', nameAr: '', position: '', department: '', phone: '', email: '', nationalId: '', nationality: '', hireDate: '', salary: '', allowances: '', status: 'ACTIVE', notes: '' };
+const empty = { code: '', name: '', nameAr: '', photoUrl: '', position: '', department: '', phone: '', email: '', nationalId: '', nationality: '', hireDate: '', salary: '', allowances: '', status: 'ACTIVE', notes: '' };
 
 export default function Employees() {
   const { lang, setEmployeeContext, setActiveItem } = useStore();
@@ -31,6 +32,7 @@ export default function Employees() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -64,6 +66,19 @@ export default function Employees() {
   const remove = async () => {
     try { await base44.entities.Employee.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+  };
+
+  const uploadPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(f => ({ ...f, photoUrl: file_url }));
+    } catch {
+      toast.error(t('فشل رفع الصورة', 'Photo upload failed', lang));
+    }
+    setUploadingPhoto(false);
   };
 
   const totalSalaries = items.filter(i => i.status === 'ACTIVE').reduce((s, e) => s + (e.salary || 0) + (e.allowances || 0), 0);
@@ -119,56 +134,53 @@ export default function Employees() {
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
       </div>
 
-      <Card>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('الكود', 'Code', lang)}</TableHead>
-                <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
-                <TableHead>{t('المنصب', 'Position', lang)}</TableHead>
-                <TableHead>{t('القسم', 'Department', lang)}</TableHead>
-                <TableHead>{t('الراتب', 'Salary', lang)}</TableHead>
-                <TableHead>{t('البدلات', 'Allowances', lang)}</TableHead>
-                <TableHead>{t('الجنسية', 'Nationality', lang)}</TableHead>
-                <TableHead>{t('الحالة', 'Status', lang)}</TableHead>
-                <TableHead>{t('الإجراءات', 'Actions', lang)}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا يوجد موظفون', 'No employees', lang)}</TableCell></TableRow>
-                : filtered.map(item => {
-                  const st = STATUSES[item.status] || STATUSES.ACTIVE;
-                  return (
-                    <TableRow key={item.id} className="hover:bg-muted/30">
-                      <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-sm">{item.position || '—'}</TableCell>
-                      <TableCell className="text-sm">{item.department || '—'}</TableCell>
-                      <TableCell className="font-medium">{formatCurrency(item.salary, lang)}</TableCell>
-                      <TableCell className="text-sm text-emerald-600">{item.allowances ? formatCurrency(item.allowances, lang) : '—'}</TableCell>
-                      <TableCell className="text-sm">{item.nationality || '—'}</TableCell>
-                      <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="size-8 text-violet-600" title={t('مركز العمل', 'Workspace', lang)} onClick={() => { setEmployeeContext(item.id, item.name); setActiveItem('employee-workspace'); }}><LayoutGrid className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-            </TableBody>
-          </Table>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <Card key={i} className="h-48 bg-muted animate-pulse" />)}
         </div>
-      </Card>
+      ) : filtered.length === 0 ? (
+        <Card className="py-14 text-center text-muted-foreground">{t('لا يوجد موظفون', 'No employees', lang)}</Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map(item => {
+            const st = STATUSES[item.status] || STATUSES.ACTIVE;
+            return (
+              <SmartEntityCard
+                key={item.id}
+                accent="violet"
+                title={item.name}
+                subtitle={`${item.position || t('موظف', 'Employee', lang)}${item.department ? ` — ${item.department}` : ''}`}
+                code={item.code}
+                avatarUrl={item.photoUrl}
+                initials={(item.name || 'EM').slice(0, 2).toUpperCase()}
+                badges={[{ label: lang === 'ar' ? st.ar : st.en, className: st.color }]}
+                meta={[
+                  { label: t('إجمالي الراتب', 'Total Pay', lang), value: formatCurrency((item.salary || 0) + (item.allowances || 0), lang) },
+                  { label: t('الهاتف', 'Phone', lang), value: item.phone, dir: 'ltr' },
+                  { label: t('الجنسية', 'Nationality', lang), value: item.nationality },
+                  { label: t('تاريخ التعيين', 'Hire Date', lang), value: item.hireDate ? formatDate(item.hireDate, lang) : '' },
+                ]}
+                actions={<><Button variant="ghost" size="icon" className="size-8 text-violet-600" title={t('مركز العمل', 'Workspace', lang)} onClick={() => { setEmployeeContext(item.id, item.name); setActiveItem('employee-workspace'); }}><LayoutGrid className="size-3.5" /></Button><Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button><Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button></>}
+              />
+            );
+          })}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">{filtered.length} {t('موظف', 'employees', lang)}</p>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل موظف', 'Edit Employee', lang) : t('موظف جديد', 'New Employee', lang)}</DialogTitle></DialogHeader>
+          <div className="flex items-center gap-4 rounded-xl border bg-muted/30 p-3">
+            <div className="size-20 rounded-2xl overflow-hidden bg-violet-100 text-violet-700 flex items-center justify-center font-bold text-xl shrink-0">
+              {form.photoUrl ? <img src={form.photoUrl} alt={form.name || ''} className="size-full object-cover" /> : (form.name || 'مو').slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>{t('صورة الموظف', 'Employee Photo', lang)}</Label>
+              <Input type="file" accept="image/*" onChange={uploadPhoto} disabled={uploadingPhoto} />
+              <p className="text-xs text-muted-foreground">{uploadingPhoto ? t('جاري رفع الصورة...', 'Uploading photo...', lang) : t('إذا لم تُرفق صورة ستظهر صورة افتراضية تلقائياً.', 'If no photo is uploaded, a default avatar is shown automatically.', lang)}</p>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4 py-2">
             {[['code', t('الكود', 'Code', lang)], ['name', t('الاسم', 'Name', lang)], ['nameAr', t('الاسم بالعربية', 'Name (Arabic)', lang)], ['position', t('المنصب', 'Position', lang)], ['department', t('القسم', 'Department', lang)], ['phone', t('الهاتف', 'Phone', lang)], ['email', t('البريد الإلكتروني', 'Email', lang)], ['nationalId', t('رقم الهوية', 'National ID', lang)], ['nationality', t('الجنسية', 'Nationality', lang)]].map(([field, label]) => (
               <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>

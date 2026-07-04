@@ -14,6 +14,7 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import PartyStatementSection from '@/components/partners/PartyStatementSection';
+import SmartEntityCard from '@/components/shared/SmartEntityCard';
 import { toast } from 'sonner';
 
 const empty = { code: '', name: '', nameAr: '', phone: '', email: '', address: '', taxNumber: '', contactPerson: '', notes: '' };
@@ -110,43 +111,34 @@ export default function Clients() {
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
       </div>
 
-      <Card>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('الكود', 'Code', lang)}</TableHead>
-                <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
-                <TableHead>{t('الهاتف', 'Phone', lang)}</TableHead>
-                <TableHead>{t('البريد الإلكتروني', 'Email', lang)}</TableHead>
-                <TableHead>{t('الرقم الضريبي', 'Tax Number', lang)}</TableHead>
-                <TableHead>{t('شخص التواصل', 'Contact', lang)}</TableHead>
-                <TableHead>{t('الإجراءات', 'Actions', lang)}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">{t('لا يوجد عملاء', 'No clients found', lang)}</TableCell></TableRow>
-                : filtered.map(item => (
-                  <TableRow key={item.id} className="hover:bg-muted/30">
-                    <TableCell className="font-mono text-xs font-medium">{item.code}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.phone || '—'}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.email || '—'}</TableCell>
-                    <TableCell className="text-sm">{item.taxNumber || '—'}</TableCell>
-                    <TableCell className="text-sm">{item.contactPerson || '—'}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <Card key={i} className="h-44 bg-muted animate-pulse" />)}
         </div>
-      </Card>
+      ) : filtered.length === 0 ? (
+        <Card className="py-14 text-center text-muted-foreground">{t('لا يوجد عملاء', 'No clients found', lang)}</Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map(item => (
+            <SmartEntityCard
+              key={item.id}
+              accent="emerald"
+              title={item.name}
+              subtitle={item.nameAr || item.contactPerson || item.address}
+              code={item.code}
+              initials={(item.name || 'CL').slice(0, 2).toUpperCase()}
+              badges={[{ label: t('عميل', 'Client', lang), className: 'bg-emerald-100 text-emerald-700' }]}
+              meta={[
+                { label: t('الهاتف', 'Phone', lang), value: item.phone, dir: 'ltr' },
+                { label: t('البريد', 'Email', lang), value: item.email, dir: 'ltr' },
+                { label: t('الرقم الضريبي', 'Tax Number', lang), value: item.taxNumber },
+                { label: t('شخص التواصل', 'Contact', lang), value: item.contactPerson },
+              ]}
+              actions={<><Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button><Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button></>}
+            />
+          ))}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">{filtered.length} {t('عميل', 'clients', lang)}</p>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

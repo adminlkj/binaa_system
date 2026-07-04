@@ -1,6 +1,7 @@
 import pg from 'pg';
 import crypto from 'crypto';
 import { existsSync, readFileSync } from 'fs';
+import { buildStandardAccounts } from '../src/lib/standardChart.js';
 
 const { Pool } = pg;
 const SYSTEM_OWNER_EMAIL = 'fysl71443@gmail.com';
@@ -34,6 +35,42 @@ export const pool = new Pool({
   connectionString: databaseUrl,
   ssl: databaseUrl.includes('.render.com') ? { rejectUnauthorized: false } : false,
 });
+
+function fiscalYearPayload(date = new Date()) {
+  const year = date.getFullYear();
+  return {
+    name: `السنة المالية ${year}`,
+    year,
+    startDate: `${year}-01-01`,
+    endDate: `${year}-12-31`,
+    status: 'OPEN',
+    isCurrent: true,
+    notes: 'تم إنشاؤها تلقائياً عند بدء النظام',
+  };
+}
+
+async function seedCoreData() {
+  const { rows: ownerRows } = await pool.query('SELECT id FROM app_users WHERE email = $1 LIMIT 1', [SYSTEM_OWNER_EMAIL]);
+  const ownerId = ownerRows[0]?.id || null;
+
+  const { rows: fiscalRows } = await pool.query("SELECT id FROM entity_records WHERE entity_name = 'FiscalYear' AND data->>'status' = 'OPEN' LIMIT 1");
+  if (!fiscalRows[0]) {
+    await pool.query(
+      'INSERT INTO entity_records (entity_name, id, created_by_id, data) VALUES ($1, $2, $3, $4::jsonb)',
+      ['FiscalYear', crypto.randomUUID(), ownerId, JSON.stringify(fiscalYearPayload())]
+    );
+  }
+
+  const { rows: existingCodes } = await pool.query("SELECT data->>'code' AS code FROM entity_records WHERE entity_name = 'ChartAccount'");
+  const existing = new Set(existingCodes.map((row) => row.code).filter(Boolean));
+  for (const account of buildStandardAccounts()) {
+    if (existing.has(account.code)) continue;
+    await pool.query(
+      'INSERT INTO entity_records (entity_name, id, created_by_id, data) VALUES ($1, $2, $3, $4::jsonb)',
+      ['ChartAccount', crypto.randomUUID(), ownerId, JSON.stringify(account)]
+    );
+  }
+}
 
 export async function initDb() {
   await pool.query(`
@@ -121,4 +158,6 @@ export async function initDb() {
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_entity_records_name ON entity_records(entity_name);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_entity_records_data ON entity_records USING GIN (data);`);
+
+  await seedCoreData();
 }

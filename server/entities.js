@@ -3,6 +3,34 @@ import path from 'path';
 import crypto from 'crypto';
 import { pool } from './db.js';
 
+const FISCAL_GUARDED_ENTITIES = new Set([
+  'JournalEntry', 'SalesInvoice', 'PurchaseOrder', 'SupplierInvoice', 'RentalInvoice',
+  'Expense', 'PayrollRun', 'ClientPayment', 'SupplierPayment',
+  'SubcontractorInvoice', 'SubcontractorPayment', 'StockMovement',
+  'GoodsReceipt', 'FixedAsset', 'OperatingHours', 'FuelLog',
+  'MaintenanceRecord', 'AttendanceRecord', 'EmployeeAdvance',
+]);
+
+function recordFiscalDate(entityName, data = {}) {
+  if (data.date) return data.date;
+  if (data.paymentDate) return data.paymentDate;
+  if (data.acquisitionDate) return data.acquisitionDate;
+  if (data.startDate) return data.startDate;
+  if (entityName === 'PayrollRun' && data.year && data.month) return `${data.year}-${String(data.month).padStart(2, '0')}-01`;
+  return null;
+}
+
+async function assertOpenFiscalYear(entityName, data) {
+  if (!FISCAL_GUARDED_ENTITIES.has(entityName)) return;
+  const date = recordFiscalDate(entityName, data);
+  if (!date) return;
+  const years = await listEntity('FiscalYear', { query: {}, limit: 1000 });
+  const openYears = (years || []).filter((y) => y.status === 'OPEN');
+  if (openYears.length === 0) throw new Error('لا توجد سنة مالية مفتوحة — افتح سنة مالية قبل إنشاء أو تعديل العمليات');
+  const match = openYears.find((y) => y.startDate && y.endDate && date >= y.startDate && date <= y.endDate);
+  if (!match) throw new Error(`تاريخ العملية ${date} لا يقع ضمن سنة مالية مفتوحة`);
+}
+
 const schemaCache = new Map();
 
 function stripJsonComments(text) {
@@ -75,6 +103,7 @@ export async function getEntity(entityName, id) {
 }
 
 export async function createEntity(entityName, data, user) {
+  await assertOpenFiscalYear(entityName, data);
   const id = crypto.randomUUID();
   const cleanData = { ...data };
   delete cleanData.id;
@@ -89,6 +118,8 @@ export async function createEntity(entityName, data, user) {
 }
 
 export async function updateEntity(entityName, id, data) {
+  const current = await getEntity(entityName, id);
+  await assertOpenFiscalYear(entityName, { ...(current || {}), ...(data || {}) });
   const cleanData = { ...data };
   delete cleanData.id;
   delete cleanData.created_date;
@@ -107,12 +138,17 @@ export async function deleteEntity(entityName, id) {
 }
 
 export async function bulkCreateEntity(entityName, items, user) {
+  for (const item of items || []) await assertOpenFiscalYear(entityName, item);
   const created = [];
   for (const item of items) created.push(await createEntity(entityName, item, user));
   return created;
 }
 
 export async function bulkUpdateEntity(entityName, items) {
+  for (const item of items || []) {
+    const current = item?.id ? await getEntity(entityName, item.id) : null;
+    await assertOpenFiscalYear(entityName, { ...(current || {}), ...(item || {}) });
+  }
   const updated = [];
   for (const item of items) updated.push(await updateEntity(entityName, item.id, item));
   return updated.filter(Boolean);

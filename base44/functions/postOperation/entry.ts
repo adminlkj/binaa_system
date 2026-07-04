@@ -782,10 +782,14 @@ function assertJEIntegrity(je) {
   if (Math.abs((je.totalDebit || 0) - sumDebit) >= 0.01 || Math.abs((je.totalCredit || 0) - sumCredit) >= 0.01) throw new Error(`القيد ${je.entryNo || ''} إجمالياته لا تطابق سطوره`);
 }
 
-// يرفض ترحيل قيد تاريخه يقع ضمن سنة مالية مغلقة (CLOSED) أو مقفلة (LOCKED).
+// يرفض ترحيل أي قيد ما لم يقع تاريخه داخل سنة مالية مفتوحة.
 async function assertPeriodOpen(base44, date) {
   if (!date) return;
   const years = await base44.asServiceRole.entities.FiscalYear.filter({});
+  const openYears = (years || []).filter((y) => y.status === 'OPEN');
+  if (openYears.length === 0) throw new Error('لا توجد سنة مالية مفتوحة — افتح سنة مالية قبل ترحيل القيود');
+  const openMatch = openYears.find((y) => y.startDate && y.endDate && date >= y.startDate && date <= y.endDate);
+  if (openMatch) return;
   const locking = (years || []).find((y) =>
     (y.status === 'CLOSED' || y.status === 'LOCKED') &&
     y.startDate && y.endDate && date >= y.startDate && date <= y.endDate
@@ -793,6 +797,7 @@ async function assertPeriodOpen(base44, date) {
   if (locking) {
     throw new Error(`لا يمكن الترحيل في فترة مقفلة — السنة المالية "${locking.name}" (${locking.status}) تشمل التاريخ ${date}`);
   }
+  throw new Error(`تاريخ القيد ${date} لا يقع ضمن سنة مالية مفتوحة`);
 }
 
 // يرحّل القيد ذرّياً بصلاحية الخدمة، ويمنع التكرار بنفس رقم القيد، ويرفض الفترة المقفلة.
@@ -1336,6 +1341,27 @@ async function restoreStatus(base44, entityName, id, prevStatus) {
 }
 
 // ─── التوجيه ──────────────────────────────────────────────────────────────────
+function operationDate(data = {}) {
+  if (data.date) return data.date;
+  if (data.paymentDate) return data.paymentDate;
+  if (data.acquisitionDate) return data.acquisitionDate;
+  if (data.startDate) return data.startDate;
+  if (data.year && data.month) return `${data.year}-${String(data.month).padStart(2, '0')}-01`;
+  return null;
+}
+
+async function requireOpenFiscalYearForPayload(base44, payload) {
+  if (!['create', 'update'].includes(payload?.mode)) return;
+  const date = operationDate(payload?.data || {});
+  if (date) await assertPeriodOpen(base44, date);
+}
+
+async function guarded(base44, payload, handler) {
+  await requireOpenFiscalYearForPayload(base44, payload);
+  return await handler(base44, payload);
+}
+
+// ─── التوجيه ──────────────────────────────────────────────────────────────────
 const HANDLERS = {
   CHART_ACCOUNT:   { create: (b, p) => createChartAccount(b, p.data, p.openingBalance) },
   SALES_INVOICE:   { create: (b, p) => createSalesInvoice(b, p.data), update: (b, p) => updateSalesInvoice(b, p.id, p.data, p.prevStatus), approve: (b, p) => approveSalesInvoice(b, p.id) },
@@ -1366,7 +1392,7 @@ Deno.serve(async (req) => {
     const handler = group[mode];
     if (!handler) return Response.json({ error: `وضع غير معروف: ${mode}` }, { status: 400 });
 
-    const result = await handler(base44, body);
+    const result = await guarded(base44, body, handler);
     return Response.json({ success: true, record: result });
   } catch (error) {
     return Response.json({ success: false, error: error?.message || 'فشل تنفيذ العملية' }, { status: 400 });

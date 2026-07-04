@@ -13,7 +13,7 @@ function loadFunctionScope(functionName) {
   const serveIndex = source.indexOf('Deno.serve');
   if (serveIndex >= 0) source = source.slice(0, serveIndex);
 
-  const factory = new Function(`${source}\nreturn {\n  HANDLERS: typeof HANDLERS !== 'undefined' ? HANDLERS : undefined,\n  capitalizeAsset: typeof capitalizeAsset !== 'undefined' ? capitalizeAsset : undefined,\n  depreciateAsset: typeof depreciateAsset !== 'undefined' ? depreciateAsset : undefined,\n  depreciateAll: typeof depreciateAll !== 'undefined' ? depreciateAll : undefined,\n};`);
+  const factory = new Function(`${source}\nreturn {\n  HANDLERS: typeof HANDLERS !== 'undefined' ? HANDLERS : undefined,\n  guarded: typeof guarded !== 'undefined' ? guarded : undefined,\n  capitalizeAsset: typeof capitalizeAsset !== 'undefined' ? capitalizeAsset : undefined,\n  depreciateAsset: typeof depreciateAsset !== 'undefined' ? depreciateAsset : undefined,\n  depreciateAll: typeof depreciateAll !== 'undefined' ? depreciateAll : undefined,\n};`);
   const scope = factory();
   cache.set(functionName, scope);
   return scope;
@@ -23,13 +23,13 @@ export async function runStandaloneFunction(functionName, payload, user) {
   const base44 = createBase44Adapter(user);
 
   if (functionName === 'postOperation') {
-    const { HANDLERS } = loadFunctionScope('postOperation');
+    const { HANDLERS, guarded } = loadFunctionScope('postOperation');
     const { operation, mode } = payload || {};
     const group = HANDLERS?.[operation];
     if (!group) throw new Error(`عملية غير معروفة: ${operation}`);
     const handler = group[mode];
     if (!handler) throw new Error(`وضع غير معروف: ${mode}`);
-    const record = await handler(base44, payload);
+    const record = guarded ? await guarded(base44, payload, handler) : await handler(base44, payload);
     return { success: true, record };
   }
 

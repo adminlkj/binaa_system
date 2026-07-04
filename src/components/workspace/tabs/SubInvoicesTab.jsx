@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Paperclip } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
 import CrudTab from '@/components/workspace/CrudTab';
+import InvoiceAttachmentField from '@/components/shared/InvoiceAttachmentField';
 
 const STATUS = {
   DRAFT: { ar: 'مسودة', en: 'Draft', color: 'bg-gray-100 text-gray-700' },
@@ -66,6 +67,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
         subcontractorId, subcontractorContractId: '', invoiceNo: genCode('SINV', rows.length + 1), invoiceType: 'PROGRESS',
         date: new Date().toISOString().slice(0, 10), dueDate: '',
         baseAmount: 0, retentionAmount: 0, paidAmount: 0, status: 'DRAFT', description: '', notes: '',
+        invoiceAttachmentUrl: '', invoiceAttachmentName: '', invoiceAttachmentType: '',
       })}
       validate={(f) => (!f.invoiceNo?.trim() ? t('أدخل رقم المستخلص', 'Enter invoice number', lang) : null)}
       buildPayload={(f) => {
@@ -77,6 +79,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
           baseAmount: Number(f.baseAmount) || 0, retentionAmount: Number(f.retentionAmount) || 0,
           vatAmount: vat, totalAmount: total, paidAmount: Number(f.paidAmount) || 0,
           status: f.status, description: f.description, notes: f.notes,
+          invoiceAttachmentUrl: f.invoiceAttachmentUrl || '', invoiceAttachmentName: f.invoiceAttachmentName || '', invoiceAttachmentType: f.invoiceAttachmentType || '',
         };
       }}
       labels={{
@@ -100,6 +103,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
         { header: { ar: 'التاريخ', en: 'Date' }, cell: r => <span className="text-xs text-muted-foreground">{formatDate(r.date, lang)}</span> },
         { header: { ar: 'الإجمالي', en: 'Total' }, cell: r => formatCurrency(r.totalAmount, lang) },
         { header: { ar: 'المدفوع', en: 'Paid' }, cell: r => <span className="text-emerald-600">{formatCurrency(r.paidAmount, lang)}</span> },
+        { header: { ar: 'المرفق', en: 'Attachment' }, cell: r => r.invoiceAttachmentUrl ? <a href={r.invoiceAttachmentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline"><Paperclip className="size-3.5" />{t('فتح', 'Open', lang)}</a> : <span className="text-xs text-muted-foreground">—</span> },
         { header: { ar: 'الحالة', en: 'Status' }, cell: r => {
           const s = STATUS[r.status] || STATUS.DRAFT;
           return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.color}`}>{lang === 'ar' ? s.ar : s.en}</span>;
@@ -144,6 +148,13 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
               <div className="flex justify-between"><span className="text-muted-foreground">{t('الضريبة 15%', 'VAT 15%', lang)}</span><span className="tabular-nums">{formatCurrency(vat, lang)}</span></div>
               <div className="flex justify-between font-bold pt-1 border-t"><span>{t('المستحق للدفع', 'Payable Total', lang)}</span><span className="tabular-nums">{formatCurrency(total, lang)}</span></div>
             </div>
+            <InvoiceAttachmentField
+              className="md:col-span-2"
+              label={t('مرفق فاتورة/مستخلص المقاول', 'Subcontractor invoice attachment', lang)}
+              url={form.invoiceAttachmentUrl}
+              name={form.invoiceAttachmentName}
+              onChange={(file) => { set('invoiceAttachmentUrl', file.url); set('invoiceAttachmentName', file.name); set('invoiceAttachmentType', file.type); }}
+            />
             <div className="space-y-1.5 md:col-span-2"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} rows={2} /></div>
           </>
         );

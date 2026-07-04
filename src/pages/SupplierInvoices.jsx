@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, Paperclip } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,8 @@ import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
+import InvoiceAttachmentField from '@/components/shared/InvoiceAttachmentField';
+import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
 import { OperationEngine } from '@/lib/businessEngine';
 import { toast } from 'sonner';
 
@@ -31,7 +33,7 @@ const empty = {
   goodsReceiptId: '', receiptNo: '', warehouseId: '', warehouseName: '',
   projectId: '', projectName: '', date: '', dueDate: '',
   baseAmount: '', vatRate: '0.15', paidAmount: '', status: 'DRAFT',
-  description: '', notes: '',
+  description: '', notes: '', invoiceAttachmentUrl: '', invoiceAttachmentName: '', invoiceAttachmentType: '',
 };
 
 export default function SupplierInvoices() {
@@ -50,6 +52,7 @@ export default function SupplierInvoices() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -163,6 +166,7 @@ export default function SupplierInvoices() {
     { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
     { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.totalAmount || 0 },
     { header: { ar: 'المسدد', en: 'Paid' }, value: (r) => r.paidAmount || 0 },
+    { header: { ar: 'المرفق', en: 'Attachment' }, value: (r) => r.invoiceAttachmentName || '' },
     { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
   ];
 
@@ -213,15 +217,16 @@ export default function SupplierInvoices() {
                 <TableHead>{t('التاريخ', 'Date', lang)}</TableHead>
                 <TableHead>{t('الإجمالي', 'Total', lang)}</TableHead>
                 <TableHead>{t('المسدد', 'Paid', lang)}</TableHead>
+                <TableHead>{t('المرفق', 'Attachment', lang)}</TableHead>
                 <TableHead>{t('الحالة', 'Status', lang)}</TableHead>
                 <TableHead>{t('الإجراءات', 'Actions', lang)}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading
-                ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 9 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
                 : filtered.length === 0
-                  ? <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">{t('لا توجد فواتير', 'No invoices', lang)}</TableCell></TableRow>
+                  ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا توجد فواتير', 'No invoices', lang)}</TableCell></TableRow>
                   : filtered.map(item => {
                     const st = STATUS[item.status] || STATUS.DRAFT;
                     return (
@@ -232,6 +237,13 @@ export default function SupplierInvoices() {
                         <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
                         <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
                         <TableCell className="text-sm">{formatCurrency(item.paidAmount, lang)}</TableCell>
+                        <TableCell>
+                          {item.invoiceAttachmentUrl ? (
+                            <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={() => setPreviewFile({ url: item.invoiceAttachmentUrl, name: item.invoiceAttachmentName || item.invoiceNo })}>
+                              <Paperclip className="size-3.5" />{t('عرض', 'View', lang)}
+                            </Button>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </TableCell>
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
                           <div className="flex gap-1 items-center">
@@ -320,6 +332,13 @@ export default function SupplierInvoices() {
                 <SelectContent>{Object.entries(STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <InvoiceAttachmentField
+              className="col-span-2"
+              label={t('مرفق فاتورة المورد', 'Supplier invoice attachment', lang)}
+              url={form.invoiceAttachmentUrl}
+              name={form.invoiceAttachmentName}
+              onChange={(file) => setForm(f => ({ ...f, invoiceAttachmentUrl: file.url, invoiceAttachmentName: file.name, invoiceAttachmentType: file.type }))}
+            />
             <div className="col-span-2 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
@@ -333,6 +352,13 @@ export default function SupplierInvoices() {
         title={t('حذف الفاتورة', 'Delete Invoice', lang)}
         description={t('سيتم حذف الفاتورة نهائياً.', 'This invoice will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <FilePreviewDialog
+        open={!!previewFile}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+        url={previewFile?.url}
+        name={previewFile?.name}
+      />
     </ModuleLayout>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, ExternalLink, FileText } from 'lucide-react';
+import { Download, ExternalLink, FileText, Printer } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,17 @@ export default function FilePreviewDialog({ open, onOpenChange, url, name }) {
   const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
   const isPdf = ext === 'pdf';
 
+  const printFile = () => {
+    if (!url) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const content = isImage
+      ? `<img src="${url}" style="max-width:100%;height:auto;display:block;margin:auto;" />`
+      : `<iframe src="${url}" style="width:100%;height:100vh;border:0;"></iframe>`;
+    w.document.write(`<html><head><title>${name || 'Document'}</title></head><body style="margin:0;">${content}<script>window.onload=function(){setTimeout(function(){window.print();},500)}<\/script></body></html>`);
+    w.document.close();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] p-0 overflow-hidden">
@@ -20,11 +31,12 @@ export default function FilePreviewDialog({ open, onOpenChange, url, name }) {
           <DialogTitle className="truncate text-base">{name || t('معاينة المستند', 'Document Preview', lang)}</DialogTitle>
           {url && (
             <div className="flex items-center gap-1 shrink-0">
+              <Button type="button" variant="outline" size="sm" className="gap-1" onClick={printFile}><Printer className="size-3.5" />{t('طباعة', 'Print', lang)}</Button>
               <a href={url} target="_blank" rel="noreferrer">
-                <Button variant="outline" size="sm" className="gap-1"><ExternalLink className="size-3.5" />{t('فتح', 'Open', lang)}</Button>
+                <Button type="button" variant="outline" size="sm" className="gap-1"><ExternalLink className="size-3.5" />{t('فتح', 'Open', lang)}</Button>
               </a>
               <a href={url} download={name || true}>
-                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700"><Download className="size-3.5" />{t('تحميل', 'Download', lang)}</Button>
+                <Button type="button" size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700"><Download className="size-3.5" />{t('تحميل', 'Download', lang)}</Button>
               </a>
             </div>
           )}

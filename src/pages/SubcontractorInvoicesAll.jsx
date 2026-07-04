@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ReceiptText, RefreshCw, Search } from 'lucide-react';
+import { ReceiptText, RefreshCw, Search, Paperclip } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
+import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const STATUS = {
@@ -26,6 +27,7 @@ export default function SubcontractorInvoicesAll() {
   const [subs, setSubs] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [previewFile, setPreviewFile] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -53,6 +55,7 @@ export default function SubcontractorInvoicesAll() {
     { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => r.date },
     { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.totalAmount || 0 },
     { header: { ar: 'المدفوع', en: 'Paid' }, value: (r) => r.paidAmount || 0 },
+    { header: { ar: 'المرفق', en: 'Attachment' }, value: (r) => r.invoiceAttachmentName || '' },
     { header: { ar: 'الحالة', en: 'Status' }, value: (r) => { const st = STATUS[r.status]; return st ? (lang === 'ar' ? st.ar : st.en) : r.status; } },
   ];
 
@@ -81,14 +84,15 @@ export default function SubcontractorInvoicesAll() {
                 <TableHead>{t('التاريخ', 'Date', lang)}</TableHead>
                 <TableHead className="text-end">{t('الإجمالي', 'Total', lang)}</TableHead>
                 <TableHead className="text-end">{t('المدفوع', 'Paid', lang)}</TableHead>
+                <TableHead>{t('المرفق', 'Attachment', lang)}</TableHead>
                 <TableHead>{t('الحالة', 'Status', lang)}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">{t('جاري التحميل...', 'Loading...', lang)}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">{t('جاري التحميل...', 'Loading...', lang)}</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground"><ReceiptText className="size-10 mx-auto mb-2 text-muted-foreground/40" />{t('لا توجد مستخلصات', 'No invoices', lang)}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground"><ReceiptText className="size-10 mx-auto mb-2 text-muted-foreground/40" />{t('لا توجد مستخلصات', 'No invoices', lang)}</TableCell></TableRow>
               ) : filtered.map(r => {
                 const s = STATUS[r.status] || STATUS.DRAFT;
                 return (
@@ -98,6 +102,13 @@ export default function SubcontractorInvoicesAll() {
                     <TableCell className="text-xs text-muted-foreground">{formatDate(r.date, lang)}</TableCell>
                     <TableCell className="text-end">{formatCurrency(r.totalAmount, lang)}</TableCell>
                     <TableCell className="text-end text-emerald-600">{formatCurrency(r.paidAmount, lang)}</TableCell>
+                    <TableCell>
+                      {r.invoiceAttachmentUrl ? (
+                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={(e) => { e.stopPropagation(); setPreviewFile({ url: r.invoiceAttachmentUrl, name: r.invoiceAttachmentName || r.invoiceNo }); }}>
+                          <Paperclip className="size-3.5" />{t('عرض', 'View', lang)}
+                        </Button>
+                      ) : <span className="text-xs text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.color}`}>{lang === 'ar' ? s.ar : s.en}</span></TableCell>
                   </TableRow>
                 );
@@ -106,6 +117,12 @@ export default function SubcontractorInvoicesAll() {
           </Table>
         </div>
       </Card>
+      <FilePreviewDialog
+        open={!!previewFile}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+        url={previewFile?.url}
+        name={previewFile?.name}
+      />
     </ModuleLayout>
   );
 }

@@ -94,7 +94,7 @@ export default function NotificationCenter() {
   const count = tasks.length;
 
   return (
-    <div className="relative" ref={boxRef}>
+    <div className="relative font-body" ref={boxRef}>
       <button onClick={() => setOpen(o => !o)} className="relative size-9 flex items-center justify-center rounded-lg hover:bg-muted transition-colors">
         <Bell className="size-5" />
         {count > 0 && (

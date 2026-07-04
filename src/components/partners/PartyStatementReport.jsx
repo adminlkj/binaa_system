@@ -3,7 +3,7 @@ import { Printer, X, ArrowDownCircle, ArrowUpCircle, Scale, Building2 } from 'lu
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency as fmt } from '@/lib/utils-binaa';
+import { t, formatCurrency as fmt, formatDate } from '@/lib/utils-binaa';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { printHtml } from '@/lib/printDocument';
 
@@ -33,7 +33,7 @@ export default function PartyStatementReport({ party, statement, partyType, onCl
 
   const rows = statement?.rows || [];
   const dateRange = rows.length
-    ? `${rows[0].date} — ${rows[rows.length - 1].date}`
+    ? `${formatDate(rows[0].date, lang)} — ${formatDate(rows[rows.length - 1].date, lang)}`
     : '—';
 
   const handlePrint = () => {
@@ -103,7 +103,7 @@ export default function PartyStatementReport({ party, statement, partyType, onCl
               <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">{t('لا توجد حركات مرحّلة لهذا الطرف', 'No posted movements for this party', lang)}</td></tr>
             ) : rows.map((m, i) => (
               <tr key={i} className="border-t hover:bg-muted/20">
-                <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground" dir="ltr">{m.date}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground font-mono" dir="ltr">{formatDate(m.date, lang)}</td>
                 <td className="px-4 py-2.5">
                   <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium">{labels[m.sourceType] || m.sourceType || '—'}</span>
                   <span className="block text-[11px] text-muted-foreground font-mono mt-0.5">{m.entryNo}</span>
@@ -170,7 +170,7 @@ function buildPrintHtml({ party, statement, partyType, settings, lang, labels, o
 
   const bodyRows = rows.map(m => `
     <tr style="border-top:1px solid #e5e7eb">
-      <td style="padding:7px 10px;white-space:nowrap;color:#6b7280" dir="ltr">${m.date}</td>
+      <td style="padding:7px 10px;white-space:nowrap;color:#6b7280;font-family:monospace" dir="ltr">${formatDate(m.date, lang)}</td>
       <td style="padding:7px 10px"><div>${labels[m.sourceType] || m.sourceType || '—'}</div><div style="font-size:10px;color:#9ca3af">${m.entryNo || ''}</div></td>
       <td style="padding:7px 10px">${m.description || ''}</td>
       <td style="padding:7px 10px;text-align:end">${m.debit ? money(m.debit) : '—'}</td>
@@ -234,7 +234,7 @@ function buildPrintHtml({ party, statement, partyType, settings, lang, labels, o
       ${settings.footerImageUrl ? `<img src="${settings.footerImageUrl}" style="display:block;width:100%;object-fit:cover;margin-top:24px" />` : ''}
       <div style="margin-top:24px;border-top:2px solid ${primary};padding-top:8px;display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#64748b">
         <span>${companyName}</span>
-        <span>${t('تم إصدار هذا الكشف آلياً بتاريخ', 'Generated automatically on', lang)} ${new Date().toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB')}</span>
+        <span>${t('تم إصدار هذا الكشف آلياً بتاريخ', 'Generated automatically on', lang)} ${formatDate(new Date().toISOString(), lang)}</span>
       </div>
     </div>`;
 }

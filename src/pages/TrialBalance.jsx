@@ -162,12 +162,12 @@ export default function TrialBalance() {
                     {ledger.movements.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">{t('لا حركات', 'No movements', lang)}</TableCell></TableRow>
                       : ledger.movements.map((m, i) => (
                         <TableRow key={i}>
-                          <TableCell className="text-xs">{formatDate(m.date, lang)}</TableCell>
-                          <TableCell className="font-mono text-xs">{m.entryNo}</TableCell>
-                          <TableCell className="text-xs">{m.description || m.entryDescription}</TableCell>
-                          <TableCell className="text-end text-xs">{m.debit ? formatCurrency(m.debit, lang) : '—'}</TableCell>
-                          <TableCell className="text-end text-xs">{m.credit ? formatCurrency(m.credit, lang) : '—'}</TableCell>
-                          <TableCell className="text-end text-xs font-medium">{formatCurrency(m.balance, lang)}</TableCell>
+                          <TableCell className="text-xs font-mono whitespace-nowrap" dir="ltr">{formatDate(m.date, lang)}</TableCell>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{m.entryNo}</TableCell>
+                          <TableCell className="text-xs min-w-56">{m.description || m.entryDescription}</TableCell>
+                          <TableCell className="text-end text-xs tabular-nums whitespace-nowrap">{m.debit ? formatCurrency(m.debit, lang) : '—'}</TableCell>
+                          <TableCell className="text-end text-xs tabular-nums whitespace-nowrap">{m.credit ? formatCurrency(m.credit, lang) : '—'}</TableCell>
+                          <TableCell className="text-end text-xs font-medium tabular-nums whitespace-nowrap">{formatCurrency(m.balance, lang)}</TableCell>
                         </TableRow>
                       ))}
                   </TableBody>

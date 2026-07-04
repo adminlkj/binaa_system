@@ -32,17 +32,18 @@ export function genInvoiceNo(prefix, year, count) {
 
 export function formatDate(dateStr, lang = 'ar') {
   if (!dateStr) return '—';
+  const raw = String(dateStr);
+  const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
   try {
     const d = new Date(dateStr);
-    // Invalid dates ("bad input") don't throw — guard so we return the dash instead of NaN/NaN/NaN.
     if (isNaN(d.getTime())) return '—';
-    // Format as DD/MMM/YYYY (e.g. 01/MAR/2026) — day number, uppercase English month, year number.
     const year = d.getFullYear();
-    const month = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${day}/${month}/${year}`;
+    return `${year}-${month}-${day}`;
   } catch {
-    return dateStr;
+    return raw;
   }
 }
 

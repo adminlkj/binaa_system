@@ -51,9 +51,9 @@ export default function GeneralLedger() {
     { header: { ar: 'التاريخ', en: 'Date' }, value: (m) => formatDate(m.date, lang) },
     { header: { ar: 'رقم القيد', en: 'Entry' }, value: (m) => m.entryNo },
     { header: { ar: 'البيان', en: 'Description' }, value: (m) => m.description || m.entryDescription || '' },
-    { header: { ar: 'مدين', en: 'Debit' }, value: (m) => m.debit || 0 },
-    { header: { ar: 'دائن', en: 'Credit' }, value: (m) => m.credit || 0 },
-    { header: { ar: 'الرصيد', en: 'Balance' }, value: (m) => m.balance || 0 },
+    { header: { ar: 'مدين', en: 'Debit' }, value: (m) => m.debit ? formatCurrency(m.debit, lang) : '—' },
+    { header: { ar: 'دائن', en: 'Credit' }, value: (m) => m.credit ? formatCurrency(m.credit, lang) : '—' },
+    { header: { ar: 'الرصيد', en: 'Balance' }, value: (m) => formatCurrency(m.balance || 0, lang) },
   ];
 
   return (
@@ -127,12 +127,12 @@ export default function GeneralLedger() {
                     <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">{t('لا توجد حركات في هذه الفترة', 'No movements in this period', lang)}</TableCell></TableRow>
                   ) : ledger.movements.map((m, i) => (
                     <TableRow key={i} className="hover:bg-muted/30">
-                      <TableCell className="text-xs">{formatDate(m.date, lang)}</TableCell>
-                      <TableCell className="font-mono text-xs">{m.entryNo}</TableCell>
-                      <TableCell className="text-sm">{m.description || m.entryDescription}</TableCell>
-                      <TableCell className="text-end text-sm">{m.debit ? formatCurrency(m.debit, lang) : '—'}</TableCell>
-                      <TableCell className="text-end text-sm">{m.credit ? formatCurrency(m.credit, lang) : '—'}</TableCell>
-                      <TableCell className="text-end text-sm font-semibold">{formatCurrency(m.balance, lang)}</TableCell>
+                      <TableCell className="text-xs font-mono whitespace-nowrap" dir="ltr">{formatDate(m.date, lang)}</TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{m.entryNo}</TableCell>
+                      <TableCell className="text-sm min-w-64">{m.description || m.entryDescription}</TableCell>
+                      <TableCell className="text-end text-sm tabular-nums whitespace-nowrap">{m.debit ? formatCurrency(m.debit, lang) : '—'}</TableCell>
+                      <TableCell className="text-end text-sm tabular-nums whitespace-nowrap">{m.credit ? formatCurrency(m.credit, lang) : '—'}</TableCell>
+                      <TableCell className="text-end text-sm font-semibold tabular-nums whitespace-nowrap">{formatCurrency(m.balance, lang)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,3 +1,5 @@
+import { formatDate } from '@/lib/utils-binaa';
+
 // قالب طباعة موحّد لكل مطبوعات النظام (عدا فواتير العملاء التي لها قالبها الخاص).
 // يبني صفحة HTML احترافية تحتوي ترويسة بيانات الشركة، رأس/فوتر اختياري بالصور،
 // وتصميم جدول أنيق بألوان الشركة، ثم يفتح نافذة الطباعة.
@@ -64,11 +66,7 @@ export function printDocument({ settings = {}, lang = 'ar', heading = '', subhea
     )
     .join('');
 
-  const now = new Date().toLocaleDateString(rtl ? 'ar-SA' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const now = formatDate(new Date().toISOString(), lang);
 
   const html = `<!doctype html>
 <html dir="${dir}" lang="${lang}">
@@ -109,7 +107,7 @@ export function printDocument({ settings = {}, lang = 'ar', heading = '', subhea
     text-align:${align}; white-space:nowrap; }
   thead th:first-child { border-start-start-radius:8px; }
   thead th:last-child { border-start-end-radius:8px; }
-  tbody td { padding:8px 10px; text-align:${align}; border-bottom:1px solid #e2e8f0; color:#1e293b; }
+  tbody td { padding:8px 10px; text-align:${align}; border-bottom:1px solid #e2e8f0; color:#1e293b; white-space:nowrap; }
   tbody tr:nth-child(even) td { background:#f8fafc; }
   tbody tr:last-child td { border-bottom:2px solid ${primary}; }
   .empty { text-align:center; color:#94a3b8; padding:24px; }
@@ -194,7 +192,7 @@ export function printReportDocument({ settings = {}, lang = 'ar', heading = '', 
   const logoBlock = settings.logoUrl
     ? `<img class="logo" src="${esc(settings.logoUrl)}" alt="" />`
     : `<div class="logo-fallback" style="background:${accent}">${esc((companyName || 'B').slice(0, 1))}</div>`;
-  const now = new Date().toLocaleDateString(rtl ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const now = formatDate(new Date().toISOString(), lang);
   const recordCount = sections.reduce((sum, section) => sum + (section.rows?.length || 0) + (section.totals?.length || 0), 0);
 
   const summaryHtml = summary.length ? `
@@ -252,7 +250,7 @@ export function printReportDocument({ settings = {}, lang = 'ar', heading = '', 
   .section-subtitle { margin:0 0 8px; color:#64748b; font-size:10.5px; }
   table { width:100%; border-collapse:collapse; font-size:11.2px; margin-bottom:8px; }
   thead th { background:${primary}; color:#fff; font-weight:700; padding:8px 9px; text-align:${align}; white-space:nowrap; }
-  tbody td { padding:7px 9px; text-align:${align}; border-bottom:1px solid #e2e8f0; color:#1e293b; }
+  tbody td { padding:7px 9px; text-align:${align}; border-bottom:1px solid #e2e8f0; color:#1e293b; white-space:nowrap; }
   tbody tr:nth-child(even) td { background:#f8fafc; }
   .total-row td { background:#eef2ff !important; font-weight:800; border-top:2px solid ${primary}; }
   .empty { text-align:center; color:#94a3b8; padding:22px; }

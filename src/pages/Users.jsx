@@ -127,47 +127,51 @@ export default function Users() {
         <StatCard icon={Clock} label={t('طلبات التسجيل', 'Registration Requests', lang)} value={stats.pending} color="bg-amber-100 text-amber-700" />
       </div>
 
-      {requests.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="size-4 text-amber-600" />
-              <h2 className="font-semibold text-sm">{t('طلبات التسجيل بانتظار الاعتماد', 'Registration requests pending approval', lang)}</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="size-4 text-amber-600" />
+            <h2 className="font-semibold text-sm">{t('طلبات التسجيل بانتظار الاعتماد', 'Registration requests pending approval', lang)}</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
+                  <TableHead>{t('البريد', 'Email', lang)}</TableHead>
+                  <TableHead>{t('تاريخ الطلب', 'Requested at', lang)}</TableHead>
+                  <TableHead className="text-end">{t('إجراءات', 'Actions', lang)}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {requests.length === 0 ? (
                   <TableRow>
-                    <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
-                    <TableHead>{t('البريد', 'Email', lang)}</TableHead>
-                    <TableHead>{t('تاريخ الطلب', 'Requested at', lang)}</TableHead>
-                    <TableHead className="text-end">{t('إجراءات', 'Actions', lang)}</TableHead>
+                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                      {t('لا توجد طلبات تسجيل معلّقة حالياً. عند تسجيل مستخدم جديد ستظهر طلباته هنا للموافقة أو الرفض.', 'No pending registration requests. New user requests will appear here for approval or rejection.', lang)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {requests.map(request => (
-                    <TableRow key={request.id}>
-                      <TableCell className="font-medium">{request.fullName || '—'}</TableCell>
-                      <TableCell dir="ltr" className="text-sm text-muted-foreground">{request.email}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{request.requestedDate ? new Date(request.requestedDate).toLocaleString('ar-SA') : '—'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-2">
-                          <Button size="sm" onClick={() => setApproveRequest(request)} className="gap-1 bg-emerald-600 hover:bg-emerald-700">
-                            <CheckCircle2 className="size-3.5" />{t('اعتماد', 'Approve', lang)}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => rejectRequest(request)} className="gap-1 text-rose-600">
-                            <XCircle className="size-3.5" />{t('رفض', 'Reject', lang)}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                ) : requests.map(request => (
+                  <TableRow key={request.id}>
+                    <TableCell className="font-medium">{request.fullName || '—'}</TableCell>
+                    <TableCell dir="ltr" className="text-sm text-muted-foreground">{request.email}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{request.requestedDate ? new Date(request.requestedDate).toLocaleString('ar-SA') : '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" onClick={() => setApproveRequest(request)} className="gap-1 bg-emerald-600 hover:bg-emerald-700">
+                          <CheckCircle2 className="size-3.5" />{t('اعتماد', 'Approve', lang)}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => rejectRequest(request)} className="gap-1 text-rose-600">
+                          <XCircle className="size-3.5" />{t('رفض', 'Reject', lang)}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-4">

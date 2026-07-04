@@ -129,7 +129,7 @@ const RULES = {
   RENTAL_INVOICE: [
     { m: 'رقم الفاتورة مطلوب', t: (d) => !isBlank(d.invoiceNo) },
     { m: 'تاريخ الفاتورة مطلوب', t: (d) => !isBlank(d.date) },
-    { m: 'قيمة الفاتورة يجب أن تكون أكبر من صفر', t: (d) => num(d.baseAmount) + num(d.extraCharges) > 0 },
+    { m: 'قيمة الفاتورة يجب أن تكون أكبر من صفر', t: (d) => num(d.baseAmount) + num(d.extraCharges) + num(d.deliveryAmount) > 0 },
   ],
   STOCK_MOVEMENT: [
     { m: 'تاريخ الحركة مطلوب', t: (d) => !isBlank(d.date) },

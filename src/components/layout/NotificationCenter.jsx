@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, FileWarning, HandCoins, FileClock, Wrench, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Bell, FileWarning, HandCoins, FileClock, Wrench, RefreshCw, CheckCircle2, Truck, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
@@ -24,8 +24,10 @@ export default function NotificationCenter() {
     setLoading(true);
     const now = Date.now();
     try {
-      const [invoices, advances, docs, maintenance] = await Promise.all([
+      const [invoices, rentalInvoices, rentalContracts, advances, docs, maintenance] = await Promise.all([
         base44.entities.SalesInvoice.list('-date', 300).catch(() => []),
+        base44.entities.RentalInvoice.list('-date', 300).catch(() => []),
+        base44.entities.RentalContract.list('-endDate', 300).catch(() => []),
         base44.entities.EmployeeAdvance.list('-date', 300).catch(() => []),
         base44.entities.EmployeeDocument.list('-created_date', 300).catch(() => []),
         base44.entities.MaintenanceRecord.list('-date', 300).catch(() => []),
@@ -45,6 +47,32 @@ export default function NotificationCenter() {
             go: () => store.setActiveItem('sales'),
           });
         }
+      });
+
+      // Overdue rental invoices
+      rentalInvoices.forEach(inv => {
+        const unpaid = (inv.totalAmount || 0) - (inv.paidAmount || 0);
+        const overdue = inv.dueDate && new Date(inv.dueDate).getTime() < now;
+        if (unpaid > 0.5 && (overdue || inv.status === 'OVERDUE')) {
+          items.push({
+            id: `rinv-${inv.id}`, Icon: Truck, tone: 'rose',
+            titleAr: `فاتورة تأجير متأخرة: ${inv.invoiceNo}`, titleEn: `Overdue rental invoice: ${inv.invoiceNo}`,
+            metaAr: `${inv.clientName || ''} · متبقٍ ${formatCurrency(unpaid, lang)}`,
+            metaEn: `${inv.clientName || ''} · ${formatCurrency(unpaid, lang)} due`,
+            go: () => { store.setEquipmentContext(inv.equipmentId, inv.equipmentName || ''); store.setActiveItem('equipment-workspace'); },
+          });
+        }
+      });
+
+      // Expired active rental contracts
+      rentalContracts.filter(r => r.status === 'ACTIVE' && r.endDate && new Date(r.endDate).getTime() < now).forEach(r => {
+        items.push({
+          id: `rent-${r.id}`, Icon: Clock, tone: 'amber',
+          titleAr: `عقد تأجير منتهي: ${r.contractNo}`, titleEn: `Expired rental contract: ${r.contractNo}`,
+          metaAr: `${r.equipmentName || ''} · ${formatDate(r.endDate, lang)}`,
+          metaEn: `${r.equipmentName || ''} · ${formatDate(r.endDate, lang)}`,
+          go: () => store.setActiveItem('rental-contracts'),
+        });
       });
 
       // Open advances not settled

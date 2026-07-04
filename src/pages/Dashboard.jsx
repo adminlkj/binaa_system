@@ -58,7 +58,7 @@ function AlertItem({ icon: Icon, iconColor, label, value, action, onAction, seve
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { lang, setActiveItem, setProjectContext, setClientContext } = useStore();
-  const [data, setData] = useState({ projects: [], equipment: [], employees: [], invoices: [], expenses: [], purchaseOrders: [], rentalContracts: [] });
+  const [data, setData] = useState({ projects: [], equipment: [], employees: [], invoices: [], rentalInvoices: [], expenses: [], purchaseOrders: [], rentalContracts: [] });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -69,6 +69,7 @@ export default function Dashboard() {
       base44.entities.Equipment.list('-created_date', 100),
       base44.entities.Employee.filter({ isActive: true }),
       base44.entities.SalesInvoice.list('-created_date', 100),
+      base44.entities.RentalInvoice.list('-created_date', 100),
       base44.entities.Expense.list('-created_date', 50),
       base44.entities.PurchaseOrder.list('-created_date', 50),
       base44.entities.RentalContract.list('-created_date', 50),
@@ -79,21 +80,24 @@ export default function Dashboard() {
       equipment: safe(results[1]),
       employees: safe(results[2]),
       invoices: safe(results[3]),
-      expenses: safe(results[4]),
-      purchaseOrders: safe(results[5]),
-      rentalContracts: safe(results[6]),
+      rentalInvoices: safe(results[4]),
+      expenses: safe(results[5]),
+      purchaseOrders: safe(results[6]),
+      rentalContracts: safe(results[7]),
     });
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const { projects, equipment, employees, invoices, expenses, purchaseOrders, rentalContracts } = data;
+  const { projects, equipment, employees, invoices, rentalInvoices, expenses, purchaseOrders, rentalContracts } = data;
 
   // ─── Derived KPIs ────────────────────────────────────────────────────────
   const activeProjects    = projects.filter(p => p.status === 'ACTIVE');
   const totalContractVal  = projects.reduce((s, p) => s + (p.contractValue || 0), 0);
-  const collectedRevenue  = invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0);
-  const pendingRevenue    = invoices.filter(i => ['SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
+  const collectedRevenue  = invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0)
+    + rentalInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0);
+  const pendingRevenue    = invoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0)
+    + rentalInvoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
   const totalExpenses     = expenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
   const netProfit         = collectedRevenue - totalExpenses;
   const margin            = collectedRevenue > 0 ? Math.round((netProfit / collectedRevenue) * 100) : 0;
@@ -103,6 +107,7 @@ export default function Dashboard() {
 
   // ─── Alerts ──────────────────────────────────────────────────────────────
   const overdueInvoices   = invoices.filter(i => i.status === 'OVERDUE');
+  const overdueRentalInvoices = rentalInvoices.filter(i => i.status === 'OVERDUE' || (i.dueDate && i.dueDate < new Date().toISOString().slice(0, 10) && ((i.totalAmount || 0) - (i.paidAmount || 0) > 0.5)));
   const pendingPOs        = purchaseOrders.filter(p => p.status === 'DRAFT' || p.status === 'APPROVED');
   const activeRentals     = rentalContracts.filter(r => r.status === 'ACTIVE');
   const today             = new Date().toISOString().slice(0, 10);
@@ -120,6 +125,12 @@ export default function Dashboard() {
       label: t(`${expiredRentals.length} عقد تأجير منتهي`, `${expiredRentals.length} rental contract(s) expired`, lang),
       value: t('يحتاج تجديد أو إغلاق', 'Needs renewal or closing', lang),
       action: t('عرض', 'View', lang), onAction: () => setActiveItem('rental-contracts'),
+    }] : [],
+    ...overdueRentalInvoices.length ? [{
+      severity: 'high', icon: AlertTriangle, iconColor: 'text-rose-500',
+      label: t(`${overdueRentalInvoices.length} فاتورة تأجير متأخرة`, `${overdueRentalInvoices.length} overdue rental invoice(s)`, lang),
+      value: t('تحتاج متابعة تحصيل', 'Collection follow-up required', lang),
+      action: t('عرض', 'View', lang), onAction: () => setActiveItem('equipment'),
     }] : [],
     ...maintenanceEquip ? [{
       severity: 'warn', icon: Package, iconColor: 'text-amber-500',
@@ -252,7 +263,7 @@ export default function Dashboard() {
         <KPICard
           title={t('الذمم المدينة', 'Receivables', lang)}
           value={formatCurrency(pendingRevenue, lang)}
-          subtitle={`${overdueInvoices.length} ${t('متأخرة', 'overdue', lang)}`}
+          subtitle={`${overdueInvoices.length + overdueRentalInvoices.length} ${t('متأخرة', 'overdue', lang)}`}
           icon={CreditCard} tint={overdueInvoices.length ? { bg: 'bg-rose-100', icon: 'text-rose-600', glow: 'bg-rose-500' } : { bg: 'bg-amber-100', icon: 'text-amber-600', glow: 'bg-amber-500' }}
           onClick={() => setActiveItem('sales')}
         />

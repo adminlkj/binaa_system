@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, XCircle, Flag } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,8 +76,18 @@ export default function RentalContracts() {
   });
 
   const openNew  = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
+  const openEdit = (item) => { if (item.status !== 'DRAFT') return; setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
+
+  const setStatus = async (item, status) => {
+    try {
+      await OperationEngine.updateRentalContract(item.id, { ...item, status }, equipment, clients, item.status);
+      toast.success(t('تم تحديث حالة العقد', 'Contract status updated', lang));
+      load();
+    } catch (e) {
+      toast.error(e?.message || t('فشل تحديث الحالة', 'Status update failed', lang));
+    }
+  };
 
   // SSOT: الحساب من Business Engine
   const rate     = parseFloat(form.rate) || 0;
@@ -92,12 +102,16 @@ export default function RentalContracts() {
       return toast.error(t('تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء', 'End date must be after start date', lang));
     setSaving(true);
     try {
+      const selectedEq = equipment.find(e => e.id === form.equipmentId);
+      if (!editing && selectedEq?.status && selectedEq.status !== 'AVAILABLE') {
+        throw new Error(t('لا يمكن إنشاء عقد لمعدة غير متاحة', 'Cannot create a contract for unavailable equipment', lang));
+      }
       if (editing) {
-        await OperationEngine.updateRentalContract(editing.id, form, equipment, clients, editing.status);
+        await OperationEngine.updateRentalContract(editing.id, { ...form, status: 'DRAFT' }, equipment, clients, editing.status);
         toast.success(t('تم التحديث', 'Updated', lang));
       } else {
-        await OperationEngine.createRentalContract(form, equipment, clients);
-        toast.success(t('تمت الإضافة + تم إنشاء القيد المحاسبي', 'Added + Journal Entry created', lang));
+        await OperationEngine.createRentalContract({ ...form, status: 'DRAFT' }, equipment, clients);
+        toast.success(t('تم حفظ العقد كمسودة', 'Contract saved as draft', lang));
       }
       setDialogOpen(false); load();
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
@@ -107,16 +121,15 @@ export default function RentalContracts() {
   const remove = async () => {
     try {
       const contract = items.find(i => i.id === deleteId);
+      if (contract?.status !== 'DRAFT') throw new Error(t('لا يمكن حذف عقد غير مسودة', 'Only draft contracts can be deleted', lang));
+      const [invoices, deliveries] = await Promise.all([
+        base44.entities.RentalInvoice.filter({ rentalContractId: deleteId }).catch(() => []),
+        base44.entities.DeliveryOrder.filter({ equipmentId: contract.equipmentId }).catch(() => []),
+      ]);
+      if (invoices.length || deliveries.length) throw new Error(t('لا يمكن حذف عقد له فواتير أو أوامر تسليم مرتبطة', 'Cannot delete a contract with linked invoices or delivery orders', lang));
       await base44.entities.RentalContract.delete(deleteId);
-      // Business Rule: استعادة حالة المعدة — منطق الأعمال يبقى هنا ولكن واضح وموثق
-      if (contract?.equipmentId) {
-        const eq = equipment.find(e => e.id === contract.equipmentId);
-        if (eq && eq.status === 'RENTED') {
-          await base44.entities.Equipment.update(eq.id, { status: 'AVAILABLE' });
-        }
-      }
       toast.success(t('تم الحذف', 'Deleted', lang)); load();
-    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    } catch (e) { toast.error(e?.message || t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const exportColumns = [
@@ -192,8 +205,11 @@ export default function RentalContracts() {
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-emerald-700" title={t('تفعيل', 'Activate', lang)} onClick={() => setStatus(item, 'ACTIVE')}><CheckCircle2 className="size-3.5" /></Button>}
+                            {item.status === 'ACTIVE' && <Button variant="ghost" size="icon" className="size-8 text-blue-700" title={t('إكمال', 'Complete', lang)} onClick={() => setStatus(item, 'COMPLETED')}><Flag className="size-3.5" /></Button>}
+                            {(item.status === 'DRAFT' || item.status === 'ACTIVE') && <Button variant="ghost" size="icon" className="size-8 text-rose-700" title={t('إلغاء', 'Cancel', lang)} onClick={() => setStatus(item, 'CANCELLED')}><XCircle className="size-3.5" /></Button>}
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -213,7 +229,7 @@ export default function RentalContracts() {
               <Label>{t('المعدة', 'Equipment', lang)} *</Label>
               <Select value={form.equipmentId} onValueChange={v => { const eq = equipment.find(e => e.id === v); setForm(f => ({ ...f, equipmentId: v, equipmentName: eq?.name || '', rate: eq?.dailyRate || f.rate })); }}>
                 <SelectTrigger><SelectValue placeholder={t('اختر معدة', 'Select equipment', lang)} /></SelectTrigger>
-                <SelectContent>{equipment.map(e => <SelectItem key={e.id} value={e.id}>{e.name} {e.status !== 'AVAILABLE' ? `(${e.status})` : ''}</SelectItem>)}</SelectContent>
+                <SelectContent>{equipment.filter(e => e.status === 'AVAILABLE' || e.id === form.equipmentId).map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
@@ -247,17 +263,14 @@ export default function RentalContracts() {
             <div className="space-y-1.5"><Label>{t('تاريخ الانتهاء', 'End Date', lang)}</Label><Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <Input readOnly value={t('مسودة (تُفعّل لاحقاً)', 'Draft (activate later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
             <div className="col-span-2 space-y-1.5"><Label>{t('ملاحظات', 'Notes', lang)}</Label><Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>{t('إلغاء', 'Cancel', lang)}</Button>
             <Button onClick={save} disabled={saving} className="bg-cyan-600 hover:bg-cyan-700">
-              {saving ? t('جاري الحفظ...', 'Saving...', lang) : editing ? t('حفظ', 'Save', lang) : t('حفظ + قيد محاسبي', 'Save + Post JE', lang)}
+              {saving ? t('جاري الحفظ...', 'Saving...', lang) : editing ? t('حفظ', 'Save', lang) : t('حفظ كمسودة', 'Save Draft', lang)}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -265,7 +278,7 @@ export default function RentalContracts() {
 
       <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
         title={t('حذف عقد التأجير', 'Delete Rental Contract', lang)}
-        description={t('سيتم حذف العقد وإعادة حالة المعدة إلى متاحة.', 'Contract will be deleted and equipment status restored to Available.', lang)}
+        description={t('سيتم حذف العقد المسودة فقط إذا لم يكن له فواتير أو أوامر مرتبطة.', 'Only draft contracts without linked invoices or orders can be deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
     </ModuleLayout>
   );

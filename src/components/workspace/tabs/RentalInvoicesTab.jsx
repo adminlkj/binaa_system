@@ -35,6 +35,19 @@ const computeTotal = (f) => {
   return { net, vat, total: net + vat };
 };
 
+const invoiceBaseForContract = (contract, ymKey, hours) => {
+  const rate = Number(contract?.rate) || 0;
+  if (!contract || !ymKey) return rate;
+  const { from, to } = monthBounds(ymKey);
+  const start = contract.startDate && contract.startDate > from ? contract.startDate : from;
+  const end = contract.endDate && contract.endDate < to ? contract.endDate : to;
+  const days = start && end && end >= start ? Math.floor((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1 : 0;
+  if (contract.rateType === 'HOURLY') return +(rate * (Number(hours) || 0)).toFixed(2);
+  if (contract.rateType === 'DAILY') return +(rate * days).toFixed(2);
+  if (contract.rateType === 'WEEKLY') return +(rate * Math.ceil(days / 7)).toFixed(2);
+  return rate;
+};
+
 // بنود الفاتورة التفصيلية — الإيجار، الرسوم الإضافية، ثم الشحن والتوصيل كبند مستقل.
 const buildLineItems = (r, lang) => {
   const items = [];
@@ -73,7 +86,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
       base44.entities.RentalContract.filter({ equipmentId }).catch(() => []),
       base44.entities.DeliveryOrder.filter({ equipmentId }).catch(() => []),
       base44.entities.OperatingHours.filter({ equipmentId }).catch(() => []),
-    ]).then(([c, d, h]) => { setContracts(c); setDeliveryOrders(d); setHoursRows(h); });
+    ]).then(([c, d, h]) => { setContracts((c || []).filter(x => x.status === 'ACTIVE')); setDeliveryOrders((d || []).filter(x => x.status === 'COMPLETED')); setHoursRows(h || []); });
   }, [equipmentId]);
 
   return (
@@ -109,6 +122,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
         billingMonth: '',
         paymentTermDays: 30,
         equipmentName: '',
+        clientId: '',
         clientName: '',
         date: new Date().toISOString().slice(0, 10),
         dueDate: addDays(new Date().toISOString().slice(0, 10), 30),
@@ -148,6 +162,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
           billingMonth: f.billingMonth || '',
           equipmentName: f.equipmentName || '',
           invoiceNo: f.invoiceNo,
+          clientId: f.clientId || '',
           clientName: f.clientName,
           date: f.date || null,
           dueDate: f.dueDate || null,
@@ -201,14 +216,15 @@ export default function RentalInvoicesTab({ equipmentId }) {
 
         // عند اختيار العقد: جلب رقمه واسم المعدة والعميل وشروط الدفع، وربط أول أمر توصيل لعميله.
         const onContract = (v) => {
-          if (v === 'none') { set('rentalContractId', ''); set('contractNo', ''); set('paymentTermDays', 30); return; }
+          if (v === 'none') { set('rentalContractId', ''); set('contractNo', ''); set('clientId', ''); set('paymentTermDays', 30); return; }
           const c = contracts.find(x => x.id === v);
           set('rentalContractId', v);
           set('contractNo', c?.contractNo || '');
           set('equipmentName', c?.equipmentName || '');
+          set('clientId', c?.clientId || '');
           set('paymentTermDays', c?.paymentTermDays || 30);
           if (c?.clientName) set('clientName', c.clientName);
-          if (c?.rate && !Number(form.baseAmount)) set('baseAmount', c.rate);
+          if (c?.rate) set('baseAmount', invoiceBaseForContract(c, form.billingMonth, form.totalHours));
           // إعادة حساب الاستحقاق إن كان هناك شهر مختار
           if (form.date) set('dueDate', addDays(form.date, c?.paymentTermDays || 30));
         };
@@ -218,9 +234,12 @@ export default function RentalInvoicesTab({ equipmentId }) {
         const onMonth = (v) => {
           set('billingMonth', v);
           const { from, to } = monthBounds(v);
+          const hours = sumHoursForMonth(hoursRows, v);
+          const c = contracts.find(x => x.id === form.rentalContractId);
           set('periodFrom', from);
           set('periodTo', to);
-          set('totalHours', sumHoursForMonth(hoursRows, v));
+          set('totalHours', hours);
+          if (c?.rate) set('baseAmount', invoiceBaseForContract(c, v, hours));
         };
 
         const contractDeliveries = deliveryOrders; // كل أوامر التوصيل لهذه المعدة
@@ -237,7 +256,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
                 <SelectTrigger><SelectValue placeholder={t('اختر عقداً', 'Select contract', lang)} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">{t('بدون عقد', 'No contract', lang)}</SelectItem>
-                  {contracts.map(c => <SelectItem key={c.id} value={c.id}>{c.contractNo} — {c.clientName || ''}</SelectItem>)}
+                  {contracts.map(c => <SelectItem key={c.id} value={c.id}>{c.contractNo} — {c.clientName || ''}</SelectItem>) }
                 </SelectContent>
               </Select>
             </div>

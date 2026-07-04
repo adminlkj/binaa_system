@@ -74,8 +74,10 @@ export default function EquipmentWorkspace() {
     );
   }
 
-  const revenue = rentals.reduce((s, r) => s + (r.totalAmount || 0), 0)
-    + rentalInvoices.reduce((s, r) => s + (r.totalAmount || 0), 0);
+  const postedRentalStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+  const revenue = rentalInvoices
+    .filter(r => postedRentalStatuses.includes(r.status))
+    .reduce((s, r) => s + (r.totalAmount || 0), 0);
   const costs = maintenance.reduce((s, m) => s + (m.cost || 0), 0)
     + fuel.reduce((s, f) => s + (f.totalCost || 0), 0)
     + expenses.reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);

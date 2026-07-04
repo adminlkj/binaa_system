@@ -23,17 +23,28 @@ export default function OperatingHoursTab({ equipmentId }) {
         projectName: '',
         notes: '',
       }}
-      validate={(f) => (!f.date ? t('أدخل التاريخ', 'Enter date', lang) : null)}
-      buildPayload={(f) => ({
-        equipmentId,
-        date: f.date || null,
-        hours: Number(f.hours) || 0,
-        meterStart: Number(f.meterStart) || 0,
-        meterEnd: Number(f.meterEnd) || 0,
-        operator: f.operator,
-        projectName: f.projectName,
-        notes: f.notes,
-      })}
+      validate={(f) => {
+        if (!f.date) return t('أدخل التاريخ', 'Enter date', lang);
+        if (Number(f.meterEnd) && Number(f.meterEnd) < Number(f.meterStart || 0)) return t('قراءة نهاية العداد لا يمكن أن تقل عن البداية', 'Meter end cannot be less than start', lang);
+        const derived = Math.max(0, Number(f.meterEnd || 0) - Number(f.meterStart || 0));
+        if ((Number(f.hours) || derived) <= 0) return t('أدخل ساعات تشغيل أكبر من صفر', 'Enter operating hours greater than zero', lang);
+        return null;
+      }}
+      buildPayload={(f) => {
+        const meterStart = Number(f.meterStart) || 0;
+        const meterEnd = Number(f.meterEnd) || 0;
+        const derivedHours = Math.max(0, meterEnd - meterStart);
+        return {
+          equipmentId,
+          date: f.date || null,
+          hours: Number(f.hours) || derivedHours,
+          meterStart,
+          meterEnd,
+          operator: f.operator,
+          projectName: f.projectName,
+          notes: f.notes,
+        };
+      }}
       labels={{
         new: { ar: 'ساعات تشغيل', en: 'Log Hours' },
         edit: { ar: 'تعديل ساعات التشغيل', en: 'Edit Hours' },
@@ -66,7 +77,7 @@ export default function OperatingHoursTab({ equipmentId }) {
           </div>
           <div className="space-y-1.5">
             <Label>{t('العداد نهاية', 'Meter End', lang)}</Label>
-            <Input type="number" value={form.meterEnd ?? 0} onChange={e => set('meterEnd', e.target.value)} />
+            <Input type="number" value={form.meterEnd ?? 0} min={form.meterStart || 0} onChange={e => set('meterEnd', e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>{t('المشغّل', 'Operator', lang)}</Label>

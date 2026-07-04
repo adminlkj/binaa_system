@@ -1,8 +1,11 @@
 import React from 'react';
+import { CheckCircle2, Flag, XCircle } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
 import { t, formatDate, genCode } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
@@ -20,6 +23,14 @@ const DO_STATUS = {
 
 export default function DeliveryOrdersTab({ equipmentId }) {
   const { lang } = useStore();
+
+  const setStatus = async (row, status, reload) => {
+    await base44.entities.DeliveryOrder.update(row.id, { status });
+    if (status === 'COMPLETED') {
+      await base44.entities.Equipment.update(equipmentId, { status: row.orderType === 'RETURN' ? 'AVAILABLE' : 'RENTED' });
+    }
+    await reload();
+  };
 
   return (
     <CrudTab
@@ -45,9 +56,18 @@ export default function DeliveryOrdersTab({ equipmentId }) {
         clientName: f.clientName,
         location: f.location,
         meterReading: Number(f.meterReading) || 0,
-        status: f.status,
+        status: 'DRAFT',
         notes: f.notes,
       })}
+      rowActions={(row, reload) => (
+        <>
+          {row.status === 'DRAFT' && <Button variant="outline" size="sm" className="h-8 gap-1 text-blue-700 border-blue-200 hover:bg-blue-50" onClick={() => setStatus(row, 'CONFIRMED', reload)}><CheckCircle2 className="size-3.5" />{t('تأكيد', 'Confirm', lang)}</Button>}
+          {row.status === 'CONFIRMED' && <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => setStatus(row, 'COMPLETED', reload)}><Flag className="size-3.5" />{t('إكمال', 'Complete', lang)}</Button>}
+          {(row.status === 'DRAFT' || row.status === 'CONFIRMED') && <Button variant="ghost" size="icon" className="size-8 text-rose-700" title={t('إلغاء', 'Cancel', lang)} onClick={() => setStatus(row, 'CANCELLED', reload)}><XCircle className="size-3.5" /></Button>}
+        </>
+      )}
+      canEditRow={(row) => row.status === 'DRAFT'}
+      canDeleteRow={(row) => row.status === 'DRAFT'}
       labels={{
         new: { ar: 'أمر تسليم/استرجاع', en: 'New Delivery/Return' },
         edit: { ar: 'تعديل الأمر', en: 'Edit Order' },
@@ -106,14 +126,7 @@ export default function DeliveryOrdersTab({ equipmentId }) {
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label>{t('الحالة', 'Status', lang)}</Label>
-            <Select value={form.status || 'DRAFT'} onValueChange={v => set('status', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {Object.entries(DO_STATUS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input readOnly value={t('مسودة (تُؤكد لاحقاً)', 'Draft (confirm later)', lang)} className="bg-muted text-muted-foreground" />
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label>{t('ملاحظات', 'Notes', lang)}</Label>

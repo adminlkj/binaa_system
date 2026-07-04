@@ -19,6 +19,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
 
   useEffect(() => { setActiveReport(initialReport); }, [initialReport]);
   const [invoices, setInvoices] = useState([]);
+  const [rentalInvoices, setRentalInvoices] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [journal, setJournal] = useState([]);
   const [payroll, setPayroll] = useState([]);
@@ -31,14 +32,15 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, exp, je, pay, acc] = await Promise.all([
+      const [inv, rinv, exp, je, pay, acc] = await Promise.all([
         base44.entities.SalesInvoice.list('-date'),
+        base44.entities.RentalInvoice.list('-date'),
         base44.entities.Expense.list('-date'),
         base44.entities.JournalEntry.list('-date'),
         base44.entities.PayrollRun.list('-created_date'),
         base44.entities.ChartAccount.list('code'),
       ]);
-      setInvoices(inv); setExpenses(exp); setJournal(je); setPayroll(pay); setAccounts(acc);
+      setInvoices(inv); setRentalInvoices(rinv); setExpenses(exp); setJournal(je); setPayroll(pay); setAccounts(acc);
     } catch (e) {
       console.error(e);
     }
@@ -55,13 +57,17 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   };
 
   const reportInvoices = invoices.filter(i => inPeriod(i.date) && (invoiceStatus === 'all' || i.status === invoiceStatus));
+  const reportRentalInvoices = rentalInvoices.filter(i => inPeriod(i.date) && (invoiceStatus === 'all' || i.status === invoiceStatus));
   const reportExpenses = expenses.filter(e => inPeriod(e.date));
   const reportPayroll = payroll.filter(p => inPeriod(p.paymentDate || p.created_date?.slice(0, 10)));
   const reportJournal = journal.filter(j => inPeriod(j.date) && (entryStatus === 'all' || (entryStatus === 'posted' ? j.isPosted : !j.isPosted)));
 
   // Income Statement
-  const totalRevenue = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status))
-    .reduce((s, i) => s + (i.paidAmount || i.totalAmount || 0), 0);
+  const recognizedStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+  const totalRevenue = reportInvoices.filter(i => recognizedStatuses.includes(i.status))
+    .reduce((s, i) => s + (i.totalAmount || 0), 0)
+    + reportRentalInvoices.filter(i => recognizedStatuses.includes(i.status))
+      .reduce((s, i) => s + (i.totalAmount || 0), 0);
   const totalExpenses = reportExpenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
   const totalPayroll = reportPayroll.filter(p => p.status === 'PAID').reduce((s, p) => s + (p.netAmount || 0), 0);
   const totalCosts = totalExpenses + totalPayroll;
@@ -74,7 +80,8 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
   // VAT Report
-  const vatCollected = reportInvoices.reduce((s, i) => s + (i.vatAmount || 0), 0);
+  const vatCollected = reportInvoices.filter(i => recognizedStatuses.includes(i.status)).reduce((s, i) => s + (i.vatAmount || 0), 0)
+    + reportRentalInvoices.filter(i => recognizedStatuses.includes(i.status)).reduce((s, i) => s + (i.vatAmount || 0), 0);
   const vatPaid = reportExpenses.reduce((s, e) => s + (e.vatAmount || 0), 0);
   const vatNet = vatCollected - vatPaid;
 
@@ -145,7 +152,8 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     { label: t('صافي الضريبة المستحقة', 'Net VAT Due', lang), amount: fmt(vatNet) },
   ];
 
-  const cashflowInflow = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const cashflowInflow = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0)
+    + reportRentalInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
   const cashflowRows = [
     { label: t('تحصيلات العملاء (تدفق داخل)', 'Client Collections (Inflow)', lang), amount: fmt(cashflowInflow) },
     { label: t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang), amount: fmt(totalExpenses) },
@@ -257,7 +265,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                         <TableCell className="text-end text-emerald-700">{formatCurrency(totalRevenue, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="ps-8 text-muted-foreground">{t('← فواتير المبيعات المحصلة', '← Collected Sales Invoices', lang)}</TableCell>
+                        <TableCell className="ps-8 text-muted-foreground">{t('← فواتير المبيعات والتأجير المعتمدة', '← Approved sales and rental invoices', lang)}</TableCell>
                         <TableCell className="text-end">{formatCurrency(totalRevenue, lang)}</TableCell>
                       </TableRow>
                       <TableRow className="font-semibold bg-rose-50">
@@ -423,9 +431,9 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                     </TableHeader>
                     <TableBody>
                       <TableRow>
-                        <TableCell className="font-medium">{t('فواتير المبيعات', 'Sales Invoices', lang)}</TableCell>
-                        <TableCell>{reportInvoices.length}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(reportInvoices.reduce((s, i) => s + (i.subtotal || 0), 0), lang)}</TableCell>
+                        <TableCell className="font-medium">{t('فواتير المبيعات والتأجير', 'Sales & Rental Invoices', lang)}</TableCell>
+                        <TableCell>{reportInvoices.length + reportRentalInvoices.length}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(reportInvoices.reduce((s, i) => s + (i.subtotal || 0), 0) + reportRentalInvoices.reduce((s, i) => s + ((i.baseAmount || 0) + (i.extraCharges || 0) + (i.deliveryAmount || 0)), 0), lang)}</TableCell>
                         <TableCell className="text-end text-emerald-600">{formatCurrency(vatCollected, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
@@ -480,7 +488,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                       </TableRow>
                       <TableRow>
                         <TableCell className="ps-8 text-muted-foreground">{t('تحصيلات العملاء', 'Client Collections', lang)}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0), lang)}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(cashflowInflow, lang)}</TableCell>
                       </TableRow>
                       <TableRow className="font-semibold bg-rose-50">
                         <TableCell>{t('الأنشطة التشغيلية — تدفق خارج', 'Operating Activities — Outflow', lang)}</TableCell>

@@ -38,6 +38,10 @@ import StockMovements from '@/pages/StockMovements';
 import Reports from '@/pages/Reports';
 import VATReport from '@/pages/VATReport';
 import ProjectReports from '@/pages/ProjectReports';
+import InventoryReports from '@/pages/InventoryReports';
+import PartnerFollowUp from '@/pages/PartnerFollowUp';
+import EquipmentMaintenance from '@/pages/EquipmentMaintenance';
+import FuelConsumption from '@/pages/FuelConsumption';
 import AuditSuite from '@/pages/AuditSuite';
 import SubContractsAll from '@/pages/SubContractsAll';
 import SubcontractorInvoicesAll from '@/pages/SubcontractorInvoicesAll';
@@ -47,7 +51,6 @@ import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
 import Users from '@/pages/Users';
 import Settings from '@/pages/Settings';
-import ComingSoon from '@/pages/ComingSoon';
 
 const TAB_CONTENT = {
   projects: <Projects />,
@@ -58,8 +61,8 @@ const TAB_CONTENT = {
   equipment: <Equipment />,
   'rental-contracts': <RentalContracts />,
   timesheets: <Timesheets />,
-  'equipment-maintenance': <ComingSoon title="الصيانة" titleEn="Maintenance" />,
-  fuel: <ComingSoon title="استهلاك الوقود" titleEn="Fuel Consumption" />,
+  'equipment-maintenance': <EquipmentMaintenance />,
+  fuel: <FuelConsumption />,
   'purchase-requests': <PurchaseRequests />,
   'purchase-orders': <PurchaseOrders />,
   'goods-receipts': <GoodsReceipts />,
@@ -89,8 +92,8 @@ const TAB_CONTENT = {
   'report-trial': <TrialBalance />,
   'report-vat': <VATReport />,
   'report-projects': <ProjectReports />,
-  'report-inventory': <ComingSoon title="تقارير المخازن" titleEn="Inventory Reports" />,
-  'report-partners': <ComingSoon title="متابعة العملاء والموردين" titleEn="Clients & Suppliers Follow-up" />,
+  'report-inventory': <InventoryReports />,
+  'report-partners': <PartnerFollowUp />,
   'report-employees': <PayrollSheets />,
   // Subcontractors cycle
   'sub-registry': <Subcontractors />,
@@ -132,7 +135,7 @@ export default function CycleScreen({ cycleKey }) {
   if (!cycle) return null;
 
   const color = cycle.color;
-  const content = TAB_CONTENT[activeTab] || <ComingSoon title="قريباً" titleEn="Coming Soon" />;
+  const content = TAB_CONTENT[activeTab] || <div className="p-8 text-center text-muted-foreground">{lang === 'ar' ? 'تعذر تحميل الشاشة المطلوبة.' : 'Could not load the requested screen.'}</div>;
 
   return (
     <div className="flex flex-col h-full">

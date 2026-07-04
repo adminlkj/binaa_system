@@ -11,7 +11,7 @@ import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
-import { printDocument } from '@/lib/printTemplate';
+import { printReportDocument } from '@/lib/printTemplate';
 
 // أرباع السنة الميلادية: كل ربع 3 أشهر.
 const QUARTERS = [
@@ -130,24 +130,49 @@ export default function VATReport() {
   ];
 
   const printFullReturn = () => {
-    const rows = [
-      [t('ملخص الإقرار', 'Return Summary', lang), '', '', '', '', '', ''],
-      [t('الضريبة المخرجة', 'Output VAT', lang), '', '', '', formatCurrency(outputBase, lang), formatCurrency(outputVat, lang), formatCurrency(outputBase + outputVat, lang)],
-      [t('الضريبة المدخلة', 'Input VAT', lang), '', '', '', formatCurrency(inputBase, lang), formatCurrency(inputVat, lang), formatCurrency(inputBase + inputVat, lang)],
-      [netVat >= 0 ? t('صافي مستحق للهيئة', 'Net Due to Authority', lang) : t('صافي قابل للاسترداد', 'Net Refundable', lang), '', '', '', '', formatCurrency(Math.abs(netVat), lang), ''],
-      [t('تفاصيل الضريبة المخرجة', 'Output VAT Details', lang), '', '', '', '', '', ''],
-      ...outputRows.map(r => [t('مبيعات', 'Sales', lang), formatDate(r.date, lang), r.docNo, r.party || '', formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
-      [t('تفاصيل الضريبة المدخلة', 'Input VAT Details', lang), '', '', '', '', '', ''],
-      ...inputRows.map(r => [r.source, formatDate(r.date, lang), r.docNo, r.party || '', formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
+    const detailHeaders = [
+      t('التاريخ', 'Date', lang),
+      t('المستند', 'Document', lang),
+      t('الجهة', 'Party', lang),
+      t('المصدر', 'Source', lang),
+      t('القاعدة', 'Base', lang),
+      t('الضريبة', 'VAT', lang),
+      t('الإجمالي', 'Total', lang),
     ];
 
-    printDocument({
+    printReportDocument({
       settings,
       lang,
       heading: t('إقرار ضريبة القيمة المضافة الكامل', 'Full VAT Return', lang),
       subheading: periodLabel[lang],
-      headers: [t('البيان', 'Statement', lang), t('التاريخ', 'Date', lang), t('المستند', 'Document', lang), t('الجهة', 'Party', lang), t('القاعدة', 'Base', lang), t('الضريبة', 'VAT', lang), t('الإجمالي', 'Total', lang)],
-      rows,
+      summary: [
+        { label: t('الضريبة المخرجة', 'Output VAT', lang), value: formatCurrency(outputVat, lang), note: `${t('القاعدة', 'Base', lang)}: ${formatCurrency(outputBase, lang)}` },
+        { label: t('الضريبة المدخلة', 'Input VAT', lang), value: formatCurrency(inputVat, lang), note: `${t('القاعدة', 'Base', lang)}: ${formatCurrency(inputBase, lang)}` },
+        { label: netVat >= 0 ? t('صافي مستحق للهيئة', 'Net Due to Authority', lang) : t('صافي قابل للاسترداد', 'Net Refundable', lang), value: formatCurrency(Math.abs(netVat), lang) },
+      ],
+      sections: [
+        {
+          title: t('تفاصيل الضريبة المخرجة — المبيعات', 'Output VAT Details — Sales', lang),
+          headers: detailHeaders,
+          rows: outputRows.map(r => [formatDate(r.date, lang), r.docNo, r.party || '', t('مبيعات', 'Sales', lang), formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
+          totals: [[t('الإجمالي', 'Total', lang), '', '', '', formatCurrency(outputBase, lang), formatCurrency(outputVat, lang), formatCurrency(outputBase + outputVat, lang)]],
+        },
+        {
+          title: t('تفاصيل الضريبة المدخلة — المشتريات والمصروفات', 'Input VAT Details — Purchases & Expenses', lang),
+          headers: detailHeaders,
+          rows: inputRows.map(r => [formatDate(r.date, lang), r.docNo, r.party || '', r.source, formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
+          totals: [[t('الإجمالي', 'Total', lang), '', '', '', formatCurrency(inputBase, lang), formatCurrency(inputVat, lang), formatCurrency(inputBase + inputVat, lang)]],
+        },
+        {
+          title: t('ملخص التسوية', 'Settlement Summary', lang),
+          headers: [t('البيان', 'Statement', lang), t('المبلغ', 'Amount', lang)],
+          rows: [
+            [t('إجمالي الضريبة المخرجة', 'Total Output VAT', lang), formatCurrency(outputVat, lang)],
+            [t('إجمالي الضريبة المدخلة', 'Total Input VAT', lang), formatCurrency(inputVat, lang)],
+            [netVat >= 0 ? t('صافي الضريبة المستحقة للهيئة', 'Net VAT Due to Authority', lang) : t('صافي الضريبة القابلة للاسترداد', 'Net VAT Refundable', lang), formatCurrency(Math.abs(netVat), lang)],
+          ],
+        },
+      ],
     });
   };
 

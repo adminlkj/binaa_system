@@ -12,14 +12,16 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import ChartAccountDialog from '@/components/accounting/ChartAccountDialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Search, Pencil, Trash2, Network, Tag, ListTree, Loader2 } from 'lucide-react';
+import { Plus, Search, Network, ListTree, Loader2, ChevronsDown, ChevronsUp } from 'lucide-react';
+import ChartAccountSummary from '@/components/accounting/ChartAccountSummary';
+import ChartAccountTree from '@/components/accounting/ChartAccountTree';
 
 const TYPE_META = {
-  ASSET: { ar: 'أصول', en: 'Assets', color: 'text-blue-600 bg-blue-50 border-blue-200' },
-  LIABILITY: { ar: 'خصوم', en: 'Liabilities', color: 'text-amber-600 bg-amber-50 border-amber-200' },
-  EQUITY: { ar: 'حقوق ملكية', en: 'Equity', color: 'text-violet-600 bg-violet-50 border-violet-200' },
-  REVENUE: { ar: 'إيرادات', en: 'Revenue', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-  EXPENSE: { ar: 'مصروفات', en: 'Expenses', color: 'text-rose-600 bg-rose-50 border-rose-200' },
+  ASSET: { ar: 'أصول', en: 'Assets', color: 'text-blue-600 bg-blue-50 border-blue-200', borderTop: 'border-t-blue-500' },
+  LIABILITY: { ar: 'خصوم', en: 'Liabilities', color: 'text-amber-600 bg-amber-50 border-amber-200', borderTop: 'border-t-amber-500' },
+  EQUITY: { ar: 'حقوق ملكية', en: 'Equity', color: 'text-violet-600 bg-violet-50 border-violet-200', borderTop: 'border-t-violet-500' },
+  REVENUE: { ar: 'إيرادات', en: 'Revenue', color: 'text-emerald-600 bg-emerald-50 border-emerald-200', borderTop: 'border-t-emerald-500' },
+  EXPENSE: { ar: 'مصروفات', en: 'Expenses', color: 'text-rose-600 bg-rose-50 border-rose-200', borderTop: 'border-t-rose-500' },
 };
 
 export default function ChartAccounts() {
@@ -32,29 +34,35 @@ export default function ChartAccounts() {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [seeding, setSeeding] = useState(false);
+  const [expanded, setExpanded] = useState(new Set());
 
   const load = async () => {
     setLoading(true);
     const list = await base44.entities.ChartAccount.list('code', 1000);
-    setAccounts(list || []);
+    const safeList = list || [];
+    setAccounts(safeList);
+    setExpanded(new Set(safeList.filter(a => !a.parentCode || Number(a.level || 1) <= 2).map(a => a.code)));
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  // Build parent → children map for tree rendering
-  const roots = useMemo(() => accounts.filter(a => !a.parentCode), [accounts]);
-  const childrenOf = (code) => accounts.filter(a => a.parentCode === code);
+  const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => String(a.code).localeCompare(String(b.code))), [accounts]);
+  const roots = useMemo(() => sortedAccounts.filter(a => !a.parentCode), [sortedAccounts]);
+  const childrenMap = useMemo(() => sortedAccounts.reduce((map, acc) => {
+    if (acc.parentCode) map[acc.parentCode] = [...(map[acc.parentCode] || []), acc];
+    return map;
+  }, {}), [sortedAccounts]);
 
-  const filtered = search
-    ? accounts.filter(a =>
-        a.code.includes(search) ||
-        a.name.includes(search) ||
-        (a.nameEn || '').toLowerCase().includes(search.toLowerCase()) ||
-        (a.semanticRole || '').toLowerCase().includes(search.toLowerCase()))
-    : null;
+  const filtered = useMemo(() => {
+    if (!search.trim()) return null;
+    const q = search.trim().toLowerCase();
+    return sortedAccounts.filter(a =>
+      String(a.code || '').toLowerCase().includes(q) ||
+      String(a.name || '').toLowerCase().includes(q) ||
+      String(a.nameEn || '').toLowerCase().includes(q) ||
+      String(a.semanticRole || '').toLowerCase().includes(q));
+  }, [search, sortedAccounts]);
 
-  // ينشئ قيداً افتتاحياً متوازناً: طرف الحساب الجديد حسب طبيعته، والطرف المقابل
-  // على حساب "رصيد افتتاحي — حقوق ملكية" ليبقى ميزان المراجعة متوازناً.
   const postOpeningBalance = async (acc) => {
     const equity = accounts.find(a => a.semanticRole === 'OPENING_BALANCE_EQUITY')
       || accounts.find(a => a.accountType === 'EQUITY');
@@ -101,7 +109,6 @@ export default function ChartAccounts() {
     await load();
   };
 
-  // يهيّئ الشجرة القياسية للمقاولات — يُنشئ الحسابات المفقودة فقط دون تكرار الموجود.
   const seedStandardChart = async () => {
     setSeeding(true);
     try {
@@ -123,49 +130,18 @@ export default function ChartAccounts() {
 
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (acc) => { setEditing(acc); setDialogOpen(true); };
-
-  const Row = ({ acc, depth }) => {
-    const meta = TYPE_META[acc.accountType] || TYPE_META.ASSET;
-    const kids = childrenOf(acc.code);
-    return (
-      <>
-        <div
-          className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-lg group"
-          style={{ paddingInlineStart: `${depth * 20 + 12}px` }}
-        >
-          <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">{acc.code}</span>
-          <span className={`text-sm ${acc.isPostable ? 'font-medium' : 'font-bold'} truncate`}>
-            {lang === 'ar' ? acc.name : (acc.nameEn || acc.name)}
-          </span>
-          {acc.semanticRole && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 shrink-0">
-              <Tag className="size-2.5" />{acc.semanticRole}
-            </span>
-          )}
-          {!acc.isPostable && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">{t('تجميعي', 'Group', lang)}</span>
-          )}
-          <span className={`ms-auto text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${meta.color}`}>
-            {lang === 'ar' ? meta.ar : meta.en}
-          </span>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={() => openEdit(acc)} className="size-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground">
-              <Pencil className="size-3" />
-            </button>
-            <button onClick={() => setDeleting(acc)} className="size-6 flex items-center justify-center rounded hover:bg-rose-50 text-rose-500">
-              <Trash2 className="size-3" />
-            </button>
-          </div>
-        </div>
-        {kids.map(k => <Row key={k.id} acc={k} depth={depth + 1} />)}
-      </>
-    );
-  };
+  const toggleAccount = (code) => setExpanded(prev => {
+    const next = new Set(prev);
+    next.has(code) ? next.delete(code) : next.add(code);
+    return next;
+  });
+  const expandAll = () => setExpanded(new Set(accounts.map(a => a.code)));
+  const collapseAll = () => setExpanded(new Set(roots.map(a => a.code)));
 
   return (
     <ModuleLayout
       title={t('الدليل المحاسبي', 'Chart of Accounts', lang)}
-      subtitle={t('شجرة الحسابات وأدوارها الدلالية — المصدر الموحّد للقيود', 'Accounts tree & semantic roles — single source for postings', lang)}
+      subtitle={t('شجرة حسابات واضحة تشرح هيكل النظام وتوضح الحسابات التجميعية والنهائية', 'A clear account tree that explains system structure and postable accounts', lang)}
       actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={seedStandardChart} disabled={seeding} className="gap-1.5">
@@ -178,27 +154,40 @@ export default function ChartAccounts() {
         </div>
       }
     >
-      <div className="relative max-w-sm">
-        <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('بحث بالرقم أو الاسم أو الدور', 'Search code, name or role', lang)} className="ps-9" />
+      <ChartAccountSummary accounts={accounts} typeMeta={TYPE_META} lang={lang} />
+
+      <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between rounded-xl border bg-white p-3">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('بحث بالرقم أو الاسم أو الدور أو الحساب الدلالي', 'Search code, name, role or semantic account', lang)} className="ps-9 h-10" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={expandAll} className="gap-1.5" disabled={accounts.length === 0}>
+            <ChevronsDown className="size-4" />{t('توسيع الكل', 'Expand All', lang)}
+          </Button>
+          <Button type="button" variant="outline" onClick={collapseAll} className="gap-1.5" disabled={accounts.length === 0}>
+            <ChevronsUp className="size-4" />{t('طي الكل', 'Collapse All', lang)}
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-2">
-          {loading ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">{t('جارٍ التحميل...', 'Loading...', lang)}</div>
-          ) : accounts.length === 0 ? (
-            <div className="py-16 flex flex-col items-center text-center">
-              <Network className="size-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">{t('لا توجد حسابات بعد', 'No accounts yet', lang)}</p>
-            </div>
-          ) : filtered ? (
-            filtered.map(acc => <Row key={acc.id} acc={acc} depth={0} />)
-          ) : (
-            roots.map(acc => <Row key={acc.id} acc={acc} depth={0} />)
-          )}
-        </CardContent>
-      </Card>
+      {loading ? (
+        <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">{t('جارٍ التحميل...', 'Loading...', lang)}</CardContent></Card>
+      ) : accounts.length === 0 ? (
+        <Card><CardContent className="py-16 flex flex-col items-center text-center"><Network className="size-10 text-muted-foreground/40 mb-3" /><p className="text-sm text-muted-foreground">{t('لا توجد حسابات بعد', 'No accounts yet', lang)}</p></CardContent></Card>
+      ) : (
+        <ChartAccountTree
+          roots={roots}
+          childrenMap={childrenMap}
+          searchResults={filtered}
+          expanded={expanded}
+          onToggle={toggleAccount}
+          onEdit={openEdit}
+          onDelete={setDeleting}
+          typeMeta={TYPE_META}
+          lang={lang}
+        />
+      )}
 
       <ChartAccountDialog
         open={dialogOpen}

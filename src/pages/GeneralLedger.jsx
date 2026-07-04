@@ -11,7 +11,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
-import { buildTrialBalance, buildAccountLedger } from '@/lib/ledgerEngine';
+import { buildAccountLedger } from '@/lib/ledgerEngine';
 
 // الأستاذ العام: اختر حساباً لعرض كل حركاته المُرحّلة برصيد جارٍ عبر الفترة.
 export default function GeneralLedger() {
@@ -36,12 +36,10 @@ export default function GeneralLedger() {
   };
   useEffect(() => { load(); }, []);
 
-  // الحسابات التي عليها حركة فعلية (لتقليص القائمة).
-  const activeAccounts = useMemo(() => {
-    const tb = buildTrialBalance(entries, accounts, {});
-    const codes = new Set(tb.rows.map(r => r.accountCode));
-    return accounts.filter(a => codes.has(a.code));
-  }, [entries, accounts]);
+  const activeAccounts = useMemo(
+    () => accounts.filter(a => a.isPostable !== false).sort((a, b) => String(a.code).localeCompare(String(b.code))),
+    [accounts]
+  );
 
   const selected = accounts.find(a => a.code === accountCode);
   const ledger = useMemo(
@@ -81,8 +79,10 @@ export default function GeneralLedger() {
           <Label className="text-xs">{t('الحساب', 'Account', lang)}</Label>
           <Select value={accountCode} onValueChange={setAccountCode}>
             <SelectTrigger><SelectValue placeholder={t('اختر حساباً', 'Select account', lang)} /></SelectTrigger>
-            <SelectContent>
-              {activeAccounts.map(a => (
+            <SelectContent className="max-h-80">
+              {activeAccounts.length === 0 ? (
+                <div className="px-3 py-6 text-center text-sm text-muted-foreground">{t('لا توجد حسابات قابلة للترحيل', 'No postable accounts', lang)}</div>
+              ) : activeAccounts.map(a => (
                 <SelectItem key={a.code} value={a.code}>
                   <span className="font-mono text-xs text-muted-foreground me-2">{a.code}</span>
                   {lang === 'ar' ? a.name : (a.nameEn || a.name)}

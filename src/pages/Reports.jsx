@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, DollarSign, FileText, RefreshCw, Calculator } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
@@ -21,6 +23,10 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const [journal, setJournal] = useState([]);
   const [payroll, setPayroll] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [invoiceStatus, setInvoiceStatus] = useState('all');
+  const [entryStatus, setEntryStatus] = useState('posted');
 
   const load = async () => {
     setLoading(true);
@@ -41,23 +47,35 @@ export default function Reports({ initialReport = 'income', hideSelector = false
 
   useEffect(() => { load(); }, []);
 
+  const inPeriod = (date) => {
+    if (!date) return true;
+    if (from && date < from) return false;
+    if (to && date > to) return false;
+    return true;
+  };
+
+  const reportInvoices = invoices.filter(i => inPeriod(i.date) && (invoiceStatus === 'all' || i.status === invoiceStatus));
+  const reportExpenses = expenses.filter(e => inPeriod(e.date));
+  const reportPayroll = payroll.filter(p => inPeriod(p.paymentDate || p.created_date?.slice(0, 10)));
+  const reportJournal = journal.filter(j => inPeriod(j.date) && (entryStatus === 'all' || (entryStatus === 'posted' ? j.isPosted : !j.isPosted)));
+
   // Income Statement
-  const totalRevenue = invoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status))
+  const totalRevenue = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status))
     .reduce((s, i) => s + (i.paidAmount || i.totalAmount || 0), 0);
-  const totalExpenses = expenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
-  const totalPayroll = payroll.filter(p => p.status === 'PAID').reduce((s, p) => s + (p.netAmount || 0), 0);
+  const totalExpenses = reportExpenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
+  const totalPayroll = reportPayroll.filter(p => p.status === 'PAID').reduce((s, p) => s + (p.netAmount || 0), 0);
   const totalCosts = totalExpenses + totalPayroll;
   const netProfit = totalRevenue - totalCosts;
 
   // Trial Balance from Journal Entries
-  const postedEntries = journal.filter(j => j.isPosted);
+  const postedEntries = reportJournal;
   const totalDebit = postedEntries.reduce((s, j) => s + (j.totalDebit || 0), 0);
   const totalCredit = postedEntries.reduce((s, j) => s + (j.totalCredit || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
   // VAT Report
-  const vatCollected = invoices.reduce((s, i) => s + (i.vatAmount || 0), 0);
-  const vatPaid = expenses.reduce((s, e) => s + (e.vatAmount || 0), 0);
+  const vatCollected = reportInvoices.reduce((s, i) => s + (i.vatAmount || 0), 0);
+  const vatPaid = reportExpenses.reduce((s, e) => s + (e.vatAmount || 0), 0);
   const vatNet = vatCollected - vatPaid;
 
   // Account balances from journal
@@ -127,7 +145,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     { label: t('صافي الضريبة المستحقة', 'Net VAT Due', lang), amount: fmt(vatNet) },
   ];
 
-  const cashflowInflow = invoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const cashflowInflow = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
   const cashflowRows = [
     { label: t('تحصيلات العملاء (تدفق داخل)', 'Client Collections (Inflow)', lang), amount: fmt(cashflowInflow) },
     { label: t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang), amount: fmt(totalExpenses) },
@@ -153,6 +171,51 @@ export default function Reports({ initialReport = 'income', hideSelector = false
           ))}
         </div>
       </div>
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">{t('من تاريخ', 'From Date', lang)}</Label>
+              <Input type="date" value={from} onChange={e => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('إلى تاريخ', 'To Date', lang)}</Label>
+              <Input type="date" value={to} onChange={e => setTo(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('حالة الفواتير', 'Invoice Status', lang)}</Label>
+              <Select value={invoiceStatus} onValueChange={setInvoiceStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('كل الفواتير', 'All invoices', lang)}</SelectItem>
+                  <SelectItem value="PAID">{t('مدفوعة', 'Paid', lang)}</SelectItem>
+                  <SelectItem value="PARTIALLY_PAID">{t('مدفوعة جزئياً', 'Partially paid', lang)}</SelectItem>
+                  <SelectItem value="SENT">{t('مرسلة', 'Sent', lang)}</SelectItem>
+                  <SelectItem value="DRAFT">{t('مسودة', 'Draft', lang)}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{t('حالة القيود', 'Journal Status', lang)}</Label>
+              <Select value={entryStatus} onValueChange={setEntryStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="posted">{t('القيود المرحّلة فقط', 'Posted only', lang)}</SelectItem>
+                  <SelectItem value="draft">{t('غير المرحّلة', 'Unposted', lang)}</SelectItem>
+                  <SelectItem value="all">{t('كل القيود', 'All entries', lang)}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" onClick={() => { setFrom(''); setTo(''); setInvoiceStatus('all'); setEntryStatus('posted'); }}>
+              {t('مسح الفلاتر', 'Clear Filters', lang)}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {t('تطبّق الفلاتر على الملخصات والجداول والطباعة والتصدير في التقرير الحالي.', 'Filters apply to summaries, tables, print and export in the current report.', lang)}
+          </p>
+        </CardContent>
+      </Card>
 
       {loading ? (
         <div className="grid grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Card key={i}><CardContent className="p-5"><div className="h-16 bg-muted animate-pulse rounded" /></CardContent></Card>)}</div>
@@ -361,14 +424,14 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                     <TableBody>
                       <TableRow>
                         <TableCell className="font-medium">{t('فواتير المبيعات', 'Sales Invoices', lang)}</TableCell>
-                        <TableCell>{invoices.length}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(invoices.reduce((s, i) => s + (i.subtotal || 0), 0), lang)}</TableCell>
+                        <TableCell>{reportInvoices.length}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(reportInvoices.reduce((s, i) => s + (i.subtotal || 0), 0), lang)}</TableCell>
                         <TableCell className="text-end text-emerald-600">{formatCurrency(vatCollected, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="font-medium">{t('المصروفات', 'Expenses', lang)}</TableCell>
-                        <TableCell>{expenses.length}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(expenses.reduce((s, e) => s + (e.amount || 0), 0), lang)}</TableCell>
+                        <TableCell>{reportExpenses.length}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(reportExpenses.reduce((s, e) => s + (e.amount || 0), 0), lang)}</TableCell>
                         <TableCell className="text-end text-rose-600">{formatCurrency(vatPaid, lang)}</TableCell>
                       </TableRow>
                     </TableBody>
@@ -385,7 +448,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                 <Card className="border-t-4 border-t-emerald-500">
                   <CardContent className="p-5">
                     <p className="text-sm text-muted-foreground">{t('التدفقات الداخلة', 'Cash Inflows', lang)}</p>
-                    <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.paidAmount || i.totalAmount || 0), 0), lang)}</p>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(reportInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.paidAmount || i.totalAmount || 0), 0), lang)}</p>
                     <p className="text-xs text-muted-foreground mt-1">{t('فواتير مدفوعة بالكامل', 'Fully paid invoices', lang)}</p>
                   </CardContent>
                 </Card>
@@ -417,7 +480,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                       </TableRow>
                       <TableRow>
                         <TableCell className="ps-8 text-muted-foreground">{t('تحصيلات العملاء', 'Client Collections', lang)}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(invoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0), lang)}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0), lang)}</TableCell>
                       </TableRow>
                       <TableRow className="font-semibold bg-rose-50">
                         <TableCell>{t('الأنشطة التشغيلية — تدفق خارج', 'Operating Activities — Outflow', lang)}</TableCell>

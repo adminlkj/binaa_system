@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PROJECT_STATUS } from '@/lib/utils-binaa';
+import TableToolbar from '@/components/shared/TableToolbar';
 
 // تقرير محفظة المشاريع: الإيراد والتكلفة والربح لكل مشروع.
 export default function ProjectReports() {
@@ -20,6 +23,8 @@ export default function ProjectReports() {
   const [stockMovements, setStockMovements] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
   const [subcontractorInvoices, setSubcontractorInvoices] = useState([]);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -41,13 +46,14 @@ export default function ProjectReports() {
   };
   useEffect(() => { load(); }, []);
 
+  const inPeriod = (date) => (!from || (date && date >= from)) && (!to || (date && date <= to));
   const postedInvoiceStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
   const rows = projects.map(p => {
-    const revenue = invoices.filter(i => i.projectId === p.id && postedInvoiceStatuses.includes(i.status)).reduce((s, i) => s + (i.totalAmount || 0), 0);
-    const expenseCost = expenses.filter(e => e.projectId === p.id).reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
-    const stockCost = stockMovements.filter(m => m.projectId === p.id && m.type === 'ISSUE').reduce((s, m) => s + (m.totalCost || 0), 0);
-    const supplierCost = supplierInvoices.filter(i => i.projectId === p.id && !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status)).reduce((s, i) => s + (i.totalAmount || 0), 0);
-    const subcontractorCost = subcontractorInvoices.filter(i => i.projectId === p.id && ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(i.status)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const revenue = invoices.filter(i => i.projectId === p.id && postedInvoiceStatuses.includes(i.status) && inPeriod(i.date)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const expenseCost = expenses.filter(e => e.projectId === p.id && inPeriod(e.date)).reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
+    const stockCost = stockMovements.filter(m => m.projectId === p.id && m.type === 'ISSUE' && inPeriod(m.date)).reduce((s, m) => s + (m.totalCost || 0), 0);
+    const supplierCost = supplierInvoices.filter(i => i.projectId === p.id && !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status) && inPeriod(i.date)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const subcontractorCost = subcontractorInvoices.filter(i => i.projectId === p.id && ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(i.status) && inPeriod(i.date)).reduce((s, i) => s + (i.totalAmount || 0), 0);
     const cost = expenseCost + stockCost + supplierCost + subcontractorCost;
     const profit = revenue - cost;
     const margin = revenue ? (profit / revenue) * 100 : 0;
@@ -57,13 +63,27 @@ export default function ProjectReports() {
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
   const totalCost = rows.reduce((s, r) => s + r.cost, 0);
   const totalProfit = totalRevenue - totalCost;
+  const columns = [
+    { header: { ar: 'المشروع', en: 'Project' }, value: r => r.name },
+    { header: { ar: 'الإيراد', en: 'Revenue' }, value: r => formatCurrency(r.revenue, lang) },
+    { header: { ar: 'التكلفة', en: 'Cost' }, value: r => formatCurrency(r.cost, lang) },
+    { header: { ar: 'الربح', en: 'Profit' }, value: r => formatCurrency(r.profit, lang) },
+    { header: { ar: 'الهامش', en: 'Margin' }, value: r => `${r.margin.toFixed(1)}%` },
+  ];
 
   return (
     <ModuleLayout
       title={t('تقارير المشاريع', 'Project Reports', lang)}
       subtitle={t('ربحية محفظة المشاريع', 'Project portfolio profitability', lang)}
-      actions={<Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>}
+      actions={<div className="flex gap-2"><TableToolbar columns={columns} rows={rows} title={{ ar: 'تقارير المشاريع التفصيلية', en: 'Detailed Project Reports' }} /><Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button></div>}
     >
+      <Card className="p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+          <div className="space-y-1"><Label className="text-xs">{t('من تاريخ', 'From Date', lang)}</Label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
+          <div className="space-y-1"><Label className="text-xs">{t('إلى تاريخ', 'To Date', lang)}</Label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
+          <Button variant="outline" onClick={() => { setFrom(''); setTo(''); }}>{t('مسح الفترة', 'Clear Period', lang)}</Button>
+        </div>
+      </Card>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-t-4 border-t-emerald-500"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{t('إجمالي الإيرادات', 'Total Revenue', lang)}</p><p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(totalRevenue, lang)}</p></CardContent></Card>
         <Card className="border-t-4 border-t-rose-500"><CardContent className="p-5"><p className="text-sm text-muted-foreground">{t('إجمالي التكاليف', 'Total Costs', lang)}</p><p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrency(totalCost, lang)}</p></CardContent></Card>

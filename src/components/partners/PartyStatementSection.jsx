@@ -26,6 +26,8 @@ export default function PartyStatementSection({ partyType, parties = [] }) {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [selectedId, setSelectedId] = useState(null);
 
   const load = async () => {
@@ -44,8 +46,8 @@ export default function PartyStatementSection({ partyType, parties = [] }) {
 
   // أرصدة كل الأطراف — مبنية من القيود المرحّلة فقط.
   const { rows, totals } = useMemo(
-    () => buildPartyBalances(entries, accounts, parties, partyType),
-    [entries, accounts, parties, partyType]
+    () => buildPartyBalances(entries, accounts, parties, partyType, { from, to }),
+    [entries, accounts, parties, partyType, from, to]
   );
 
   const filtered = rows.filter(r =>
@@ -55,8 +57,8 @@ export default function PartyStatementSection({ partyType, parties = [] }) {
   const selectedParty = parties.find(p => p.id === selectedId);
   const statement = useMemo(() => {
     if (!selectedParty) return null;
-    return buildPartyStatement(entries, accounts, { id: selectedParty.id, name: selectedParty.name, type: partyType }, {});
-  }, [selectedParty, entries, accounts, partyType]);
+    return buildPartyStatement(entries, accounts, { id: selectedParty.id, name: selectedParty.name, type: partyType }, { from, to });
+  }, [selectedParty, entries, accounts, partyType, from, to]);
 
   const outstandingLabel = isSupplier
     ? t('مستحق للمورد', 'Owed to Supplier', lang)
@@ -80,11 +82,13 @@ export default function PartyStatementSection({ partyType, parties = [] }) {
         </Card>
       </div>
 
-      <div className="flex gap-3">
-        <div className="relative flex-1">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
+        <div className="relative">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('بحث بالاسم أو الكود...', 'Search by name or code...', lang)} className="ps-9" />
         </div>
+        <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="md:w-40" />
+        <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="md:w-40" />
         <Button variant="outline" size="icon" onClick={load}><RefreshCw className="size-4" /></Button>
       </div>
 

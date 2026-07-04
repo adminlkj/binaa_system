@@ -67,7 +67,7 @@ export default function GeneralLedger() {
               columns={exportColumns}
               rows={ledger.movements}
               title={{ ar: `الأستاذ العام — ${selected.name}`, en: `General Ledger — ${selected.nameEn || selected.name}` }}
-              subheading={{ ar: `الحساب ${selected.code}`, en: `Account ${selected.code}` }}
+              subheading={{ ar: `الحساب ${selected.code} · ${t('رصيد افتتاحي', 'Opening Balance', lang)} ${formatCurrency(ledger.openingBalance || 0, lang)}`, en: `Account ${selected.code} · Opening Balance ${formatCurrency(ledger.openingBalance || 0, lang)}` }}
             />
           )}
           <Button variant="outline" onClick={load} className="gap-2"><RefreshCw className="size-4" />{t('تحديث', 'Refresh', lang)}</Button>
@@ -103,7 +103,8 @@ export default function GeneralLedger() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3 text-center text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
+            <div className="rounded-lg border p-3 bg-slate-50/70"><div className="text-xs text-muted-foreground">{t('رصيد افتتاحي', 'Opening Balance', lang)}</div><div className="font-bold text-slate-700">{formatCurrency(ledger?.openingBalance || 0, lang)}</div></div>
             <div className="rounded-lg border p-3 bg-blue-50/50"><div className="text-xs text-muted-foreground">{t('إجمالي مدين', 'Total Debit', lang)}</div><div className="font-bold text-blue-700">{formatCurrency(ledger?.totalDebit, lang)}</div></div>
             <div className="rounded-lg border p-3 bg-amber-50/50"><div className="text-xs text-muted-foreground">{t('إجمالي دائن', 'Total Credit', lang)}</div><div className="font-bold text-amber-700">{formatCurrency(ledger?.totalCredit, lang)}</div></div>
             <div className="rounded-lg border p-3 bg-teal-50/50"><div className="text-xs text-muted-foreground">{t('الرصيد الختامي', 'Closing Balance', lang)}</div><div className="font-bold text-teal-700">{formatCurrency(ledger?.closingBalance, lang)}</div></div>

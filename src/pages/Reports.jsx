@@ -85,9 +85,10 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const vatPaid = reportExpenses.reduce((s, e) => s + (e.vatAmount || 0), 0);
   const vatNet = vatCollected - vatPaid;
 
-  // Account balances from journal
+  // Account balances for balance sheet are cumulative up to the report date, not period movement only.
+  const balanceEntries = journal.filter(j => (!to || j.date <= to) && (entryStatus === 'all' || (entryStatus === 'posted' ? j.isPosted : !j.isPosted)));
   const accountBalances = {};
-  postedEntries.forEach(entry => {
+  balanceEntries.forEach(entry => {
     (entry.lines || []).forEach(line => {
       const code = line.accountCode || 'MISC';
       const name = line.accountName || code;
@@ -154,11 +155,13 @@ export default function Reports({ initialReport = 'income', hideSelector = false
 
   const cashflowInflow = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0)
     + reportRentalInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const cashflowOutflow = totalExpenses + totalPayroll;
+  const netCashflow = cashflowInflow - cashflowOutflow;
   const cashflowRows = [
     { label: t('تحصيلات العملاء (تدفق داخل)', 'Client Collections (Inflow)', lang), amount: fmt(cashflowInflow) },
     { label: t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang), amount: fmt(totalExpenses) },
     { label: t('مسيرات الرواتب', 'Payroll', lang), amount: fmt(totalPayroll) },
-    { label: t('صافي التدفق النقدي', 'Net Cash Flow', lang), amount: fmt(netProfit) },
+    { label: t('صافي التدفق النقدي', 'Net Cash Flow', lang), amount: fmt(netCashflow) },
   ];
 
   return (
@@ -456,21 +459,21 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                 <Card className="border-t-4 border-t-emerald-500">
                   <CardContent className="p-5">
                     <p className="text-sm text-muted-foreground">{t('التدفقات الداخلة', 'Cash Inflows', lang)}</p>
-                    <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(reportInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.paidAmount || i.totalAmount || 0), 0), lang)}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{t('فواتير مدفوعة بالكامل', 'Fully paid invoices', lang)}</p>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrency(cashflowInflow, lang)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('تحصيلات المبيعات والتأجير', 'Sales and rental collections', lang)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-t-4 border-t-rose-500">
                   <CardContent className="p-5">
                     <p className="text-sm text-muted-foreground">{t('التدفقات الخارجة', 'Cash Outflows', lang)}</p>
-                    <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrency(totalCosts, lang)}</p>
+                    <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrency(cashflowOutflow, lang)}</p>
                     <p className="text-xs text-muted-foreground mt-1">{t('مصروفات + رواتب', 'Expenses + Payroll', lang)}</p>
                   </CardContent>
                 </Card>
-                <Card className={`border-t-4 ${netProfit >= 0 ? 'border-t-teal-500' : 'border-t-amber-500'}`}>
+                <Card className={`border-t-4 ${netCashflow >= 0 ? 'border-t-teal-500' : 'border-t-amber-500'}`}>
                   <CardContent className="p-5">
                     <p className="text-sm text-muted-foreground">{t('صافي التدفق', 'Net Cash Flow', lang)}</p>
-                    <p className={`text-2xl font-bold mt-1 ${netProfit >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>{formatCurrency(netProfit, lang)}</p>
+                    <p className={`text-2xl font-bold mt-1 ${netCashflow >= 0 ? 'text-teal-600' : 'text-amber-600'}`}>{formatCurrency(netCashflow, lang)}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -484,7 +487,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                     <TableBody>
                       <TableRow className="font-semibold bg-emerald-50">
                         <TableCell>{t('الأنشطة التشغيلية — تدفق داخل', 'Operating Activities — Inflow', lang)}</TableCell>
-                        <TableCell className="text-end text-emerald-700">{formatCurrency(totalRevenue, lang)}</TableCell>
+                        <TableCell className="text-end text-emerald-700">{formatCurrency(cashflowInflow, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="ps-8 text-muted-foreground">{t('تحصيلات العملاء', 'Client Collections', lang)}</TableCell>
@@ -492,7 +495,7 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                       </TableRow>
                       <TableRow className="font-semibold bg-rose-50">
                         <TableCell>{t('الأنشطة التشغيلية — تدفق خارج', 'Operating Activities — Outflow', lang)}</TableCell>
-                        <TableCell className="text-end text-rose-700">{formatCurrency(totalCosts, lang)}</TableCell>
+                        <TableCell className="text-end text-rose-700">{formatCurrency(cashflowOutflow, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="ps-8 text-muted-foreground">{t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang)}</TableCell>
@@ -502,9 +505,9 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                         <TableCell className="ps-8 text-muted-foreground">{t('مسيرات الرواتب', 'Payroll', lang)}</TableCell>
                         <TableCell className="text-end">{formatCurrency(totalPayroll, lang)}</TableCell>
                       </TableRow>
-                      <TableRow className={`font-bold text-base ${netProfit >= 0 ? 'bg-teal-50' : 'bg-amber-50'}`}>
+                      <TableRow className={`font-bold text-base ${netCashflow >= 0 ? 'bg-teal-50' : 'bg-amber-50'}`}>
                         <TableCell>{t('صافي التدفق النقدي', 'Net Cash Flow', lang)}</TableCell>
-                        <TableCell className={`text-end ${netProfit >= 0 ? 'text-teal-700' : 'text-amber-700'}`}>{formatCurrency(netProfit, lang)}</TableCell>
+                        <TableCell className={`text-end ${netCashflow >= 0 ? 'text-teal-700' : 'text-amber-700'}`}>{formatCurrency(netCashflow, lang)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

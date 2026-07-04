@@ -22,6 +22,7 @@ const QUARTERS = [
 ];
 
 const currentYear = new Date().getFullYear();
+const currentQuarter = QUARTERS[Math.floor(new Date().getMonth() / 3)]?.key || 'Q1';
 const YEARS = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
 function inPeriod(dateStr, year, months) {
@@ -36,21 +37,23 @@ export default function VATReport() {
   const { lang } = useStore();
   const { settings } = useCompanySettings();
   const [sales, setSales] = useState([]);
+  const [rentalSales, setRentalSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(String(currentYear));
-  const [quarter, setQuarter] = useState('Q1');
+  const [quarter, setQuarter] = useState(currentQuarter);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, exp, si] = await Promise.all([
+      const [inv, rinv, exp, si] = await Promise.all([
         base44.entities.SalesInvoice.list('-date', 2000),
+        base44.entities.RentalInvoice.list('-date', 2000),
         base44.entities.Expense.list('-date', 2000),
         base44.entities.SupplierInvoice.list('-date', 2000),
       ]);
-      setSales(inv); setExpenses(exp); setSupplierInvoices(si);
+      setSales(inv); setRentalSales(rinv); setExpenses(exp); setSupplierInvoices(si);
     } catch (e) {
       console.error(e);
     }
@@ -60,19 +63,33 @@ export default function VATReport() {
 
   const q = QUARTERS.find(x => x.key === quarter) || QUARTERS[0];
 
-  // الضريبة المخرجة: فواتير المبيعات ضمن الفترة (باستثناء الملغاة).
-  const outputRows = useMemo(() =>
-    sales
-      .filter(i => i.status !== 'CANCELLED' && inPeriod(i.date, year, q.months))
+  // الضريبة المخرجة: فواتير المبيعات والتأجير ضمن الفترة (باستثناء المسودات والملغاة).
+  const outputRows = useMemo(() => {
+    const taxableStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+    const salesRows = sales
+      .filter(i => taxableStatuses.includes(i.status) && inPeriod(i.date, year, q.months))
       .map(i => ({
         date: i.date,
         docNo: i.invoiceNo,
         party: i.clientName,
+        source: t('فاتورة مبيعات', 'Sales Invoice', lang),
         base: Number(i.subtotal) || 0,
         vat: Number(i.vatAmount) || 0,
         total: Number(i.totalAmount) || 0,
-      })),
-    [sales, year, q]);
+      }));
+    const rentalRows = rentalSales
+      .filter(i => taxableStatuses.includes(i.status) && inPeriod(i.date, year, q.months))
+      .map(i => ({
+        date: i.date,
+        docNo: i.invoiceNo,
+        party: i.clientName,
+        source: t('فاتورة تأجير', 'Rental Invoice', lang),
+        base: (Number(i.baseAmount) || 0) + (Number(i.extraCharges) || 0) + (i.deliveryVatable === false ? 0 : (Number(i.deliveryAmount) || 0)),
+        vat: Number(i.vatAmount) || 0,
+        total: Number(i.totalAmount) || 0,
+      }));
+    return [...salesRows, ...rentalRows].sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [sales, rentalSales, year, q, lang]);
 
   // الضريبة المدخلة: المصروفات + فواتير الموردين ضمن الفترة.
   const inputRows = useMemo(() => {
@@ -116,6 +133,7 @@ export default function VATReport() {
     { header: { ar: 'التاريخ', en: 'Date' }, value: (r) => formatDate(r.date, lang) },
     { header: { ar: 'رقم الفاتورة', en: 'Invoice No' }, value: (r) => r.docNo },
     { header: { ar: 'العميل', en: 'Client' }, value: (r) => r.party || '' },
+    { header: { ar: 'المصدر', en: 'Source' }, value: (r) => r.source || '' },
     { header: { ar: 'القاعدة الخاضعة', en: 'Taxable Base' }, value: (r) => r.base },
     { header: { ar: 'الضريبة المخرجة', en: 'Output VAT' }, value: (r) => r.vat },
     { header: { ar: 'الإجمالي', en: 'Total' }, value: (r) => r.total },
@@ -154,7 +172,7 @@ export default function VATReport() {
         {
           title: t('تفاصيل الضريبة المخرجة — المبيعات', 'Output VAT Details — Sales', lang),
           headers: detailHeaders,
-          rows: outputRows.map(r => [formatDate(r.date, lang), r.docNo, r.party || '', t('مبيعات', 'Sales', lang), formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
+          rows: outputRows.map(r => [formatDate(r.date, lang), r.docNo, r.party || '', r.source || t('مبيعات', 'Sales', lang), formatCurrency(r.base, lang), formatCurrency(r.vat, lang), formatCurrency(r.total, lang)]),
           totals: [[t('الإجمالي', 'Total', lang), '', '', '', formatCurrency(outputBase, lang), formatCurrency(outputVat, lang), formatCurrency(outputBase + outputVat, lang)]],
         },
         {
@@ -241,7 +259,7 @@ export default function VATReport() {
           {/* Output VAT details */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">{t('تفاصيل الضريبة المخرجة — المبيعات', 'Output VAT Details — Sales', lang)}</CardTitle>
+              <CardTitle className="text-base">{t('تفاصيل الضريبة المخرجة — المبيعات والتأجير', 'Output VAT Details — Sales & Rental', lang)}</CardTitle>
               <TableToolbar
                 columns={outputColumns}
                 rows={outputRows}
@@ -257,6 +275,7 @@ export default function VATReport() {
                       <TableHead>{t('التاريخ', 'Date', lang)}</TableHead>
                       <TableHead>{t('رقم الفاتورة', 'Invoice No', lang)}</TableHead>
                       <TableHead>{t('العميل', 'Client', lang)}</TableHead>
+                      <TableHead>{t('المصدر', 'Source', lang)}</TableHead>
                       <TableHead className="text-end">{t('القاعدة الخاضعة', 'Taxable Base', lang)}</TableHead>
                       <TableHead className="text-end">{t('الضريبة', 'VAT', lang)}</TableHead>
                       <TableHead className="text-end">{t('الإجمالي', 'Total', lang)}</TableHead>
@@ -264,19 +283,20 @@ export default function VATReport() {
                   </TableHeader>
                   <TableBody>
                     {outputRows.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{t('لا توجد فواتير مبيعات في هذه الفترة', 'No sales invoices in this period', lang)}</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t('لا توجد فواتير مبيعات أو تأجير في هذه الفترة', 'No sales or rental invoices in this period', lang)}</TableCell></TableRow>
                     ) : outputRows.map((r, i) => (
                       <TableRow key={i} className="hover:bg-muted/30">
                         <TableCell className="text-xs">{formatDate(r.date, lang)}</TableCell>
                         <TableCell className="font-mono text-xs">{r.docNo}</TableCell>
                         <TableCell className="text-sm">{r.party}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.source}</TableCell>
                         <TableCell className="text-end text-sm">{formatCurrency(r.base, lang)}</TableCell>
                         <TableCell className="text-end text-sm text-emerald-600">{formatCurrency(r.vat, lang)}</TableCell>
                         <TableCell className="text-end text-sm">{formatCurrency(r.total, lang)}</TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="font-bold bg-emerald-50">
-                      <TableCell colSpan={3}>{t('الإجمالي', 'Total', lang)}</TableCell>
+                      <TableCell colSpan={4}>{t('الإجمالي', 'Total', lang)}</TableCell>
                       <TableCell className="text-end">{formatCurrency(outputBase, lang)}</TableCell>
                       <TableCell className="text-end text-emerald-700">{formatCurrency(outputVat, lang)}</TableCell>
                       <TableCell className="text-end">{formatCurrency(outputBase + outputVat, lang)}</TableCell>

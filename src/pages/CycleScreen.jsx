@@ -40,6 +40,7 @@ import VATReport from '@/pages/VATReport';
 import ProjectReports from '@/pages/ProjectReports';
 import InventoryReports from '@/pages/InventoryReports';
 import PartnerFollowUp from '@/pages/PartnerFollowUp';
+import EmployeeReports from '@/pages/EmployeeReports';
 import EquipmentMaintenance from '@/pages/EquipmentMaintenance';
 import FuelConsumption from '@/pages/FuelConsumption';
 import AuditSuite from '@/pages/AuditSuite';
@@ -94,7 +95,7 @@ const TAB_CONTENT = {
   'report-projects': <ProjectReports />,
   'report-inventory': <InventoryReports />,
   'report-partners': <PartnerFollowUp />,
-  'report-employees': <PayrollSheets />,
+  'report-employees': <EmployeeReports />,
   // Subcontractors cycle
   'sub-registry': <Subcontractors />,
   'sub-contracts': <SubContractsAll />,

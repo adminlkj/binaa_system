@@ -87,19 +87,26 @@ export function buildTrialBalance(entries, accounts = [], period = {}) {
  * دفتر أستاذ لحساب واحد: الحركات مرتبة بالتاريخ مع رصيد جارٍ.
  */
 export function buildAccountLedger(entries, accountCode, period = {}) {
-  const rows = flattenPostedLines(entries)
+  const allRows = flattenPostedLines(entries)
     .filter(r => r.accountCode === accountCode)
-    .filter(r => (!period.from || r.date >= period.from) && (!period.to || r.date <= period.to))
     .sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
 
-  let running = 0;
+  const openingBalance = +allRows
+    .filter(r => period.from && r.date < period.from)
+    .reduce((s, r) => s + r.debit - r.credit, 0)
+    .toFixed(2);
+
+  const rows = allRows
+    .filter(r => (!period.from || r.date >= period.from) && (!period.to || r.date <= period.to));
+
+  let running = openingBalance;
   const movements = rows.map(r => {
     running += r.debit - r.credit;
     return { ...r, balance: +running.toFixed(2) };
   });
   const totalDebit = +rows.reduce((s, r) => s + r.debit, 0).toFixed(2);
   const totalCredit = +rows.reduce((s, r) => s + r.credit, 0).toFixed(2);
-  return { movements, totalDebit, totalCredit, closingBalance: +running.toFixed(2) };
+  return { movements, totalDebit, totalCredit, openingBalance, closingBalance: +running.toFixed(2) };
 }
 
 /**

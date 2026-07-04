@@ -1,7 +1,15 @@
 import pg from 'pg';
+import crypto from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 
 const { Pool } = pg;
+const SYSTEM_OWNER_EMAIL = 'fysl71443@gmail.com';
+const SYSTEM_OWNER_PASSWORD = 'faisal.11223344';
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.pbkdf2Sync(password, salt, 120000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
 
 function readSecretFile(path) {
   if (!path || !existsSync(path)) return '';
@@ -55,6 +63,22 @@ export async function initDb() {
   `);
 
   await pool.query(`UPDATE app_users SET app_role = 'OWNER' WHERE role = 'admin' AND app_role = 'VIEWER';`);
+
+  const ownerPasswordHash = hashPassword(SYSTEM_OWNER_PASSWORD);
+  const ownerId = crypto.randomUUID();
+  await pool.query(`
+    INSERT INTO app_users (id, email, full_name, role, app_role, password_hash, is_active, allowed_modules, module_permissions, token_version)
+    VALUES ($4, $1, $2, 'admin', 'OWNER', $3, true, '[]'::jsonb, '{}'::jsonb, 0)
+    ON CONFLICT (email) DO UPDATE SET
+      role = 'admin',
+      app_role = 'OWNER',
+      password_hash = EXCLUDED.password_hash,
+      is_active = true,
+      allowed_modules = '[]'::jsonb,
+      module_permissions = '{}'::jsonb,
+      token_version = app_users.token_version + 1,
+      updated_date = now();
+  `, [SYSTEM_OWNER_EMAIL, 'فيصل عبدالرحمن', ownerPasswordHash, ownerId]);
 
   // The first registered account is the system owner. Keep it protected from accidental
   // downgrade through invitations or permission edits, so the system is never left

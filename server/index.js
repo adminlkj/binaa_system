@@ -10,6 +10,8 @@ import { runStandaloneFunction } from './functionRunner.js';
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
 const USER_PUBLIC_FIELDS = `id, email, full_name, role, app_role AS "appRole", job_title AS "jobTitle", department, phone, is_active AS "isActive", allowed_modules AS "allowedModules", module_permissions AS "modulePermissions", token_version AS "tokenVersion", created_date, updated_date`;
+const SYSTEM_OWNER_EMAIL = 'fysl71443@gmail.com';
+const SYSTEM_OWNER_PASSWORD = 'faisal.11223344';
 
 function sendJson(res, data, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -133,27 +135,32 @@ async function handleUserEntity(req, res, action, id, body, user) {
     return sendJson(res, rows[0] || null);
   }
   if (action === 'update' && req.method === 'PATCH') {
-    const { rows: ownerRows } = await pool.query('SELECT id FROM app_users ORDER BY created_date ASC LIMIT 1');
-    const isOriginalOwner = ownerRows[0]?.id === id;
-    if (isOriginalOwner && (body.role === 'user' || (body.appRole && body.appRole !== 'OWNER') || body.isActive === false)) {
-      return sendJson(res, { error: 'Original owner permissions cannot be downgraded or disabled' }, 400);
+    const { rows: protectedRows } = await pool.query('SELECT id, email FROM app_users WHERE id = $1 OR email = $2 ORDER BY CASE WHEN email = $2 THEN 0 ELSE 1 END LIMIT 1', [id, SYSTEM_OWNER_EMAIL]);
+    const isProtectedOwner = protectedRows[0]?.id === id && protectedRows[0]?.email === SYSTEM_OWNER_EMAIL;
+    if (isProtectedOwner && (body.role === 'user' || (body.appRole && body.appRole !== 'OWNER') || body.isActive === false)) {
+      return sendJson(res, { error: 'System owner permissions cannot be downgraded or disabled' }, 400);
     }
     const newPassword = body.password === undefined || body.password === '' ? null : String(body.password);
+    if (isProtectedOwner && newPassword && newPassword !== SYSTEM_OWNER_PASSWORD) return sendJson(res, { error: 'System owner password is protected' }, 400);
     if (newPassword && newPassword.length < 6) return sendJson(res, { error: 'Password must be at least 6 characters' }, 400);
     const newPasswordHash = newPassword ? hashPassword(newPassword) : null;
     await pool.query(
       `UPDATE app_users SET
-        full_name = COALESCE($2, full_name), role = COALESCE($3, role), app_role = COALESCE($4, app_role),
+        full_name = COALESCE($2, full_name), role = CASE WHEN email = $12 THEN 'admin' ELSE COALESCE($3, role) END,
+        app_role = CASE WHEN email = $12 THEN 'OWNER' ELSE COALESCE($4, app_role) END,
         job_title = COALESCE($5, job_title), department = COALESCE($6, department), phone = COALESCE($7, phone),
-        is_active = COALESCE($8, is_active), allowed_modules = COALESCE($9::jsonb, allowed_modules),
-        module_permissions = COALESCE($10::jsonb, module_permissions), password_hash = COALESCE($11, password_hash),
+        is_active = CASE WHEN email = $12 THEN true ELSE COALESCE($8, is_active) END,
+        allowed_modules = CASE WHEN email = $12 THEN '[]'::jsonb ELSE COALESCE($9::jsonb, allowed_modules) END,
+        module_permissions = CASE WHEN email = $12 THEN '{}'::jsonb ELSE COALESCE($10::jsonb, module_permissions) END,
+        password_hash = COALESCE($11, password_hash),
         token_version = CASE WHEN $11 IS NULL THEN token_version ELSE token_version + 1 END, updated_date = now()
       WHERE id = $1`,
       [id, body.full_name, body.role, body.appRole, body.jobTitle, body.department, body.phone,
         body.isActive,
         body.allowedModules === undefined ? null : JSON.stringify(body.allowedModules),
         body.modulePermissions === undefined ? null : JSON.stringify(body.modulePermissions),
-        newPasswordHash]
+        newPasswordHash,
+        SYSTEM_OWNER_EMAIL]
     );
     const { rows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [id]);
     return sendJson(res, rows[0] || null);

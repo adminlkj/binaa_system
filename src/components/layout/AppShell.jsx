@@ -64,6 +64,7 @@ export default function AppShell({ children }) {
         {/* Top Header */}
         <header className="h-14 border-b border-border bg-white flex items-center px-4 gap-3 shrink-0">
           <button
+            type="button"
             className="lg:hidden size-9 flex items-center justify-center rounded-lg hover:bg-muted"
             onClick={() => setSidebarOpen(true)}
           >
@@ -78,7 +79,7 @@ export default function AppShell({ children }) {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors">
+              <button type="button" className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors">
                 <div className="size-8 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-sm flex items-center justify-center">
                   {initials}
                 </div>

@@ -65,9 +65,12 @@ export default function Attendance() {
   const save = async () => {
     if (!form.employeeId || !form.date)
       return toast.error(t('الموظف والتاريخ مطلوبان', 'Employee and date required', lang));
+    const duplicate = items.find(i => i.employeeId === form.employeeId && i.date === form.date && i.id !== editing?.id);
+    if (duplicate) return toast.error(t('يوجد سجل حضور لهذا الموظف في نفس التاريخ', 'Attendance already exists for this employee/date', lang));
     setSaving(true);
     try {
-      const data = { employeeId: form.employeeId, date: form.date, status: form.status, hours: Number(form.hours) || 0, notes: form.notes };
+      const hours = form.status === 'PRESENT' ? Number(form.hours) || 0 : 0;
+      const data = { employeeId: form.employeeId, date: form.date, status: form.status, hours, notes: form.notes };
       if (editing) { await base44.entities.AttendanceRecord.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.AttendanceRecord.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }
       setDialogOpen(false); load();

@@ -41,7 +41,10 @@ export default function AttendanceTab({ employeeId, onChange }) {
   const openEdit = (r) => { setForm({ ...empty, ...r }); setEditingId(r.id); setOpen(true); };
 
   const save = async () => {
-    const payload = { employeeId, date: form.date, status: form.status, hours: Number(form.hours) || 0, notes: form.notes };
+    const duplicate = rows.find(r => r.date === form.date && r.id !== editingId);
+    if (duplicate) return;
+    const hours = form.status === 'PRESENT' ? Number(form.hours) || 0 : 0;
+    const payload = { employeeId, date: form.date, status: form.status, hours, notes: form.notes };
     if (editingId) await base44.entities.AttendanceRecord.update(editingId, payload);
     else await base44.entities.AttendanceRecord.create(payload);
     setOpen(false); load(); onChange?.();

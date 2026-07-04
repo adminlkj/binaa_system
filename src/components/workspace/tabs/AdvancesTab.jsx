@@ -35,15 +35,19 @@ export default function AdvancesTab({ employeeId, onChange }) {
   };
   useEffect(() => { load(); }, [employeeId]);
 
-  const openNew = () => { setForm(empty); setEditingId(null); setOpen(true); };
+  const openNew = () => { setForm({ ...empty, date: new Date().toISOString().slice(0, 10) }); setEditingId(null); setOpen(true); };
   const openEdit = (r) => { setForm({ ...empty, ...r }); setEditingId(r.id); setOpen(true); };
 
   const save = async () => {
+    const amount = Number(form.amount) || 0;
+    const deductedAmount = Number(form.deductedAmount) || 0;
+    if (deductedAmount > amount) return;
+    const status = deductedAmount >= amount ? 'SETTLED' : deductedAmount > 0 ? 'PARTIALLY_DEDUCTED' : 'OPEN';
     const payload = {
       employeeId, date: form.date,
-      amount: Number(form.amount) || 0,
-      deductedAmount: Number(form.deductedAmount) || 0,
-      status: form.status, reason: form.reason, notes: form.notes,
+      amount,
+      deductedAmount,
+      status, reason: form.reason, notes: form.notes,
     };
     if (editingId) await base44.entities.EmployeeAdvance.update(editingId, payload);
     else await base44.entities.EmployeeAdvance.create(payload);

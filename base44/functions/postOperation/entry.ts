@@ -287,19 +287,25 @@ function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, ref
 
 const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
-// قيد الاستحقاق: يُنشأ لكل مسير (مدفوعاً كان أو لا) — يثبت التزام الرواتب على الشركة.
-//   من ح/ مصروف الرواتب (مدين)  إلى ح/ رواتب مستحقة الدفع (دائن)
-function buildPayrollAccrualJE({ code, month, year, netAmount }, accounts) {
+// قيد الاستحقاق: يثبت إجمالي تكلفة الرواتب، ويفصل الخصومات عن صافي المستحق.
+//   من ح/ مصروف الرواتب (إجمالي الرواتب والبدلات)
+//   إلى ح/ رواتب مستحقة الدفع (الصافي) + ح/ ذمم الموظفين/السلف (الخصومات)
+function buildPayrollAccrualJE({ code, month, year, totalSalaries, totalAllowances, totalDeductions, netAmount }, accounts) {
   const monthName = AR_MONTHS[(month || 1) - 1];
   const date = `${year}-${String(month).padStart(2, '0')}-01`;
   const salaryExp = resolveAccount('EXPENSE_SALARIES', accounts);
   const accrued = resolveAccount('ACCRUED_SALARIES', accounts);
+  const staffReceivable = resolveAccount('STAFF_RECEIVABLE', accounts);
+  const gross = +(num(totalSalaries) + num(totalAllowances)).toFixed(2);
+  const deductions = +num(totalDeductions).toFixed(2);
+  const net = +num(netAmount || (gross - deductions)).toFixed(2);
   return {
     entryNo: `JE-PAY-${code}`, date, description: `استحقاق رواتب ${monthName} ${year}`, sourceType: 'PayrollRun', isPosted: true,
-    totalDebit: netAmount, totalCredit: netAmount,
+    totalDebit: gross, totalCredit: gross,
     lines: [
-      { accountCode: salaryExp.code, accountName: salaryExp.name, debit: netAmount, credit: 0, description: `مصروف رواتب ${monthName}` },
-      { accountCode: accrued.code, accountName: accrued.name, debit: 0, credit: netAmount, description: 'رواتب مستحقة الدفع' },
+      { accountCode: salaryExp.code, accountName: salaryExp.name, debit: gross, credit: 0, description: `مصروف رواتب ${monthName}` },
+      { accountCode: accrued.code, accountName: accrued.name, debit: 0, credit: net, description: 'صافي رواتب مستحقة الدفع' },
+      ...(deductions > 0 ? [{ accountCode: staffReceivable.code, accountName: staffReceivable.name, debit: 0, credit: deductions, description: 'استقطاعات وسلف موظفين' }] : []),
     ],
   };
 }

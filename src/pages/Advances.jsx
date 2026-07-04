@@ -63,12 +63,16 @@ export default function Advances() {
   const save = async () => {
     if (!form.employeeId || !form.date || !form.amount)
       return toast.error(t('الموظف والتاريخ والمبلغ مطلوبة', 'Employee, date and amount required', lang));
+    const amount = Number(form.amount) || 0;
+    const deductedAmount = Number(form.deductedAmount) || 0;
+    if (deductedAmount > amount) return toast.error(t('المستقطع لا يمكن أن يتجاوز مبلغ السلفة', 'Deducted amount cannot exceed advance amount', lang));
+    const status = deductedAmount >= amount ? 'SETTLED' : deductedAmount > 0 ? 'PARTIALLY_DEDUCTED' : 'OPEN';
     setSaving(true);
     try {
       const data = {
         employeeId: form.employeeId, date: form.date,
-        amount: Number(form.amount) || 0, deductedAmount: Number(form.deductedAmount) || 0,
-        status: form.status, reason: form.reason, notes: form.notes,
+        amount, deductedAmount,
+        status, reason: form.reason, notes: form.notes,
       };
       if (editing) { await base44.entities.EmployeeAdvance.update(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else { await base44.entities.EmployeeAdvance.create(data); toast.success(t('تمت الإضافة', 'Added', lang)); }

@@ -122,7 +122,7 @@ export async function initDb() {
   const ownerId = crypto.randomUUID();
   await pool.query(`
     INSERT INTO app_users (id, email, full_name, role, app_role, password_hash, is_active, allowed_modules, module_permissions, token_version)
-    VALUES ($4, $1, $2, 'admin', 'OWNER', $3, true, '[]'::jsonb, '{}'::jsonb, 0)
+    VALUES ($1, $2, $3, 'admin', 'OWNER', $4, true, '[]'::jsonb, '{}'::jsonb, 0)
     ON CONFLICT (email) DO UPDATE SET
       role = 'admin',
       app_role = 'OWNER',
@@ -132,7 +132,7 @@ export async function initDb() {
       module_permissions = '{}'::jsonb,
       token_version = app_users.token_version + 1,
       updated_date = now();
-  `, [SYSTEM_OWNER_EMAIL, 'فيصل عبدالرحمن', ownerPasswordHash, ownerId]);
+  `, [ownerId, SYSTEM_OWNER_EMAIL, 'فيصل عبدالرحمن', ownerPasswordHash]);
 
   // The first registered account is the system owner. Keep it protected from accidental
   // downgrade through invitations or permission edits, so the system is never left

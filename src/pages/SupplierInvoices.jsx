@@ -119,6 +119,8 @@ export default function SupplierInvoices() {
   const save = async () => {
     if (!form.invoiceNo || !form.supplierId)
       return toast.error(t('رقم الفاتورة والمورد مطلوبان', 'Invoice No. and supplier required', lang));
+    if (!form.goodsReceiptId)
+      return toast.error(t('يجب ربط الفاتورة بسند استلام معتمد — لا يمكن إنشاء فاتورة مورد بدون سند استلام', 'Invoice must be linked to an approved goods receipt', lang));
     if (form.date && form.dueDate && form.dueDate < form.date)
       return toast.error(t('تاريخ الاستحقاق يجب أن يكون بعد تاريخ الفاتورة', 'Due date must be after invoice date', lang));
     setSaving(true);
@@ -133,8 +135,7 @@ export default function SupplierInvoices() {
       if (editing) { await OperationEngine.updateSupplierInvoice(editing.id, data); toast.success(t('تم التحديث', 'Updated', lang)); }
       else {
         await OperationEngine.createSupplierInvoice(data);
-        // وسم سند الاستلام كمفوتَر لإغلاق حلقة السلسلة.
-        if (data.goodsReceiptId) await base44.entities.GoodsReceipt.update(data.goodsReceiptId, { invoicedStatus: 'INVOICED' });
+        // الخادم يوسم سند الاستلام كمفوتَر تلقائياً داخل ترانسكشن العملية
         toast.success(t('تمت الإضافة كمسودة', 'Added as draft', lang));
       }
       setDialogOpen(false); load();
@@ -273,41 +274,34 @@ export default function SupplierInvoices() {
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5"><Label>{t('رقم الفاتورة', 'Invoice No.', lang)} *</Label><Input value={form.invoiceNo} onChange={e => setForm(f => ({ ...f, invoiceNo: e.target.value }))} /></div>
             <div className="space-y-1.5">
-              <Label>{t('سند الاستلام (السلسلة)', 'Goods Receipt (chain)', lang)}</Label>
-              <Select value={form.goodsReceiptId || 'none'} onValueChange={onReceipt} disabled={!!editing}>
-                <SelectTrigger><SelectValue placeholder={t('اختر سند استلام', 'Select a goods receipt', lang)} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t('بدون (فاتورة مباشرة)', 'None (direct invoice)', lang)}</SelectItem>
-                  {pendingReceipts.map(r => <SelectItem key={r.id} value={r.id}>{r.receiptNo} — {r.supplierName || ''} ({formatCurrency(r.receivedAmount, lang)})</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label>{t('سند الاستلام (إلزامي — السلسلة)', 'Goods Receipt (required — chain)')} *</Label>
+              {pendingReceipts.length === 0 ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  {t('لا توجد سندات استلام معتمدة ومعلّقة للفوترة. يجب إنشاء طلب شراء ← أمر شراء ← سند استلام معتمد أولاً قبل إنشاء فاتورة المورد.', 'No approved goods receipts pending invoicing. Create a purchase request → purchase order → approved goods receipt first before creating a supplier invoice.', lang)}
+                </div>
+              ) : (
+                <Select value={form.goodsReceiptId || ''} onValueChange={onReceipt} disabled={!!editing}>
+                  <SelectTrigger><SelectValue placeholder={t('اختر سند استلام معتمد', 'Select an approved goods receipt', lang)} /></SelectTrigger>
+                  <SelectContent>
+                    {pendingReceipts.map(r => <SelectItem key={r.id} value={r.id}>{r.receiptNo} — {r.supplierName || ''} ({formatCurrency(r.receivedAmount, lang)})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              {form.goodsReceiptId && form.receiptNo && (
+                <p className="text-xs text-muted-foreground">{t('مرتبط بسند', 'Linked to receipt')}: <span className="font-mono">{form.receiptNo}</span></p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <Label>{t('المورد', 'Supplier', lang)} *</Label>
-              <Select value={form.supplierId} onValueChange={v => { const s = suppliers.find(s => s.id === v); setForm(f => ({ ...f, supplierId: v, supplierName: s?.name || '' })); }} disabled={!!form.goodsReceiptId}>
-                <SelectTrigger><SelectValue placeholder={t('اختر مورد', 'Select supplier', lang)} /></SelectTrigger>
-                <SelectContent>{suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label>{t('المورد', 'Supplier', lang)}</Label>
+              <Input value={form.supplierName || ''} readOnly disabled className="bg-muted" placeholder={t('يُملأ تلقائياً من سند الاستلام', 'Auto-filled from goods receipt', lang)} />
             </div>
             <div className="space-y-1.5">
               <Label>{t('أمر الشراء', 'Purchase Order', lang)}</Label>
-              <Select value={form.purchaseOrderId || 'none'} onValueChange={v => { const o = orders.find(o => o.id === v); setForm(f => ({ ...f, purchaseOrderId: v === 'none' ? '' : v, orderNo: o?.orderNo || '' })); }} disabled={!!form.goodsReceiptId}>
-                <SelectTrigger><SelectValue placeholder={t('بدون', 'None', lang)} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t('بدون', 'None', lang)}</SelectItem>
-                  {orders.map(o => <SelectItem key={o.id} value={o.id}>{o.orderNo}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input value={form.orderNo || ''} readOnly disabled className="bg-muted" placeholder={t('يُملأ تلقائياً من سند الاستلام', 'Auto-filled from goods receipt', lang)} />
             </div>
             <div className="space-y-1.5">
               <Label>{t('المشروع', 'Project', lang)}</Label>
-              <Select value={form.projectId || 'none'} onValueChange={v => { const p = projects.find(p => p.id === v); setForm(f => ({ ...f, projectId: v === 'none' ? '' : v, projectName: p?.name || '' })); }}>
-                <SelectTrigger><SelectValue placeholder={t('بدون', 'None', lang)} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t('بدون', 'None', lang)}</SelectItem>
-                  {projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input value={form.projectName || ''} readOnly disabled className="bg-muted" placeholder={t('يُملأ تلقائياً من سند الاستلام', 'Auto-filled from goods receipt', lang)} />
             </div>
             <div className="space-y-1.5"><Label>{t('تاريخ الفاتورة', 'Invoice Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('تاريخ الاستحقاق', 'Due Date', lang)}</Label><Input type="date" value={form.dueDate} min={form.date || undefined} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} /></div>

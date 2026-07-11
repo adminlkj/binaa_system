@@ -66,7 +66,8 @@ export default function SupplierPayments() {
 
   const filtered = items.filter(i => !search || i.paymentNo?.toLowerCase().includes(search.toLowerCase()) || i.supplierName?.toLowerCase().includes(search.toLowerCase()));
 
-  const supplierInvoices = invoices.filter(inv => inv.supplierId === form.supplierId);
+  // السداد مرتبط حصراً بفواتير معتمدة (أو مدفوعة جزئياً) للمورد المختار
+  const supplierInvoices = invoices.filter(inv => inv.supplierId === form.supplierId && ['APPROVED', 'PARTIALLY_PAID'].includes(inv.status));
 
   const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
   const openEdit = () => toast.error(t('لا يمكن تعديل سند صرف مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot edit a posted payment — use a reversing entry to correct it', lang));
@@ -78,6 +79,7 @@ export default function SupplierPayments() {
       { key: 'date', label: t('التاريخ', 'Date', lang) },
       { key: 'amount', label: t('المبلغ', 'Amount', lang) },
       { key: 'cashAccountCode', label: t('الحساب النقدي', 'Cash / Bank Account', lang) },
+      { key: 'supplierInvoiceId', label: t('الفاتورة المرتبطة', 'Linked Invoice', lang) },
     ]);
     if (missing.length) return toast.error(missingFieldsMessage(missing, lang));
     setSaving(true);
@@ -179,14 +181,30 @@ export default function SupplierPayments() {
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>{t('الفاتورة المرتبطة', 'Linked Invoice', lang)}</Label>
-              <Select value={form.supplierInvoiceId || 'none'} onValueChange={v => setForm(f => ({ ...f, supplierInvoiceId: v === 'none' ? '' : v }))} disabled={!form.supplierId}>
-                <SelectTrigger><SelectValue placeholder={t('بدون', 'None', lang)} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t('بدون', 'None', lang)}</SelectItem>
-                  {supplierInvoices.map(inv => <SelectItem key={inv.id} value={inv.id}>{inv.invoiceNo} — {formatCurrency(inv.totalAmount, lang)}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label>{t('الفاتورة المرتبطة (إلزامي)', 'Linked Invoice (required)')} *</Label>
+              {!form.supplierId ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  {t('اختر المورد أولاً لعرض فواتيره المعتمدة', 'Select a supplier first to see their approved invoices', lang)}
+                </div>
+              ) : supplierInvoices.length === 0 ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  {t('لا توجد فواتير معتمدة لهذا المورد — يجب اعتماد فاتورة مورد أولاً قبل إنشاء سند الصرف', 'No approved invoices for this supplier — approve a supplier invoice first before creating a payment', lang)}
+                </div>
+              ) : (
+                <Select value={form.supplierInvoiceId || ''} onValueChange={v => {
+                  const inv = supplierInvoices.find(i => i.id === v);
+                  setForm(f => ({ ...f, supplierInvoiceId: v, amount: f.amount || String((inv?.totalAmount || 0) - (inv?.paidAmount || 0)) }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder={t('اختر فاتورة معتمدة', 'Select an approved invoice', lang)} /></SelectTrigger>
+                  <SelectContent>
+                    {supplierInvoices.map(inv => (
+                      <SelectItem key={inv.id} value={inv.id}>
+                        {inv.invoiceNo} — {formatCurrency(inv.totalAmount, lang)} ({t('متبقي', 'remaining')}: {formatCurrency((inv.totalAmount || 0) - (inv.paidAmount || 0), lang)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)} *</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('المبلغ', 'Amount', lang)} *</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>

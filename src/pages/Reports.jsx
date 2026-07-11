@@ -12,6 +12,7 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
+import { buildAccountMap, buildIncomeStatement, buildVATReport, buildCashFlow, buildBalanceSheet } from '@/lib/financialEngine';
 
 export default function Reports({ initialReport = 'income', hideSelector = false }) {
   const { lang } = useStore();
@@ -19,34 +20,21 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const [activeReport, setActiveReport] = useState(initialReport);
 
   useEffect(() => { setActiveReport(initialReport); }, [initialReport]);
-  const [invoices, setInvoices] = useState([]);
-  const [rentalInvoices, setRentalInvoices] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  // المصدر الوحيد للبيانات المالية: JournalEntry + ChartAccount فقط
   const [journal, setJournal] = useState([]);
-  const [payroll, setPayroll] = useState([]);
   const [accounts, setAccounts] = useState([]);
-  const [supplierInvoices, setSupplierInvoices] = useState([]);
-  const [subcontractorInvoices, setSubcontractorInvoices] = useState([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [invoiceStatus, setInvoiceStatus] = useState('all');
   const [entryStatus, setEntryStatus] = useState('posted');
 
   const load = async () => {
     setLoading(true);
     try {
-      const [inv, rinv, exp, je, pay, acc, supInv, subInv] = await Promise.all([
-        base44.entities.SalesInvoice.list('-date'),
-        base44.entities.RentalInvoice.list('-date'),
-        base44.entities.Expense.list('-date'),
-        base44.entities.JournalEntry.list('-date'),
-        base44.entities.PayrollRun.list('-created_date'),
+      const [je, acc] = await Promise.all([
+        base44.entities.JournalEntry.list('-date', 5000),
         base44.entities.ChartAccount.list('code'),
-        base44.entities.SupplierInvoice.list('-date'),
-        base44.entities.SubcontractorInvoice.list('-date'),
       ]);
-      setInvoices(inv); setRentalInvoices(rinv); setExpenses(exp); setJournal(je); setPayroll(pay); setAccounts(acc);
-      setSupplierInvoices(supInv || []); setSubcontractorInvoices(subInv || []);
+      setJournal(je || []); setAccounts(acc || []);
     } catch (err) {
       toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
     } finally {
@@ -63,73 +51,43 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     return true;
   };
 
-  const reportInvoices = invoices.filter(i => inPeriod(i.date) && (invoiceStatus === 'all' || i.status === invoiceStatus));
-  const reportRentalInvoices = rentalInvoices.filter(i => inPeriod(i.date) && (invoiceStatus === 'all' || i.status === invoiceStatus));
-  const reportExpenses = expenses.filter(e => inPeriod(e.date));
-  const reportPayroll = payroll.filter(p => inPeriod(p.paymentDate || p.created_date?.slice(0, 10)));
   const reportJournal = journal.filter(j => inPeriod(j.date) && (entryStatus === 'all' || (entryStatus === 'posted' ? j.isPosted : !j.isPosted)));
 
-  // الحالات المعتمدة محاسبياً — موحّدة في كل التقارير
-  const recognizedStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+  // ─── كل الأرقام المالية من القيود المرحّلة فقط ───
+  const accountMap = buildAccountMap(accounts);
+  const period = { from, to };
 
-  // فواتير الموردين ومقاولي الباطن المعتمدة في الفترة
-  const reportSupplierInvoices = (supplierInvoices || []).filter(i => inPeriod(i.date) && recognizedStatuses.includes(i.status));
-  const reportSubcontractorInvoices = (subcontractorInvoices || []).filter(i => inPeriod(i.date) && recognizedStatuses.includes(i.status));
+  // قائمة الدخل — من القيود المرحّلة
+  const incomeData = buildIncomeStatement(journal, accountMap, period);
+  const totalRevenue = incomeData.revenue;
+  const totalCosts = incomeData.expenses;
+  const totalPayroll = incomeData.payroll;
+  const netProfit = incomeData.netProfit;
 
-  // Income Statement — الإيراد = صافي المبيعات قبل الضريبة (subtotal)، لا شامل الضريبة.
-  const totalRevenue = reportInvoices.filter(i => recognizedStatuses.includes(i.status))
-    .reduce((s, i) => s + (i.subtotal || 0), 0)
-    + reportRentalInvoices.filter(i => recognizedStatuses.includes(i.status))
-      .reduce((s, i) => s + (i.subtotal || 0), 0);
-  // التكاليف تشمل: المصروفات + فواتير الموردين (المباشرة فقط، بدون المرتبطة بسند استلام لأنها تُحسب في المخزون) + مستخلصات مقاولي الباطن + الرواتب
-  const totalExpenses = reportExpenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
-  const totalSupplierCost = reportSupplierInvoices.filter(i => !i.goodsReceiptId).reduce((s, i) => s + (i.baseAmount || 0), 0);
-  const totalSubcontractorCost = reportSubcontractorInvoices.reduce((s, i) => s + (i.baseAmount || 0), 0);
-  const totalPayroll = reportPayroll.filter(p => p.status === 'PAID').reduce((s, p) => s + (p.netAmount || 0), 0);
-  const totalCosts = totalExpenses + totalSupplierCost + totalSubcontractorCost + totalPayroll;
-  const netProfit = totalRevenue - totalCosts;
-
-  // Trial Balance from Journal Entries
+  // ميزان المراجعة — من القيود المرحّلة
   const postedEntries = reportJournal;
   const totalDebit = postedEntries.reduce((s, j) => s + (j.totalDebit || 0), 0);
   const totalCredit = postedEntries.reduce((s, j) => s + (j.totalCredit || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
 
-  // VAT Report — شامل: ضريبة المخرجات (مبيعات + تأجير) وضريبة المدخلات (مصروفات + فواتير مورد + مستخلصات مقاول باطن)
-  const vatCollected = reportInvoices.filter(i => recognizedStatuses.includes(i.status)).reduce((s, i) => s + (i.vatAmount || 0), 0)
-    + reportRentalInvoices.filter(i => recognizedStatuses.includes(i.status)).reduce((s, i) => s + (i.vatAmount || 0), 0);
-  const vatPaid = reportExpenses.reduce((s, e) => s + (e.vatAmount || 0), 0)
-    + reportSupplierInvoices.reduce((s, i) => s + (i.vatAmount || 0), 0)
-    + reportSubcontractorInvoices.reduce((s, i) => s + (i.vatAmount || 0), 0);
-  const vatNet = vatCollected - vatPaid;
+  // VAT — من القيود المرحّلة
+  const vatData = buildVATReport(journal, accountMap, period);
+  const vatCollected = vatData.vatCollected;
+  const vatPaid = vatData.vatPaid;
+  const vatNet = vatData.vatNet;
 
-  // Account balances for balance sheet are cumulative up to the report date, not period movement only.
-  const balanceEntries = journal.filter(j => (!to || j.date <= to) && (entryStatus === 'all' || (entryStatus === 'posted' ? j.isPosted : !j.isPosted)));
-  const accountBalances = {};
-  balanceEntries.forEach(entry => {
-    (entry.lines || []).forEach(line => {
-      const code = line.accountCode || 'MISC';
-      const name = line.accountName || code;
-      if (!accountBalances[code]) accountBalances[code] = { code, name, debit: 0, credit: 0 };
-      accountBalances[code].debit += (line.debit || 0);
-      accountBalances[code].credit += (line.credit || 0);
-    });
-  });
-  const trialBalanceRows = Object.values(accountBalances);
-  const accountMeta = Object.fromEntries(accounts.map(a => [a.code, a]));
-  const balanceRows = trialBalanceRows.map(row => {
-    const type = accountMeta[row.code]?.accountType || 'ASSET';
-    const amount = type === 'ASSET' ? row.debit - row.credit : row.credit - row.debit;
-    return { ...row, type, amount };
-  }).filter(r => ['ASSET', 'LIABILITY', 'EQUITY'].includes(r.type));
+  // التدفقات النقدية — من القيود المرحّلة
+  const cashflowData = buildCashFlow(journal, accountMap, period);
+  const cashflowInflow = cashflowData.inflow;
+  const cashflowOutflow = cashflowData.outflow;
+  const netCashflow = cashflowData.net;
 
-  // صافي الربح/الخسارة للفترة حتى تاريخ التقرير — يُضاف إلى حقوق الملكية
-  // لمعادلة المحاسبة: الأصول = الخصوم + حقوق الملكية + صافي الربح
-  const periodProfit = balanceEntries.length > 0 ? netProfit : 0;
-
-  const totalAssets = balanceRows.filter(r => r.type === 'ASSET').reduce((s, r) => s + r.amount, 0);
-  const totalLiabilities = balanceRows.filter(r => r.type === 'LIABILITY').reduce((s, r) => s + r.amount, 0);
-  const totalEquity = balanceRows.filter(r => r.type === 'EQUITY').reduce((s, r) => s + r.amount, 0) + periodProfit;
+  // الميزانية — من القيود المرحّلة
+  const balanceSheet = buildBalanceSheet(journal, accountMap, to);
+  const balanceRows = [...balanceSheet.assets, ...balanceSheet.liabilities, ...balanceSheet.equity];
+  const totalAssets = balanceSheet.totalAssets;
+  const totalLiabilities = balanceSheet.totalLiabilities;
+  const totalEquity = balanceSheet.totalEquity;
 
   const reports = [
     { key: 'income', ar: 'قائمة الدخل', en: 'Income Statement', groupAr: 'تقارير مالية', groupEn: 'Financial Reports' },
@@ -148,12 +106,8 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   ];
 
   const incomeRows = [
-    { label: t('إجمالي الإيرادات', 'Total Revenue', lang), amount: fmt(totalRevenue) },
-    { label: t('المصروفات التشغيلية', 'Operational Expenses', lang), amount: fmt(totalExpenses) },
-    { label: t('فواتير الموردين المباشرة', 'Direct Supplier Invoices', lang), amount: fmt(totalSupplierCost) },
-    { label: t('مستخلصات مقاولي الباطن', 'Subcontractor Certificates', lang), amount: fmt(totalSubcontractorCost) },
-    { label: t('الرواتب المدفوعة', 'Paid Payroll', lang), amount: fmt(totalPayroll) },
-    { label: t('إجمالي التكاليف', 'Total Costs', lang), amount: fmt(totalCosts) },
+    { label: t('إجمالي الإيرادات (من القيود المرحّلة)', 'Total Revenue (from posted entries)', lang), amount: fmt(totalRevenue) },
+    { label: t('إجمالي التكاليف (من القيود المرحّلة)', 'Total Costs (from posted entries)', lang), amount: fmt(totalCosts) },
     { label: t('صافي الربح / الخسارة', 'Net Profit / Loss', lang), amount: fmt(netProfit) },
   ];
 
@@ -178,24 +132,6 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     { label: t('صافي الضريبة المستحقة', 'Net VAT Due', lang), amount: fmt(vatNet) },
   ];
 
-  // Cash Flow — من القيود المرحّلة فقط (حسابات النقد والبنك)
-  // تدفق داخل = دائن في حسابات النقد/البنك (نقد دخل)
-  // تدفق خارج = مدين في حسابات النقد/البنك (نقد خرج)
-  const cashflowInflow = balanceEntries.reduce((s, je) => {
-    return s + (je.lines || []).reduce((ls, l) => {
-      const acc = accountMeta[l.accountCode];
-      if (acc && (acc.semanticRole === 'CASH' || acc.semanticRole === 'BANK') && l.credit > 0) return ls + (l.credit || 0);
-      return ls;
-    }, 0);
-  }, 0);
-  const cashflowOutflow = balanceEntries.reduce((s, je) => {
-    return s + (je.lines || []).reduce((ls, l) => {
-      const acc = accountMeta[l.accountCode];
-      if (acc && (acc.semanticRole === 'CASH' || acc.semanticRole === 'BANK') && l.debit > 0) return ls + (l.debit || 0);
-      return ls;
-    }, 0);
-  }, 0);
-  const netCashflow = cashflowInflow - cashflowOutflow;
   const cashflowRows = [
     { label: t('التدفقات النقدية الداخلة (من القيود المرحّلة)', 'Cash Inflows (from posted entries)', lang), amount: fmt(cashflowInflow) },
     { label: t('التدفقات النقدية الخارجة (من القيود المرحّلة)', 'Cash Outflows (from posted entries)', lang), amount: fmt(cashflowOutflow) },
@@ -274,11 +210,11 @@ export default function Reports({ initialReport = 'income', hideSelector = false
           {activeReport === 'income' && (
             <div className="space-y-4">
               {/* صندوق توضيحي */}
-              <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 text-xs text-blue-800 flex items-start gap-2">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-800 flex items-start gap-2">
                 <Info className="size-4 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold">{t('مصدر بيانات قائمة الدخل', 'Income Statement Data Source')}</p>
-                  <p>{t('الإيرادات محسوبة من فواتير العملاء والتأجير المعتمدة (subtotal قبل الضريبة). التكاليف من المصروفات + فواتير الموردين المباشرة + مستخلصات مقاولي الباطن + الرواتب المدفوعة. هذه أرقام تجميعية من سجلات العمليات — للمطابقة المحاسبية راجع ميزان المراجعة (من القيود المرحّلة).', 'Revenue is calculated from approved client and rental invoices (subtotal before VAT). Costs include expenses + direct supplier invoices + subcontractor certificates + paid payroll. These are aggregate figures from operation records — for accounting reconciliation see Trial Balance (from posted journal entries).')}</p>
+                  <p className="font-semibold">{t('المصدر: القيود المرحّلة فقط', 'Source: Posted Journal Entries Only')}</p>
+                  <p>{t('الإيرادات = دائن في حسابات الإيراد (4xxx). التكاليف = مدين في حسابات المصروفات (5xxx). كل رقم من قيود اليومية المرحّلة (isPosted=true).', 'Revenue = credit in revenue accounts (4xxx). Costs = debit in expense accounts (5xxx). Every figure from posted journal entries (isPosted=true).')}</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

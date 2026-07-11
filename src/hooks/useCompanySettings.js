@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 
 // القيم الافتراضية لإعدادات الشركة قبل حفظ أي إعدادات فعلية.
+// companyName فارغ عمداً — يجب على المستخدم إدخال بيانات شركته في الإعدادات.
 export const DEFAULT_COMPANY_SETTINGS = {
-  companyName: 'نظام بِناء',
-  companyNameEn: 'Binaa System',
+  companyName: '',
+  companyNameEn: '',
   vatNumber: '',
   crNumber: '',
   address: '',
@@ -16,8 +17,8 @@ export const DEFAULT_COMPANY_SETTINGS = {
   headerImageUrl: '',
   footerImageUrl: '',
   template: 'MODERN',
-  primaryColor: '#059669',
-  accentColor: '#047857',
+  primaryColor: '#c8891f',
+  accentColor: '#1f2d3d',
   bankName: '',
   bankAccountName: '',
   iban: '',

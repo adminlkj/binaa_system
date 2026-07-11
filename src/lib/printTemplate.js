@@ -26,12 +26,12 @@ export function printDocument({ settings = {}, lang = 'ar', heading = '', subhea
   const rtl = lang !== 'en';
   const dir = rtl ? 'rtl' : 'ltr';
   const align = rtl ? 'right' : 'left';
-  const primary = settings.primaryColor || '#059669';
-  const accent = settings.accentColor || '#047857';
+  const primary = settings.primaryColor || '#c8891f';
+  const accent = settings.accentColor || '#1f2d3d';
 
   const companyName = rtl
-    ? settings.companyName || settings.companyNameEn || ''
-    : settings.companyNameEn || settings.companyName || '';
+    ? (settings.companyName && settings.companyName !== 'نظام بِناء' ? settings.companyName : (settings.companyNameEn || ''))
+    : (settings.companyNameEn && settings.companyNameEn !== 'Binaa System' ? settings.companyNameEn : (settings.companyName || ''));
 
   const T = (ar, en) => (rtl ? ar : en);
 
@@ -175,9 +175,14 @@ export function printReportDocument({ settings = {}, lang = 'ar', heading = '', 
   const rtl = lang !== 'en';
   const dir = rtl ? 'rtl' : 'ltr';
   const align = rtl ? 'right' : 'left';
-  const primary = settings.primaryColor || '#059669';
-  const accent = settings.accentColor || '#047857';
-  const companyName = rtl ? settings.companyName || settings.companyNameEn || '' : settings.companyNameEn || settings.companyName || '';
+  // استخدم ألوان الشركة من الإعدادات، أو ألوان افتراضية مطابقة لتصميم الفاتورة
+  const primary = settings.primaryColor || '#c8891f';
+  const accent = settings.accentColor || '#1f2d3d';
+  // اسم الشركة من الإعدادات — لا تستخدم اسم النظام كقيمة افتراضية
+  const companyName = rtl
+    ? (settings.companyName && settings.companyName !== 'نظام بِناء' ? settings.companyName : (settings.companyNameEn || ''))
+    : (settings.companyNameEn && settings.companyNameEn !== 'Binaa System' ? settings.companyNameEn : (settings.companyName || ''));
+  const companyNameEn = settings.companyNameEn && settings.companyNameEn !== 'Binaa System' ? settings.companyNameEn : '';
   const T = (ar, en) => (rtl ? ar : en);
   const contactBits = [
     settings.address && [settings.address, settings.city].filter(Boolean).join('، '),
@@ -191,7 +196,7 @@ export function printReportDocument({ settings = {}, lang = 'ar', heading = '', 
   const footerImg = settings.footerImageUrl ? `<img class="banner" src="${esc(settings.footerImageUrl)}" alt="" />` : '';
   const logoBlock = settings.logoUrl
     ? `<img class="logo" src="${esc(settings.logoUrl)}" alt="" />`
-    : `<div class="logo-fallback" style="background:${accent}">${esc((companyName || 'B').slice(0, 1))}</div>`;
+    : `<div class="logo-fallback" style="background:${primary}">${esc((companyName || 'B').slice(0, 1))}</div>`;
   const now = formatDate(new Date().toISOString(), lang);
   const recordCount = sections.reduce((sum, section) => sum + (section.rows?.length || 0) + (section.totals?.length || 0), 0);
 
@@ -232,8 +237,8 @@ export function printReportDocument({ settings = {}, lang = 'ar', heading = '', 
   .brand { display:flex; align-items:center; gap:14px; }
   .logo { width:64px; height:64px; object-fit:contain; }
   .logo-fallback { width:64px; height:64px; border-radius:14px; color:#fff; font-weight:800; font-size:30px; display:flex; align-items:center; justify-content:center; }
-  .company-name { font-size:20px; font-weight:800; color:${primary}; line-height:1.2; }
-  .company-sub { font-size:11px; color:#64748b; margin-top:2px; }
+  .company-name { font-size:20px; font-weight:800; color:${accent}; line-height:1.2; }
+  .company-sub { font-size:11px; color:#6b7280; margin-top:2px; font-weight:600; letter-spacing:0.5px; }
   .contact { text-align:${rtl ? 'left' : 'right'}; font-size:10.5px; color:#475569; line-height:1.7; max-width:48%; }
   .title-bar { margin:22px 0 14px; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; }
   .title-bar h1 { margin:0; font-size:19px; font-weight:800; color:#0f172a; padding-inline-start:12px; border-inline-start:5px solid ${accent}; }
@@ -264,7 +269,7 @@ export function printReportDocument({ settings = {}, lang = 'ar', heading = '', 
   ${headerImg}
   <div class="page">
     <div class="header">
-      <div class="brand">${logoBlock}<div><div class="company-name">${esc(companyName)}</div>${settings.companyNameEn && rtl ? `<div class="company-sub">${esc(settings.companyNameEn)}</div>` : ''}</div></div>
+      <div class="brand">${logoBlock}<div><div class="company-name">${esc(companyName)}</div>${companyNameEn && rtl ? `<div class="company-sub" dir="ltr">${esc(companyNameEn)}</div>` : ''}</div></div>
       <div class="contact">${contactBits.map(esc).join(' &nbsp;•&nbsp; ')}</div>
     </div>
     <div class="title-bar">

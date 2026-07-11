@@ -21,75 +21,98 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 export default function StatementTab({ invoices = [], expenses = [], clientPayments = [], stockMovements = [], supplierInvoices = [], subcontractorInvoices = [] }) {
   const { lang } = useStore();
 
+  // الحالات المعتمدة محاسبياً
+  const RECOGNIZED_STATUSES = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+  const SUB_RECOGNIZED_STATUSES = ['APPROVED', 'PARTIALLY_PAID', 'PAID'];
+
   // بناء الحركات مع تصنيف كل حركة كإيراد أو تحصيل أو تكلفة
+  // كل الحركات تُعرض (بما فيها المسودات) مع تمييز الحالة
   const lines = [];
 
-  // الإيرادات — فواتير العملاء المعتمدة (مدين)
-  invoices.forEach(i => lines.push({
-    date: i.date, ref: i.invoiceNo,
-    type: t('فاتورة عميل', 'Client invoice', lang),
-    category: 'revenue',
-    debit: i.totalAmount || 0, credit: 0,
-  }));
+  // الإيرادات — كل فواتير العملاء (المعتمدة + المسودات)
+  invoices.forEach(i => {
+    const isDraft = !RECOGNIZED_STATUSES.includes(i.status);
+    lines.push({
+      date: i.date, ref: i.invoiceNo,
+      type: t('فاتورة عميل', 'Client invoice', lang),
+      category: 'revenue',
+      debit: i.subtotal || i.totalAmount || 0, credit: 0,
+      isDraft,
+      status: i.status,
+    });
+  });
 
-  // التحصيلات — سندات القبض (دائن، لكنها ليست تكلفة)
+  // التحصيلات — سندات القبض
   clientPayments.forEach(p => lines.push({
     date: p.date, ref: p.paymentNo || p.reference || '—',
     type: t('سند قبض', 'Client receipt', lang),
     category: 'collection',
     debit: 0, credit: p.amount || 0,
+    isDraft: false,
   }));
 
-  // التكاليف — مصروفات المشروع (دائن)
+  // التكاليف — مصروفات المشروع (الكل)
   expenses.forEach(e => lines.push({
-    date: e.date, ref: e.reference || '—',
+    date: e.date, ref: e.reference || e.code || '—',
     type: t('مصروف مشروع', 'Project expense', lang),
     category: 'cost',
     debit: 0, credit: e.totalAmount || e.amount || 0,
+    isDraft: false,
   }));
 
-  // التكاليف — صرف مواد للمشروع (دائن)
+  // التكاليف — صرف مواد للمشروع
   stockMovements.filter(m => m.type === 'ISSUE').forEach(m => lines.push({
     date: m.date, ref: m.movementNo || '—',
     type: t('صرف مواد', 'Materials issued', lang),
     category: 'cost',
     debit: 0, credit: m.totalCost || 0,
+    isDraft: false,
   }));
 
-  // التكاليف — فواتير الموردين المباشرة المعتمدة (دائن)
-  supplierInvoices
-    .filter(i => !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status))
-    .forEach(i => lines.push({
+  // التكاليف — كل فواتير الموردين (المعتمدة + المسودات)
+  supplierInvoices.forEach(i => {
+    const isDraft = !RECOGNIZED_STATUSES.includes(i.status);
+    lines.push({
       date: i.date, ref: i.invoiceNo,
       type: t('فاتورة مورد', 'Supplier invoice', lang),
       category: 'cost',
       debit: 0, credit: i.totalAmount || 0,
-    }));
+      isDraft,
+      status: i.status,
+    });
+  });
 
-  // التكاليف — مستخلصات مقاولي الباطن المعتمدة (دائن)
-  subcontractorInvoices
-    .filter(i => ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(i.status))
-    .forEach(i => lines.push({
+  // التكاليف — كل مستخلصات مقاولي الباطن (المعتمدة + المسودات)
+  subcontractorInvoices.forEach(i => {
+    const isDraft = !SUB_RECOGNIZED_STATUSES.includes(i.status);
+    lines.push({
       date: i.date, ref: i.invoiceNo,
       type: t('مستخلص مقاول باطن', 'Subcontractor certificate', lang),
       category: 'cost',
       debit: 0, credit: i.totalAmount || 0,
-    }));
+      isDraft,
+      status: i.status,
+    });
+  });
 
   lines.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-  // الرصيد = الإيرادات - التحصيلات - التكاليف
+  // الرصيد = الإيرادات - التحصيلات - التكاليف (المعتمدة فقط)
   let running = 0;
   const withBalance = lines.map(l => {
-    running += (l.debit - l.credit);
+    // الرصيد الجاري يحسب من المعتمد فقط (المسودات لا تؤثر على الرصيد)
+    if (!l.isDraft) running += (l.debit - l.credit);
     return { ...l, balance: running };
   });
 
-  const totalRevenue = lines.filter(l => l.category === 'revenue').reduce((s, l) => s + l.debit, 0);
+  // المجاميع — مفصولة بين معتمد ومسودة
+  const totalRevenue = lines.filter(l => l.category === 'revenue' && !l.isDraft).reduce((s, l) => s + l.debit, 0);
+  const draftRevenue = lines.filter(l => l.category === 'revenue' && l.isDraft).reduce((s, l) => s + l.debit, 0);
   const totalCollections = lines.filter(l => l.category === 'collection').reduce((s, l) => s + l.credit, 0);
-  const totalCosts = lines.filter(l => l.category === 'cost').reduce((s, l) => s + l.credit, 0);
+  const totalCosts = lines.filter(l => l.category === 'cost' && !l.isDraft).reduce((s, l) => s + l.credit, 0);
+  const draftCosts = lines.filter(l => l.category === 'cost' && l.isDraft).reduce((s, l) => s + l.credit, 0);
   const netProfit = totalRevenue - totalCosts;
-  const outstanding = totalRevenue - totalCollections; // المتبقي غير المحصّل
+  const outstanding = totalRevenue - totalCollections;
 
   // ألوان حسب نوع الحركة
   const categoryColor = (cat) => ({
@@ -126,12 +149,15 @@ export default function StatementTab({ invoices = [], expenses = [], clientPayme
         </div>
       </div>
 
-      {/* بطاقات الملخص — 4 أرقام منفصلة وواضحة */}
+      {/* بطاقات الملخص — 4 أرقام منفصلة وواضحة + مسودات */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="p-3 text-center">
           <div className="text-xs text-muted-foreground">{t('الإيرادات', 'Revenue', lang)}</div>
           <div className="text-base font-bold text-emerald-700">{formatCurrency(totalRevenue, lang)}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">{t('فواتير معتمدة', 'Approved invoices', lang)}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {t('فواتير معتمدة', 'Approved invoices', lang)}
+            {draftRevenue > 0 && <span className="text-amber-600"> + {formatCurrency(draftRevenue, lang)} {t('مسودة', 'draft', lang)}</span>}
+          </div>
         </Card>
         <Card className="p-3 text-center">
           <div className="text-xs text-muted-foreground">{t('التحصيلات', 'Collections', lang)}</div>
@@ -141,7 +167,10 @@ export default function StatementTab({ invoices = [], expenses = [], clientPayme
         <Card className="p-3 text-center">
           <div className="text-xs text-muted-foreground">{t('التكاليف', 'Costs', lang)}</div>
           <div className="text-base font-bold text-rose-700">{formatCurrency(totalCosts, lang)}</div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">{t('مصروفات + فواتير + مستخلصات', 'Expenses + invoices + certificates', lang)}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {t('مصروفات + فواتير + مستخلصات', 'Expenses + invoices + certificates', lang)}
+            {draftCosts > 0 && <span className="text-amber-600"> + {formatCurrency(draftCosts, lang)} {t('مسودة', 'draft', lang)}</span>}
+          </div>
         </Card>
         <Card className="p-3 text-center">
           <div className="text-xs text-muted-foreground">{t('صافي الربح', 'Net Profit', lang)}</div>
@@ -170,10 +199,13 @@ export default function StatementTab({ invoices = [], expenses = [], clientPayme
                 <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">{t('لا توجد حركات', 'No transactions', lang)}</TableCell></TableRow>
               ) : (
                 withBalance.map((l, i) => (
-                  <TableRow key={i} className="hover:bg-muted/30">
+                  <TableRow key={i} className={`hover:bg-muted/30 ${l.isDraft ? 'opacity-50' : ''}`}>
                     <TableCell className="text-xs text-muted-foreground">{formatDate(l.date, lang)}</TableCell>
                     <TableCell className="font-mono text-xs">{l.ref}</TableCell>
-                    <TableCell className="text-sm">{l.type}</TableCell>
+                    <TableCell className="text-sm">
+                      {l.type}
+                      {l.isDraft && <span className="text-[10px] text-amber-600 ms-1">({t('مسودة', 'draft', lang)})</span>}
+                    </TableCell>
                     <TableCell>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${categoryBg(l.category)} ${categoryColor(l.category)}`}>
                         {l.category === 'revenue' && t('إيراد', 'Revenue', lang)}
@@ -183,7 +215,7 @@ export default function StatementTab({ invoices = [], expenses = [], clientPayme
                     </TableCell>
                     <TableCell className="text-sm text-end text-emerald-700">{l.debit ? formatCurrency(l.debit, lang) : '—'}</TableCell>
                     <TableCell className={`text-sm text-end ${categoryColor(l.category)}`}>{l.credit ? formatCurrency(l.credit, lang) : '—'}</TableCell>
-                    <TableCell className="text-sm text-end font-medium">{formatCurrency(l.balance, lang)}</TableCell>
+                    <TableCell className="text-sm text-end font-medium">{l.isDraft ? '—' : formatCurrency(l.balance, lang)}</TableCell>
                   </TableRow>
                 ))
               )}

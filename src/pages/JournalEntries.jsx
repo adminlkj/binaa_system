@@ -100,6 +100,7 @@ export default function JournalEntries() {
   };
 
   // عكس القيد المرحّل: إنشاء قيد مضاد (مدين↔دائن) بدل تعديل القيد الأصلي أو حذفه.
+  // رقم القيد العكسي يُولّد ب_suffix فريد لمنع التكرار: -REV, -REV-2, -REV-3, ...
   const [reversing, setReversing] = useState(false);
   const [reverseTarget, setReverseTarget] = useState(null);
   const reverseEntry = async () => {
@@ -107,13 +108,22 @@ export default function JournalEntries() {
     if (!item) return;
     setReversing(true);
     try {
+      // البحث عن رقم قيد عكسي فريد لمنع التكرار
+      const baseRevNo = `${item.entryNo}-REV`;
+      let revNo = baseRevNo;
+      let revCounter = 2;
+      const existingRevs = items.filter(je => je.entryNo?.startsWith(baseRevNo));
+      if (existingRevs.length > 0) {
+        revNo = `${baseRevNo}-${revCounter + existingRevs.length - 1}`;
+      }
+
       const lines = (item.lines || []).map(l => ({
         accountCode: l.accountCode, accountName: l.accountName,
         debit: l.credit || 0, credit: l.debit || 0,
         description: t('عكس', 'Reversal', lang) + (l.description ? ` — ${l.description}` : ''),
       }));
       await base44.entities.JournalEntry.create({
-        entryNo: `${item.entryNo}-REV`,
+        entryNo: revNo,
         date: new Date().toISOString().slice(0, 10),
         description: t('عكس القيد', 'Reversal of', lang) + ` ${item.entryNo}`,
         sourceType: 'Reversal', isPosted: true,
@@ -218,9 +228,14 @@ export default function JournalEntries() {
                           item.sourceType === 'Reversal' ? (
                             <span className="text-xs text-muted-foreground px-2">{t('قيد عكسي', 'Reversal', lang)}</span>
                           ) : (
-                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-amber-600 hover:text-amber-700" onClick={() => setReverseTarget(item)}>
-                              <Undo2 className="size-3.5" />{t('عكس', 'Reverse', lang)}
-                            </Button>
+                            <>
+                              {items.some(je => je.entryNo?.startsWith(`${item.entryNo}-REV`)) && (
+                                <span className="text-[10px] text-amber-600 px-1" title={t('سبق عكسه', 'Already reversed', lang)}>⚠</span>
+                              )}
+                              <Button variant="ghost" size="sm" className="h-8 gap-1 text-amber-600 hover:text-amber-700" onClick={() => setReverseTarget(item)}>
+                                <Undo2 className="size-3.5" />{t('عكس', 'Reverse', lang)}
+                              </Button>
+                            </>
                           )
                         ) : (
                           <>
@@ -322,7 +337,9 @@ export default function JournalEntries() {
 
       <ConfirmDialog open={!!reverseTarget} onOpenChange={(o) => !o && setReverseTarget(null)}
         title={t('عكس القيد', 'Reverse Entry', lang)}
-        description={t('سيتم إنشاء قيد عكسي مضاد للقيد المرحّل دون تعديل الأصل. متابعة؟', 'A reversing entry will be created against the posted entry without altering the original. Continue?', lang)}
+        description={reverseTarget && items.some(je => je.entryNo?.startsWith(`${reverseTarget.entryNo}-REV`))
+          ? t('⚠ هذا القيد سبق عكسه. سيتم إنشاء قيد عكسي إضافي برقم فريد. متابعة؟', '⚠ This entry has already been reversed. An additional reversing entry will be created with a unique number. Continue?', lang)
+          : t('سيتم إنشاء قيد عكسي مضاد للقيد المرحّل دون تعديل الأصل. متابعة؟', 'A reversing entry will be created against the posted entry without altering the original. Continue?', lang)}
         onConfirm={reverseEntry} confirmLabel={reversing ? t('جاري...', 'Working...', lang) : t('عكس', 'Reverse', lang)} />
     </ModuleLayout>
   );

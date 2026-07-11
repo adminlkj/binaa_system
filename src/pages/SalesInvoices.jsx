@@ -147,7 +147,7 @@ export default function SalesInvoices() {
     catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
-  const totalRevenue = filtered.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0);
+  const totalRevenue = filtered.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.subtotal || 0), 0);
   const totalPending = filtered.filter(i => ['SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
 
   const exportColumns = [

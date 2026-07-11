@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const TYPES = {
   PREVENTIVE: { ar: 'وقائية', en: 'Preventive' },
@@ -35,8 +36,13 @@ export default function MaintenanceTab({ equipmentId }) {
 
   const load = async () => {
     setLoading(true);
-    setRows(await base44.entities.MaintenanceRecord.filter({ equipmentId }, '-date'));
-    setLoading(false);
+    try {
+      setRows(await base44.entities.MaintenanceRecord.filter({ equipmentId }, '-date'));
+    } catch (err) {
+      toast.error(err?.message || t('فشل التحميل', 'Failed to load', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [equipmentId]);
 
@@ -54,13 +60,27 @@ export default function MaintenanceTab({ equipmentId }) {
       status: form.status,
       notes: form.notes,
     };
-    if (editingId) await base44.entities.MaintenanceRecord.update(editingId, payload);
-    else await base44.entities.MaintenanceRecord.create(payload);
-    setOpen(false);
-    load();
+    try {
+      if (editingId) await base44.entities.MaintenanceRecord.update(editingId, payload);
+      else await base44.entities.MaintenanceRecord.create(payload);
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
-  const remove = async () => { await base44.entities.MaintenanceRecord.delete(deleteId); setDeleteId(null); load(); };
+  const remove = async () => {
+    try {
+      await base44.entities.MaintenanceRecord.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
+  };
 
   const totalCost = rows.reduce((s, r) => s + (r.cost || 0), 0);
 

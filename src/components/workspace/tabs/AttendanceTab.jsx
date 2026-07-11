@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const STATUSES = {
   PRESENT: { ar: 'حاضر', en: 'Present', color: 'bg-emerald-100 text-emerald-700' },
@@ -32,8 +33,13 @@ export default function AttendanceTab({ employeeId, onChange }) {
 
   const load = async () => {
     setLoading(true);
-    setRows(await base44.entities.AttendanceRecord.filter({ employeeId }, '-date'));
-    setLoading(false);
+    try {
+      setRows(await base44.entities.AttendanceRecord.filter({ employeeId }, '-date'));
+    } catch (err) {
+      toast.error(err?.message || t('فشل التحميل', 'Failed to load', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [employeeId]);
 
@@ -45,12 +51,27 @@ export default function AttendanceTab({ employeeId, onChange }) {
     if (duplicate) return;
     const hours = form.status === 'PRESENT' ? Number(form.hours) || 0 : 0;
     const payload = { employeeId, date: form.date, status: form.status, hours, notes: form.notes };
-    if (editingId) await base44.entities.AttendanceRecord.update(editingId, payload);
-    else await base44.entities.AttendanceRecord.create(payload);
-    setOpen(false); load(); onChange?.();
+    try {
+      if (editingId) await base44.entities.AttendanceRecord.update(editingId, payload);
+      else await base44.entities.AttendanceRecord.create(payload);
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false); load(); onChange?.();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
-  const remove = async () => { await base44.entities.AttendanceRecord.delete(deleteId); setDeleteId(null); load(); onChange?.(); };
+  const remove = async () => {
+    try {
+      await base44.entities.AttendanceRecord.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null);
+      load();
+      onChange?.();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
+  };
 
   const presentDays = rows.filter(r => r.status === 'PRESENT').length;
 

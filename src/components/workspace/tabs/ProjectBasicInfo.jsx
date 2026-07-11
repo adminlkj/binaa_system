@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +55,11 @@ export default function ProjectBasicInfo({ project, revenue, costs, onUpdated })
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(project);
+
+  // Keep form in sync with project prop when not editing
+  useEffect(() => {
+    if (!editing) setForm(project);
+  }, [project, editing]);
 
   const profit = revenue - costs;
   const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;

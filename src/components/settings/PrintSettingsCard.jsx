@@ -51,7 +51,7 @@ export default function PrintSettingsCard() {
   const [uploading, setUploading] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  useEffect(() => { if (!loading) setForm(settings); }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!loading) setForm(settings); }, [loading]);  
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -71,7 +71,7 @@ export default function PrintSettingsCard() {
   const save = async () => {
     setSaving(true);
     try {
-      const { id, created_date, updated_date, created_by_id, ...payload } = form; // eslint-disable-line no-unused-vars
+      const { id, created_date, updated_date, created_by_id, ...payload } = form;  
       if (record?.id) {
         await base44.entities.CompanySettings.update(record.id, payload);
       } else {

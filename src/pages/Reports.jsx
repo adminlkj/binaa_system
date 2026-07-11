@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, FileText, RefreshCw, Calculator } from 'lucide-react';
+import { RefreshCw, Calculator } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import TableToolbar from '@/components/shared/TableToolbar';
+import { toast } from 'sonner';
 
 export default function Reports({ initialReport = 'income', hideSelector = false }) {
   const { lang } = useStore();
@@ -41,10 +42,11 @@ export default function Reports({ initialReport = 'income', hideSelector = false
         base44.entities.ChartAccount.list('code'),
       ]);
       setInvoices(inv); setRentalInvoices(rinv); setExpenses(exp); setJournal(je); setPayroll(pay); setAccounts(acc);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
@@ -62,12 +64,12 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const reportPayroll = payroll.filter(p => inPeriod(p.paymentDate || p.created_date?.slice(0, 10)));
   const reportJournal = journal.filter(j => inPeriod(j.date) && (entryStatus === 'all' || (entryStatus === 'posted' ? j.isPosted : !j.isPosted)));
 
-  // Income Statement
+  // Income Statement — الإيراد = صافي المبيعات قبل الضريبة (subtotal)، لا شامل الضريبة.
   const recognizedStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
   const totalRevenue = reportInvoices.filter(i => recognizedStatuses.includes(i.status))
-    .reduce((s, i) => s + (i.totalAmount || 0), 0)
+    .reduce((s, i) => s + (i.subtotal || 0), 0)
     + reportRentalInvoices.filter(i => recognizedStatuses.includes(i.status))
-      .reduce((s, i) => s + (i.totalAmount || 0), 0);
+      .reduce((s, i) => s + (i.subtotal || 0), 0);
   const totalExpenses = reportExpenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
   const totalPayroll = reportPayroll.filter(p => p.status === 'PAID').reduce((s, p) => s + (p.netAmount || 0), 0);
   const totalCosts = totalExpenses + totalPayroll;

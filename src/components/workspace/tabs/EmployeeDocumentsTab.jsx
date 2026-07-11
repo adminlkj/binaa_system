@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const CATEGORIES = {
   CONTRACT: { ar: 'عقد', en: 'Contract' },
@@ -32,8 +33,13 @@ export default function EmployeeDocumentsTab({ employeeId, onChange }) {
 
   const load = async () => {
     setLoading(true);
-    setRows(await base44.entities.EmployeeDocument.filter({ employeeId }, '-created_date'));
-    setLoading(false);
+    try {
+      setRows(await base44.entities.EmployeeDocument.filter({ employeeId }, '-created_date'));
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل المستندات', 'Failed to load documents', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [employeeId]);
 
@@ -46,19 +52,34 @@ export default function EmployeeDocumentsTab({ employeeId, onChange }) {
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setForm(f => ({ ...f, fileUrl: file_url, name: f.name || file.name }));
+    } catch (err) {
+      toast.error(err?.message || t('فشل رفع الملف', 'Failed to upload file', lang));
     } finally { setUploading(false); }
   };
 
   const save = async () => {
-    await base44.entities.EmployeeDocument.create({
-      employeeId, name: form.name, category: form.category,
-      fileUrl: form.fileUrl, expiryDate: form.expiryDate,
-      uploadedDate: new Date().toISOString().slice(0, 10), notes: form.notes,
-    });
-    setOpen(false); load(); onChange?.();
+    try {
+      await base44.entities.EmployeeDocument.create({
+        employeeId, name: form.name, category: form.category,
+        fileUrl: form.fileUrl, expiryDate: form.expiryDate,
+        uploadedDate: new Date().toISOString().slice(0, 10), notes: form.notes,
+      });
+      toast.success(t('تم حفظ المستند', 'Document saved', lang));
+      setOpen(false); load(); onChange?.();
+    } catch (err) {
+      toast.error(err?.message || t('فشل حفظ المستند', 'Failed to save document', lang));
+    }
   };
 
-  const remove = async () => { await base44.entities.EmployeeDocument.delete(deleteId); setDeleteId(null); load(); onChange?.(); };
+  const remove = async () => {
+    try {
+      await base44.entities.EmployeeDocument.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null); load(); onChange?.();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
+  };
 
   const isExpiring = (d) => d && new Date(d) < new Date(Date.now() + 30 * 864e5);
 

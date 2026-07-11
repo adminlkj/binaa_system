@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
+import { toast } from 'sonner';
 
 export default function InvoiceAttachmentField({ label, url, name, onChange, className = '' }) {
   const { lang } = useStore();
@@ -18,6 +19,9 @@ export default function InvoiceAttachmentField({ label, url, name, onChange, cla
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       onChange({ url: file_url, name: file.name, type: file.type });
+      toast.success(t('تم رفع الملف', 'File uploaded', lang));
+    } catch (err) {
+      toast.error(err?.message || t('فشل رفع الملف', 'Failed to upload file', lang));
     } finally {
       setUploading(false);
     }

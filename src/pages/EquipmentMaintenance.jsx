@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import { toast } from 'sonner';
 
 const TYPES = { PREVENTIVE: 'وقائية', CORRECTIVE: 'إصلاحية', BREAKDOWN: 'عطل' };
 const empty = { equipmentId: '', date: new Date().toISOString().slice(0, 10), type: 'PREVENTIVE', description: '', cost: '', vendor: '', status: 'COMPLETED', notes: '' };
@@ -26,8 +27,14 @@ export default function EquipmentMaintenance() {
 
   const load = async () => {
     setLoading(true);
-    const [mr, eq] = await Promise.all([base44.entities.MaintenanceRecord.list('-date', 1000), base44.entities.Equipment.list('name', 1000)]);
-    setRecords(mr || []); setEquipment(eq || []); setLoading(false);
+    try {
+      const [mr, eq] = await Promise.all([base44.entities.MaintenanceRecord.list('-date', 1000), base44.entities.Equipment.list('name', 1000)]);
+      setRecords(mr || []); setEquipment(eq || []);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل السجلات', 'Failed to load records', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -37,8 +44,13 @@ export default function EquipmentMaintenance() {
 
   const save = async () => {
     const eq = equipment.find(e => e.id === form.equipmentId);
-    await base44.entities.MaintenanceRecord.create({ ...form, equipmentName: eq?.name || '', cost: Number(form.cost) || 0 });
-    setOpen(false); setForm(empty); load();
+    try {
+      await base44.entities.MaintenanceRecord.create({ ...form, equipmentName: eq?.name || '', cost: Number(form.cost) || 0 });
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false); setForm(empty); load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
   return <ModuleLayout title={t('الصيانة', 'Maintenance', lang)} subtitle={t('تسجيل ومتابعة صيانة المعدات', 'Register and track equipment maintenance', lang)} actions={<Button onClick={() => setOpen(true)} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('صيانة جديدة', 'New Maintenance', lang)}</Button>}>

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const STATUSES = {
   OPEN: { ar: 'مفتوحة', en: 'Open', color: 'bg-amber-100 text-amber-700' },
@@ -30,8 +31,13 @@ export default function AdvancesTab({ employeeId, onChange }) {
 
   const load = async () => {
     setLoading(true);
-    setRows(await base44.entities.EmployeeAdvance.filter({ employeeId }, '-date'));
-    setLoading(false);
+    try {
+      setRows(await base44.entities.EmployeeAdvance.filter({ employeeId }, '-date'));
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل السلف', 'Failed to load advances', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [employeeId]);
 
@@ -49,12 +55,25 @@ export default function AdvancesTab({ employeeId, onChange }) {
       deductedAmount,
       status, reason: form.reason, notes: form.notes,
     };
-    if (editingId) await base44.entities.EmployeeAdvance.update(editingId, payload);
-    else await base44.entities.EmployeeAdvance.create(payload);
-    setOpen(false); load(); onChange?.();
+    try {
+      if (editingId) await base44.entities.EmployeeAdvance.update(editingId, payload);
+      else await base44.entities.EmployeeAdvance.create(payload);
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false); load(); onChange?.();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
-  const remove = async () => { await base44.entities.EmployeeAdvance.delete(deleteId); setDeleteId(null); load(); onChange?.(); };
+  const remove = async () => {
+    try {
+      await base44.entities.EmployeeAdvance.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null); load(); onChange?.();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
+  };
 
   const totalOpen = rows.filter(r => r.status !== 'SETTLED').reduce((s, r) => s + ((r.amount || 0) - (r.deductedAmount || 0)), 0);
 

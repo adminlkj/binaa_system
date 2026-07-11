@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import PartyStatementSection from '@/components/partners/PartyStatementSection';
+import { toast } from 'sonner';
 
 export default function PartnerFollowUp() {
   const { lang } = useStore();
@@ -15,13 +16,18 @@ export default function PartnerFollowUp() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [cl, sp] = await Promise.all([
-        base44.entities.Client.list('name', 1000),
-        base44.entities.Supplier.list('name', 1000),
-      ]);
-      setClients(cl || []);
-      setSuppliers(sp || []);
-      setLoading(false);
+      try {
+        const [cl, sp] = await Promise.all([
+          base44.entities.Client.list('name', 1000),
+          base44.entities.Supplier.list('name', 1000),
+        ]);
+        setClients(cl || []);
+        setSuppliers(sp || []);
+      } catch (err) {
+        toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load', lang));
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);

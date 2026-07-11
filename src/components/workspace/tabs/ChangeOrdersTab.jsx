@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const TYPES = {
   ADDENDUM: { ar: 'ملحق', en: 'Addendum' },
@@ -35,15 +36,28 @@ export default function ChangeOrdersTab({ projectId }) {
 
   const load = async () => {
     setLoading(true);
-    const data = await base44.entities.ChangeOrder.filter({ projectId }, '-date');
-    setRows(data);
-    setLoading(false);
+    try {
+      const data = await base44.entities.ChangeOrder.filter({ projectId }, '-date');
+      setRows(data);
+    } catch (err) {
+      toast.error(err?.message || t('فشل التحميل', 'Failed to load', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [projectId]);
 
   const openNew = () => { setForm(empty); setEditingId(null); setOpen(true); };
   const openEdit = (r) => { if (r.status !== 'DRAFT') return; setForm({ ...empty, ...r, status: 'DRAFT' }); setEditingId(r.id); setOpen(true); };
-  const approve = async (r) => { await base44.entities.ChangeOrder.update(r.id, { status: 'APPROVED' }); load(); };
+  const approve = async (r) => {
+    try {
+      await base44.entities.ChangeOrder.update(r.id, { status: 'APPROVED' });
+      toast.success(t('تم الاعتماد', 'Approved', lang));
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الاعتماد', 'Failed to approve', lang));
+    }
+  };
 
   const save = async () => {
     const payload = {
@@ -56,13 +70,27 @@ export default function ChangeOrdersTab({ projectId }) {
       status: 'DRAFT',
       notes: form.notes,
     };
-    if (editingId) await base44.entities.ChangeOrder.update(editingId, payload);
-    else await base44.entities.ChangeOrder.create(payload);
-    setOpen(false);
-    load();
+    try {
+      if (editingId) await base44.entities.ChangeOrder.update(editingId, payload);
+      else await base44.entities.ChangeOrder.create(payload);
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
-  const remove = async () => { await base44.entities.ChangeOrder.delete(deleteId); setDeleteId(null); load(); };
+  const remove = async () => {
+    try {
+      await base44.entities.ChangeOrder.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
+  };
 
   const approvedTotal = rows.filter(r => r.status === 'APPROVED').reduce((s, r) => s + (r.amount || 0), 0);
 

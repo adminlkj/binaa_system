@@ -11,7 +11,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, PROJECT_STATUS } from '@/lib/utils-binaa';
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
-// eslint-disable-next-line react/prop-types
+ 
 function KPICard({ title, value, subtitle, icon: Icon, tint, onClick }) {
   return (
     <Card
@@ -94,8 +94,9 @@ export default function Dashboard() {
   // ─── Derived KPIs ────────────────────────────────────────────────────────
   const activeProjects    = projects.filter(p => p.status === 'ACTIVE');
   const totalContractVal  = projects.reduce((s, p) => s + (p.contractValue || 0), 0);
-  const collectedRevenue  = invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0)
-    + rentalInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.totalAmount || 0), 0);
+  // الإيراد = صافي المبيعات قبل الضريبة (subtotal)، لا شامل الضريبة.
+  const collectedRevenue  = invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.subtotal || 0), 0)
+    + rentalInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.subtotal || 0), 0);
   const pendingRevenue    = invoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0)
     + rentalInvoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
   const totalExpenses     = expenses.reduce((s, e) => s + (e.totalAmount || 0), 0);

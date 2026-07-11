@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
+import { toast } from 'sonner';
 
 const CATEGORIES = {
   CONTRACT: { ar: 'عقد', en: 'Contract', color: 'bg-blue-100 text-blue-700' },
@@ -34,9 +35,14 @@ export default function DocumentsTab({ projectId }) {
 
   const load = async () => {
     setLoading(true);
-    const data = await base44.entities.ProjectDocument.filter({ projectId }, '-created_date');
-    setRows(data);
-    setLoading(false);
+    try {
+      const data = await base44.entities.ProjectDocument.filter({ projectId }, '-created_date');
+      setRows(data);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل المستندات', 'Failed to load documents', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [projectId]);
 
@@ -57,14 +63,26 @@ export default function DocumentsTab({ projectId }) {
         fileUrl,
         uploadedDate: new Date().toISOString().slice(0, 10),
       });
+      toast.success(t('تم رفع المستند', 'Document uploaded', lang));
       setOpen(false);
       load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل رفع المستند', 'Failed to upload document', lang));
     } finally {
       setUploading(false);
     }
   };
 
-  const remove = async () => { await base44.entities.ProjectDocument.delete(deleteId); setDeleteId(null); load(); };
+  const remove = async () => {
+    try {
+      await base44.entities.ProjectDocument.delete(deleteId);
+      toast.success(t('تم حذف المستند', 'Document deleted', lang));
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل حذف المستند', 'Failed to delete document', lang));
+    }
+  };
 
   return (
     <div className="space-y-4">

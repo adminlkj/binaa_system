@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const empty = { itemNo: '', description: '', unit: '', quantity: 0, unitPrice: 0, completedPercent: 0, notes: '' };
 
@@ -24,9 +25,14 @@ export default function BoqTab({ projectId }) {
 
   const load = async () => {
     setLoading(true);
-    const data = await base44.entities.BOQItem.filter({ projectId });
-    setRows(data);
-    setLoading(false);
+    try {
+      const data = await base44.entities.BOQItem.filter({ projectId });
+      setRows(data);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البنود', 'Failed to load items', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [projectId]);
 
@@ -47,16 +53,26 @@ export default function BoqTab({ projectId }) {
       completedPercent: Number(form.completedPercent) || 0,
       notes: form.notes,
     };
-    if (editingId) await base44.entities.BOQItem.update(editingId, payload);
-    else await base44.entities.BOQItem.create(payload);
-    setOpen(false);
-    load();
+    try {
+      if (editingId) await base44.entities.BOQItem.update(editingId, payload);
+      else await base44.entities.BOQItem.create(payload);
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
   const remove = async () => {
-    await base44.entities.BOQItem.delete(deleteId);
-    setDeleteId(null);
-    load();
+    try {
+      await base44.entities.BOQItem.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
   };
 
   const totalContract = rows.reduce((s, r) => s + (r.totalPrice || 0), 0);

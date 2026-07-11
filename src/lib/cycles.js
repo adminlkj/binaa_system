@@ -15,8 +15,8 @@ export const READY_TABS = new Set([
   'equipment', 'rental-contracts', 'timesheets', 'equipment-maintenance', 'fuel',
   'purchase-requests', 'purchase-orders', 'goods-receipts', 'supplier-invoices', 'supplier-payments',
   'expenses',
-  'employees', 'payroll-runs', 'attendance', 'advances',
-  'chart-accounts', 'accounting', 'cost-centers', 'fiscal-years', 'fixed-assets',
+  'employees', 'payroll-runs', 'payroll-sheets', 'attendance', 'advances',
+  'chart-accounts', 'accounting', 'cost-centers', 'fiscal-years', 'fixed-assets', 'audit',
   'clients', 'suppliers', 'inventory', 'warehouses', 'stock-movements', 'users', 'settings',
   // Reports cycle
   'report-income', 'report-balance', 'report-cashflow', 'report-ledger', 'report-trial', 'report-vat', 'report-projects', 'report-inventory', 'report-partners', 'report-employees',
@@ -79,10 +79,11 @@ export const CYCLES = [
     Icon: Users,
     color: { text: 'text-violet-600', border: 'border-violet-500', light: 'bg-violet-50', bg: 'bg-violet-600' },
     tabs: [
-      { key: 'employees',    ar: 'ملفات الموظفين',    en: 'Employee Files', Icon: UsersRound },
-      { key: 'payroll-runs', ar: 'مسيرات الرواتب',    en: 'Payroll Runs',   Icon: Wallet },
-      { key: 'attendance',   ar: 'الحضور والإجازات',  en: 'Attendance',     Icon: CalendarDays },
-      { key: 'advances',     ar: 'السلف والاستقطاعات', en: 'Advances',      Icon: HandCoins },
+      { key: 'employees',      ar: 'ملفات الموظفين',    en: 'Employee Files', Icon: UsersRound },
+      { key: 'payroll-runs',   ar: 'مسيرات الرواتب',    en: 'Payroll Runs',   Icon: Wallet },
+      { key: 'payroll-sheets', ar: 'كشوفات الرواتب',    en: 'Payroll Sheets', Icon: ReceiptText },
+      { key: 'attendance',     ar: 'الحضور والإجازات',  en: 'Attendance',     Icon: CalendarDays },
+      { key: 'advances',       ar: 'السلف والاستقطاعات', en: 'Advances',      Icon: HandCoins },
     ],
   },
   {
@@ -96,6 +97,7 @@ export const CYCLES = [
       { key: 'cost-centers',   ar: 'مراكز التكلفة',     en: 'Cost Centers',      Icon: PieChart },
       { key: 'fiscal-years',   ar: 'السنوات المالية',    en: 'Fiscal Years',      Icon: CalendarRange },
       { key: 'fixed-assets',   ar: 'الأصول والإهلاك',    en: 'Fixed Assets',      Icon: Landmark },
+      { key: 'audit',          ar: 'المراجعة والتدقيق',  en: 'Audit Suite',       Icon: ShieldCheck },
     ],
   },
   {

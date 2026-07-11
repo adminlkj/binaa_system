@@ -6,7 +6,6 @@ import GlobalSearch from './GlobalSearch';
 import NotificationCenter from './NotificationCenter';
 import { useStore } from '@/lib/store';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
 import { t } from '@/lib/utils-binaa';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 

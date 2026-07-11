@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
+import { toast } from 'sonner';
 
 export default function InventoryReports() {
   const { lang } = useStore();
@@ -20,15 +21,20 @@ export default function InventoryReports() {
 
   const load = async () => {
     setLoading(true);
-    const [it, mv, wh] = await Promise.all([
-      base44.entities.InventoryItem.list('code', 2000),
-      base44.entities.StockMovement.list('-date', 2000),
-      base44.entities.Warehouse.list('code', 1000),
-    ]);
-    setItems(it || []);
-    setMovements(mv || []);
-    setWarehouses(wh || []);
-    setLoading(false);
+    try {
+      const [it, mv, wh] = await Promise.all([
+        base44.entities.InventoryItem.list('code', 2000),
+        base44.entities.StockMovement.list('-date', 2000),
+        base44.entities.Warehouse.list('code', 1000),
+      ]);
+      setItems(it || []);
+      setMovements(mv || []);
+      setWarehouses(wh || []);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 

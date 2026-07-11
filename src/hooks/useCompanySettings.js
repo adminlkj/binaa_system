@@ -33,9 +33,14 @@ export function useCompanySettings() {
 
   const load = async () => {
     setLoading(true);
-    const rows = await base44.entities.CompanySettings.list('-created_date', 1);
-    setRecord(rows?.[0] || null);
-    setLoading(false);
+    try {
+      const rows = await base44.entities.CompanySettings.list('-created_date', 1);
+      setRecord(rows?.[0] || null);
+    } catch (err) {
+      console.error('Failed to load company settings:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);

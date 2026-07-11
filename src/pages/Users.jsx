@@ -13,7 +13,7 @@ import SmartEntityCard from '@/components/shared/SmartEntityCard';
 import InviteUserDialog from '@/components/users/InviteUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
 import ApproveRegistrationDialog from '@/components/users/ApproveRegistrationDialog';
-import { UserPlus, Search, Pencil, ShieldCheck, ShieldAlert, Users as UsersIcon, Crown, Ban, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { UserPlus, Search, Pencil, ShieldAlert, Users as UsersIcon, Crown, Ban, CheckCircle2, Clock, XCircle } from 'lucide-react';
 
 export default function Users() {
   const { lang } = useStore();

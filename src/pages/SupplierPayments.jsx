@@ -12,7 +12,6 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
-import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
 import VoucherDocument from '@/components/shared/VoucherDocument';
@@ -45,8 +44,6 @@ export default function SupplierPayments() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -91,11 +88,6 @@ export default function SupplierPayments() {
       setDialogOpen(false); load();
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
-  };
-
-  const remove = async () => {
-    try { await base44.entities.SupplierPayment.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const totalPaid = filtered.reduce((s, i) => s + (i.amount || 0), 0);
@@ -235,11 +227,6 @@ export default function SupplierPayments() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
-        title={t('حذف سند الصرف', 'Delete Payment', lang)}
-        description={t('سيتم حذف سند الصرف نهائياً.', 'This payment will be permanently deleted.', lang)}
-        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
 
       <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'سند صرف', en: 'Payment Voucher' }}>
         {preview && <VoucherDocument kind="PAYMENT" voucher={preview} settings={settings} lang={lang} />}

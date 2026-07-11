@@ -11,6 +11,7 @@ import { t, formatCurrency, formatNumber } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
 import { buildCostCenterAnalysis } from '@/lib/ledgerEngine';
+import { toast } from 'sonner';
 
 // تحليل مراكز التكلفة: إيراد وتكلفة وهامش لكل مركز (مشروع).
 export default function CostCenters() {
@@ -30,8 +31,11 @@ export default function CostCenters() {
         base44.entities.SalesInvoice.list('-date', 2000),
       ]);
       setData({ projects, expenses, subInvoices, salesInvoices });
-    } catch { /* ignore */ }
-    setLoading(false);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 

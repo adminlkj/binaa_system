@@ -87,7 +87,9 @@ export const base44 = {
     isAuthenticated: async () => Boolean(getToken()),
     logout: () => localStorage.removeItem(TOKEN_KEY),
     redirectToLogin: () => { window.location.href = '/login'; },
-    loginWithProvider: () => { alert('تسجيل الدخول عبر Google يحتاج إعداد OAuth مستقل خارج Base44.'); },
+    loginWithProvider: () => {
+      throw new Error('المتابعة عبر Google غير مفعّلة حالياً. الرجاء استخدام البريد الإلكتروني وكلمة المرور.');
+    },
     resetPasswordRequest: (email) => request('/api/auth/reset-request', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (data) => request('/api/auth/reset', { method: 'POST', body: JSON.stringify(data) }),
   },
@@ -108,5 +110,31 @@ export const base44 = {
     }).then((data) => ({ data, status: 200 })),
   },
   analytics: { track: async () => ({ success: true }) },
-  integrations: { Core: {} },
+  integrations: {
+    Core: {
+      async UploadFile({ file } = {}) {
+        if (!file) {
+          const err = new Error('No file provided');
+          err.status = 400;
+          throw err;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = getToken();
+        const response = await fetch(`${API_BASE}/api/upload`, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(data.error || data.message || 'Upload failed');
+          error.status = response.status;
+          error.data = data;
+          throw error;
+        }
+        return { file_url: data.file_url || data.url || data.path };
+      },
+    },
+  },
 };

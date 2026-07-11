@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HardHat, FileText, GitPullRequestArrow, AlertTriangle, ReceiptText, Wallet, BookOpen, Phone, Mail, Building2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency } from '@/lib/utils-binaa';
+import { t } from '@/lib/utils-binaa';
 import WorkspaceHeader from '@/components/workspace/WorkspaceHeader';
 import WorkspaceTabs from '@/components/workspace/WorkspaceTabs';
 import SubContractsTab from '@/components/workspace/tabs/SubContractsTab';
@@ -53,7 +53,7 @@ export default function SubcontractorWorkspace() {
           <p className="text-sm text-muted-foreground mt-1 max-w-md">
             {t('افتح سجل مقاولي الباطن واختر مقاولاً لعرض مركز عمله المتكامل.', 'Open the subcontractors registry and pick one to view its workspace.', lang)}
           </p>
-          <button onClick={() => setActiveItem('subcontractors')} className="mt-4 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700">
+          <button onClick={() => setActiveItem('subcontractors-cycle')} className="mt-4 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700">
             {t('الذهاب لمقاولي الباطن', 'Go to Subcontractors', lang)}
           </button>
         </div>
@@ -86,7 +86,7 @@ export default function SubcontractorWorkspace() {
       <WorkspaceHeader
         title={sub.name}
         subtitle={t('مركز عمل مقاول الباطن', 'Subcontractor Workspace', lang)}
-        onBack={() => setActiveItem('subcontractors')}
+        onBack={() => setActiveItem('subcontractors-cycle')}
       />
 
       {/* بطاقة بيانات المقاول */}

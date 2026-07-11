@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, STATUS_TONE, nextCodeFromList } from '@/lib/utils-binaa';
+import { t, formatCurrency, STATUS_TONE, nextCodeFromList } from '@/lib/utils-binaa';
 import QuickSupplierDialog from '@/components/purchase/QuickSupplierDialog';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';

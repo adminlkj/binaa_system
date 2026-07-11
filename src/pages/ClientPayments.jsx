@@ -11,7 +11,6 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
-import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
 import VoucherDocument from '@/components/shared/VoucherDocument';
@@ -40,8 +39,6 @@ export default function ClientPayments() {
   const [search, setSearch] = useState('');
   const [filterMethod, setFilterMethod] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
@@ -99,11 +96,6 @@ export default function ClientPayments() {
       setDialogOpen(false); load();
     } catch (e) { toast.error(e?.message || t('فشل الحفظ', 'Save failed', lang)); }
     setSaving(false);
-  };
-
-  const remove = async () => {
-    try { await base44.entities.ClientPayment.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const total = filtered.reduce((s, i) => s + (i.amount || 0), 0);
@@ -249,11 +241,6 @@ export default function ClientPayments() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen}
-        title={t('حذف السند', 'Delete Receipt', lang)}
-        description={t('سيتم حذف سند القبض نهائياً.', 'This receipt will be permanently deleted.', lang)}
-        onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
 
       <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'سند قبض', en: 'Receipt Voucher' }}>
         {preview && <VoucherDocument kind="RECEIPT" voucher={{ ...preview, clientName: clientName(preview.clientId) }} settings={settings} lang={lang} />}

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
 import BinaaLogo from "@/components/shared/BinaaLogo";
+import { toast } from "sonner";
 
 const BG_IMAGE =
   "https://media.base44.com/images/public/6a44ed8818188b4da27cc800/c4fc4ea30_Gemini_Generated_Image_xeuiioxeuiioxeui.png";
@@ -33,7 +34,11 @@ export default function Login() {
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", "/");
+    try {
+      base44.auth.loginWithProvider("google", "/");
+    } catch (err) {
+      toast.error(err?.message || "المتابعة عبر Google غير متاحة حالياً");
+    }
   };
 
   return (

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import { toast } from 'sonner';
 
 const empty = { date: '', liters: 0, pricePerLiter: 0, totalCost: 0, odometer: 0, notes: '' };
 
@@ -24,8 +25,13 @@ export default function FuelTab({ equipmentId }) {
 
   const load = async () => {
     setLoading(true);
-    setRows(await base44.entities.FuelLog.filter({ equipmentId }, '-date'));
-    setLoading(false);
+    try {
+      setRows(await base44.entities.FuelLog.filter({ equipmentId }, '-date'));
+    } catch (err) {
+      toast.error(err?.message || t('فشل التحميل', 'Failed to load', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, [equipmentId]);
 
@@ -47,13 +53,27 @@ export default function FuelTab({ equipmentId }) {
       odometer: Number(form.odometer) || 0,
       notes: form.notes,
     };
-    if (editingId) await base44.entities.FuelLog.update(editingId, payload);
-    else await base44.entities.FuelLog.create(payload);
-    setOpen(false);
-    load();
+    try {
+      if (editingId) await base44.entities.FuelLog.update(editingId, payload);
+      else await base44.entities.FuelLog.create(payload);
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
-  const remove = async () => { await base44.entities.FuelLog.delete(deleteId); setDeleteId(null); load(); };
+  const remove = async () => {
+    try {
+      await base44.entities.FuelLog.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحذف', 'Failed to delete', lang));
+    }
+  };
 
   const totalCost = rows.reduce((s, r) => s + (r.totalCost || 0), 0);
   const totalLiters = rows.reduce((s, r) => s + (r.liters || 0), 0);

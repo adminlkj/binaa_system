@@ -11,6 +11,7 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PROJECT_STATUS } from '@/lib/utils-binaa';
 import TableToolbar from '@/components/shared/TableToolbar';
+import { toast } from 'sonner';
 
 // تقرير محفظة المشاريع: الإيراد والتكلفة والربح لكل مشروع.
 export default function ProjectReports() {
@@ -40,6 +41,8 @@ export default function ProjectReports() {
       ]);
       setProjects(pr); setInvoices(inv); setPurchases(po); setExpenses(exp);
       setStockMovements(sm); setSupplierInvoices(si); setSubcontractorInvoices(subInv);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
     } finally {
       setLoading(false);
     }
@@ -49,7 +52,7 @@ export default function ProjectReports() {
   const inPeriod = (date) => (!from || (date && date >= from)) && (!to || (date && date <= to));
   const postedInvoiceStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
   const rows = projects.map(p => {
-    const revenue = invoices.filter(i => i.projectId === p.id && postedInvoiceStatuses.includes(i.status) && inPeriod(i.date)).reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const revenue = invoices.filter(i => i.projectId === p.id && postedInvoiceStatuses.includes(i.status) && inPeriod(i.date)).reduce((s, i) => s + (i.subtotal || 0), 0);
     const expenseCost = expenses.filter(e => e.projectId === p.id && inPeriod(e.date)).reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0);
     const stockCost = stockMovements.filter(m => m.projectId === p.id && m.type === 'ISSUE' && inPeriod(m.date)).reduce((s, m) => s + (m.totalCost || 0), 0);
     const supplierCost = supplierInvoices.filter(i => i.projectId === p.id && !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status) && inPeriod(i.date)).reduce((s, i) => s + (i.totalAmount || 0), 0);

@@ -9,6 +9,7 @@ import { t } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from 'sonner';
 
 /**
  * قائمة تجميعية للقراءة عبر كل مقاولي الباطن.
@@ -31,6 +32,8 @@ export default function SubAggregateList({ entityName, title, subtitle, columns,
       ]);
       setRows(data);
       setSubs(Object.fromEntries(subList.map(s => [s.id, s])));
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [entityName]);

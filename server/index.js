@@ -29,6 +29,21 @@ function serveStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const requested = url.pathname === '/' ? '/index.html' : url.pathname;
   const safePath = path.normalize(requested).replace(/^\.+/, '');
+
+  // Serve uploaded files from /uploads/*
+  if (safePath.startsWith('/uploads/')) {
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const filePath = path.join(uploadsDir, safePath.replace(/^\/uploads\//, ''));
+    if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'File not found' }));
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.pdf': 'application/pdf', '.webp': 'image/webp', '.ico': 'image/x-icon' };
+    res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream' });
+    return fs.createReadStream(filePath).pipe(res);
+  }
+
   let filePath = path.join(DIST_DIR, safePath);
   if (!filePath.startsWith(DIST_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     filePath = path.join(DIST_DIR, 'index.html');
@@ -234,12 +249,57 @@ async function handleEntity(req, res, parts) {
   return sendJson(res, { error: 'Not found' }, 404);
 }
 
+async function handleUpload(req, res) {
+  const user = await requireUser(req);
+  const boundary = (req.headers['content-type'] || '').split('boundary=')[1];
+  if (!boundary) return sendJson(res, { error: 'Invalid multipart request' }, 400);
+
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const buffer = Buffer.concat(chunks);
+  const boundaryBuffer = Buffer.from(`--${boundary}`);
+  const parts = [];
+  let start = 0;
+  while (true) {
+    const bStart = buffer.indexOf(boundaryBuffer, start);
+    if (bStart === -1) break;
+    const nextStart = buffer.indexOf(boundaryBuffer, bStart + boundaryBuffer.length);
+    if (nextStart === -1) break;
+    parts.push(buffer.slice(bStart + boundaryBuffer.length, nextStart));
+    start = nextStart;
+  }
+
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  let savedFile = null;
+  for (const part of parts) {
+    const headerEnd = part.indexOf('\r\n\r\n');
+    if (headerEnd === -1) continue;
+    const header = part.slice(0, headerEnd).toString('utf8');
+    const fileMatch = header.match(/filename="([^"]+)"/);
+    if (!fileMatch) continue;
+    const originalName = fileMatch[1];
+    const body = part.slice(headerEnd + 4, part.length - 2); // remove trailing \r\n
+    const ext = path.extname(originalName).toLowerCase();
+    const safeExt = /^[\w.\-]+$/.test(ext) ? ext : '';
+    const fileName = `${crypto.randomUUID()}${safeExt}`;
+    fs.writeFileSync(path.join(uploadsDir, fileName), body);
+    savedFile = `/uploads/${fileName}`;
+    break;
+  }
+
+  if (!savedFile) return sendJson(res, { error: 'No file part found' }, 400);
+  return sendJson(res, { file_url: savedFile, url: savedFile });
+}
+
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const route = url.pathname;
   try {
     if (route.startsWith('/api/auth/')) return await handleAuth(req, res, route);
     if (route.startsWith('/api/users/')) return await handleUsers(req, res, route);
+    if (route === '/api/upload' && req.method === 'POST') return await handleUpload(req, res);
     if (route.startsWith('/api/entities/')) return await handleEntity(req, res, route.split('/'));
     if (route.startsWith('/api/functions/') && req.method === 'POST') {
       const user = await requireUser(req);

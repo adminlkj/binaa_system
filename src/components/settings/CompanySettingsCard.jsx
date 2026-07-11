@@ -24,14 +24,14 @@ export default function CompanySettingsCard() {
   const [form, setForm] = useState(DEFAULT_COMPANY_SETTINGS);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (!loading) setForm(settings); }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!loading) setForm(settings); }, [loading]);  
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
   const save = async () => {
     setSaving(true);
     try {
-      const { id, created_date, updated_date, created_by_id, ...payload } = form; // eslint-disable-line no-unused-vars
+      const { id, created_date, updated_date, created_by_id, ...payload } = form;  
       if (record?.id) {
         await base44.entities.CompanySettings.update(record.id, payload);
       } else {

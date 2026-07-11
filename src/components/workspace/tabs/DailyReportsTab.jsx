@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,9 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useStore } from '@/lib/store';
 import { t, formatDate } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
+import { toast } from 'sonner';
 
 export default function DailyReportsTab({ projectId }) {
   const { lang } = useStore();
+  const [uploading, setUploading] = useState(false);
 
   return (
     <CrudTab
@@ -69,12 +72,23 @@ export default function DailyReportsTab({ projectId }) {
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label>{t('صور التقرير', 'Report Photos', lang)}</Label>
-            <Input type="file" multiple accept="image/*" onChange={async e => {
-              const files = Array.from(e.target.files || []);
-              if (!files.length) return;
-              const uploaded = await Promise.all(files.map(file => base44.integrations.Core.UploadFile({ file })));
-              set('photos', [...(form.photos || []), ...uploaded.map(r => r.file_url)]);
-            }} />
+            <div className="flex items-center gap-2">
+              <Input type="file" multiple accept="image/*" disabled={uploading} onChange={async e => {
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+                setUploading(true);
+                try {
+                  const uploaded = await Promise.all(files.map(file => base44.integrations.Core.UploadFile({ file })));
+                  set('photos', [...(form.photos || []), ...uploaded.map(r => r.file_url)]);
+                  toast.success(t('تم رفع الصور', 'Photos uploaded', lang));
+                } catch (err) {
+                  toast.error(err?.message || t('فشل رفع الصور', 'Failed to upload photos', lang));
+                } finally {
+                  setUploading(false);
+                }
+              }} />
+              {uploading && <Loader2 className="size-4 animate-spin text-muted-foreground shrink-0" />}
+            </div>
             {(form.photos || []).length > 0 && <p className="text-xs text-muted-foreground">{(form.photos || []).length} {t('صورة مرفوعة', 'uploaded photos', lang)}</p>}
           </div>
           <div className="space-y-1.5 md:col-span-2">

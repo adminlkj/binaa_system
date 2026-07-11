@@ -10,6 +10,7 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
+import { toast } from 'sonner';
 
 export default function EmployeeReports() {
   const { lang } = useStore();
@@ -23,15 +24,20 @@ export default function EmployeeReports() {
 
   const load = async () => {
     setLoading(true);
-    const [emp, att, adv] = await Promise.all([
-      base44.entities.Employee.list('code', 1000),
-      base44.entities.AttendanceRecord.list('-date', 3000),
-      base44.entities.EmployeeAdvance.list('-date', 2000),
-    ]);
-    setEmployees(emp || []);
-    setAttendance(att || []);
-    setAdvances(adv || []);
-    setLoading(false);
+    try {
+      const [emp, att, adv] = await Promise.all([
+        base44.entities.Employee.list('code', 1000),
+        base44.entities.AttendanceRecord.list('-date', 3000),
+        base44.entities.EmployeeAdvance.list('-date', 2000),
+      ]);
+      setEmployees(emp || []);
+      setAttendance(att || []);
+      setAdvances(adv || []);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);

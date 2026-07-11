@@ -89,7 +89,8 @@ export default function ProjectWorkspace() {
 
   const postedInvoiceStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
   const postedInvoices = invoices.filter(i => postedInvoiceStatuses.includes(i.status));
-  const revenue = postedInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
+  // الإيراد = صافي المبيعات قبل الضريبة (subtotal)، لا شامل الضريبة.
+  const revenue = postedInvoices.reduce((s, i) => s + (i.subtotal || 0), 0);
   const stockIssueCost = stockMovements.filter(m => m.type === 'ISSUE').reduce((s, m) => s + (m.totalCost || 0), 0);
   const directSupplierCost = supplierInvoices
     .filter(i => !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status))

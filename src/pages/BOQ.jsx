@@ -120,8 +120,8 @@ export default function BOQ() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
-                : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center py-10 text-muted-foreground">{t('لا توجد بنود', 'No items', lang)}</TableCell></TableRow>
+              {loading ? Array.from({ length: 4 }).map((_, i) => <TableRow key={i}>{Array.from({ length: projectFilter === 'ALL' ? 9 : 8 }).map((_, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>)
+                : filtered.length === 0 ? <TableRow><TableCell colSpan={projectFilter === 'ALL' ? 9 : 8} className="text-center py-10 text-muted-foreground">{t('لا توجد بنود', 'No items', lang)}</TableCell></TableRow>
                 : filtered.map(item => {
                   const total = item.totalPrice || (item.quantity || 0) * (item.unitPrice || 0);
                   const pct = item.completedPercent || 0;

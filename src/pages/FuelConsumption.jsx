@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
+import { toast } from 'sonner';
 
 const empty = { equipmentId: '', date: new Date().toISOString().slice(0, 10), liters: '', pricePerLiter: '', odometer: '', notes: '' };
 
@@ -25,8 +26,14 @@ export default function FuelConsumption() {
 
   const load = async () => {
     setLoading(true);
-    const [fl, eq] = await Promise.all([base44.entities.FuelLog.list('-date', 1000), base44.entities.Equipment.list('name', 1000)]);
-    setLogs(fl || []); setEquipment(eq || []); setLoading(false);
+    try {
+      const [fl, eq] = await Promise.all([base44.entities.FuelLog.list('-date', 1000), base44.entities.Equipment.list('name', 1000)]);
+      setLogs(fl || []); setEquipment(eq || []);
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل السجلات', 'Failed to load logs', lang));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -38,8 +45,13 @@ export default function FuelConsumption() {
   const save = async () => {
     const eq = equipment.find(e => e.id === form.equipmentId);
     const totalCost = (Number(form.liters) || 0) * (Number(form.pricePerLiter) || 0);
-    await base44.entities.FuelLog.create({ ...form, equipmentName: eq?.name || '', liters: Number(form.liters) || 0, pricePerLiter: Number(form.pricePerLiter) || 0, totalCost, odometer: Number(form.odometer) || 0 });
-    setOpen(false); setForm(empty); load();
+    try {
+      await base44.entities.FuelLog.create({ ...form, equipmentName: eq?.name || '', liters: Number(form.liters) || 0, pricePerLiter: Number(form.pricePerLiter) || 0, totalCost, odometer: Number(form.odometer) || 0 });
+      toast.success(t('تم الحفظ', 'Saved', lang));
+      setOpen(false); setForm(empty); load();
+    } catch (err) {
+      toast.error(err?.message || t('فشل الحفظ', 'Failed to save', lang));
+    }
   };
 
   return <ModuleLayout title={t('استهلاك الوقود', 'Fuel Consumption', lang)} subtitle={t('تسجيل وتحليل وقود المعدات', 'Register and analyze equipment fuel', lang)} actions={<Button onClick={() => setOpen(true)} className="gap-2 bg-cyan-600 hover:bg-cyan-700"><Plus className="size-4" />{t('تعبئة وقود', 'New Fuel Log', lang)}</Button>}>

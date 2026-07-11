@@ -10,6 +10,7 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
 import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { toast } from 'sonner';
 
 const STATUS = {
   DRAFT: { ar: 'مسودة', en: 'Draft', color: STATUS_TONE.NEUTRAL },
@@ -38,6 +39,8 @@ export default function SubcontractorInvoicesAll() {
       ]);
       setRows(inv);
       setSubs(Object.fromEntries(subList.map(s => [s.id, s])));
+    } catch (err) {
+      toast.error(err?.message || t('فشل تحميل المستخلصات', 'Failed to load invoices', lang));
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);

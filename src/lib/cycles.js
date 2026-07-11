@@ -30,12 +30,13 @@ export const CYCLES = [
     label: { ar: 'المشاريع', en: 'Projects' },
     Icon: Building2,
     color: { text: 'text-emerald-600', border: 'border-emerald-500', light: 'bg-emerald-50', bg: 'bg-emerald-600' },
+    // دورة المشاريع الرئيسية تعرض فقط: قائمة المشاريع، الفواتير، التحصيلات.
+    // باقي الأقسام (العقود، جدول الكميات، أوامر التغيير، الضمانات، الغرامات، إلخ)
+    // تبقى حصراً داخل مركز عمل كل مشروع لتفادي التكرار.
     tabs: [
       { key: 'projects',        ar: 'المشاريع',            en: 'Projects',          Icon: Building2 },
-      { key: 'contracts',       ar: 'عقود المشاريع',       en: 'Project Contracts', Icon: FileText },
-      { key: 'sales',           ar: 'المستخلصات والفواتير', en: 'Invoices & Claims', Icon: ReceiptText },
+      { key: 'sales',           ar: 'الفواتير',            en: 'Invoices',          Icon: ReceiptText },
       { key: 'client-payments', ar: 'التحصيلات',           en: 'Collections',       Icon: CreditCard },
-      { key: 'boq',             ar: 'جدول الكميات',        en: 'BOQ',               Icon: ClipboardList },
     ],
   },
   {

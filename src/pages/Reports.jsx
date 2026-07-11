@@ -178,14 +178,27 @@ export default function Reports({ initialReport = 'income', hideSelector = false
     { label: t('صافي الضريبة المستحقة', 'Net VAT Due', lang), amount: fmt(vatNet) },
   ];
 
-  const cashflowInflow = reportInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0)
-    + reportRentalInvoices.filter(i => ['PAID', 'PARTIALLY_PAID'].includes(i.status)).reduce((s, i) => s + (i.paidAmount || 0), 0);
-  const cashflowOutflow = totalExpenses + totalPayroll;
+  // Cash Flow — من القيود المرحّلة فقط (حسابات النقد والبنك)
+  // تدفق داخل = دائن في حسابات النقد/البنك (نقد دخل)
+  // تدفق خارج = مدين في حسابات النقد/البنك (نقد خرج)
+  const cashflowInflow = balanceEntries.reduce((s, je) => {
+    return s + (je.lines || []).reduce((ls, l) => {
+      const acc = accountMeta[l.accountCode];
+      if (acc && (acc.semanticRole === 'CASH' || acc.semanticRole === 'BANK') && l.credit > 0) return ls + (l.credit || 0);
+      return ls;
+    }, 0);
+  }, 0);
+  const cashflowOutflow = balanceEntries.reduce((s, je) => {
+    return s + (je.lines || []).reduce((ls, l) => {
+      const acc = accountMeta[l.accountCode];
+      if (acc && (acc.semanticRole === 'CASH' || acc.semanticRole === 'BANK') && l.debit > 0) return ls + (l.debit || 0);
+      return ls;
+    }, 0);
+  }, 0);
   const netCashflow = cashflowInflow - cashflowOutflow;
   const cashflowRows = [
-    { label: t('تحصيلات العملاء (تدفق داخل)', 'Client Collections (Inflow)', lang), amount: fmt(cashflowInflow) },
-    { label: t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang), amount: fmt(totalExpenses) },
-    { label: t('مسيرات الرواتب', 'Payroll', lang), amount: fmt(totalPayroll) },
+    { label: t('التدفقات النقدية الداخلة (من القيود المرحّلة)', 'Cash Inflows (from posted entries)', lang), amount: fmt(cashflowInflow) },
+    { label: t('التدفقات النقدية الخارجة (من القيود المرحّلة)', 'Cash Outflows (from posted entries)', lang), amount: fmt(cashflowOutflow) },
     { label: t('صافي التدفق النقدي', 'Net Cash Flow', lang), amount: fmt(netCashflow) },
   ];
 

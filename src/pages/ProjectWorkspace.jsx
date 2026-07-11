@@ -33,13 +33,15 @@ export default function ProjectWorkspace() {
   const [stockMovements, setStockMovements] = useState([]);
   const [supplierInvoices, setSupplierInvoices] = useState([]);
   const [subcontractorInvoices, setSubcontractorInvoices] = useState([]);
+  const [journalEntries, setJournalEntries] = useState([]);
+  const [chartAccounts, setChartAccounts] = useState([]);
 
   useEffect(() => {
     if (!activeProjectId) { setLoading(false); return; }
     (async () => {
       setLoading(true);
       try {
-        const [p, c, inv, po, exp, cp, sm, si, subInv] = await Promise.all([
+        const [p, c, inv, po, exp, cp, sm, si, subInv, je, acc] = await Promise.all([
           base44.entities.Project.filter({ id: activeProjectId }),
           base44.entities.Contract.filter({ projectId: activeProjectId }),
           base44.entities.SalesInvoice.filter({ projectId: activeProjectId }),
@@ -49,10 +51,13 @@ export default function ProjectWorkspace() {
           base44.entities.StockMovement.filter({ projectId: activeProjectId }),
           base44.entities.SupplierInvoice.filter({ projectId: activeProjectId }),
           base44.entities.SubcontractorInvoice.filter({ projectId: activeProjectId }),
+          base44.entities.JournalEntry.list('-date', 2000),
+          base44.entities.ChartAccount.list('code', 1000),
         ]);
         setProject(p[0] || null);
         setContracts(c); setInvoices(inv); setPurchases(po); setExpenses(exp);
         setClientPayments(cp); setStockMovements(sm); setSupplierInvoices(si); setSubcontractorInvoices(subInv);
+        setJournalEntries(je || []); setChartAccounts(acc || []);
       } finally {
         setLoading(false);
       }
@@ -189,7 +194,7 @@ export default function ProjectWorkspace() {
       {tab === 'daily-reports' && <DailyReportsTab projectId={activeProjectId} />}
       {tab === 'billing' && <ProgressBillingTab projectId={activeProjectId} />}
       {tab === 'profitability' && <ProfitabilityTab revenue={revenue} costs={costs} contractValue={project.contractValue || 0} />}
-      {tab === 'statement' && <StatementTab invoices={invoices} purchases={purchases} expenses={expenses} clientPayments={clientPayments} stockMovements={stockMovements} supplierInvoices={supplierInvoices} subcontractorInvoices={subcontractorInvoices} />}
+      {tab === 'statement' && <StatementTab journalEntries={journalEntries} accounts={chartAccounts} />}
       {tab === 'documents' && <DocumentsTab projectId={activeProjectId} />}
     </div>
   );

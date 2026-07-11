@@ -169,30 +169,16 @@ export default function Reports({ initialReport = 'income', hideSelector = false
               <Input type="date" value={to} onChange={e => setTo(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">{t('حالة الفواتير', 'Invoice Status', lang)}</Label>
-              <Select value={invoiceStatus} onValueChange={setInvoiceStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('كل الفواتير', 'All invoices', lang)}</SelectItem>
-                  <SelectItem value="PAID">{t('مدفوعة', 'Paid', lang)}</SelectItem>
-                  <SelectItem value="PARTIALLY_PAID">{t('مدفوعة جزئياً', 'Partially paid', lang)}</SelectItem>
-                  <SelectItem value="SENT">{t('مرسلة', 'Sent', lang)}</SelectItem>
-                  <SelectItem value="DRAFT">{t('مسودة', 'Draft', lang)}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">{t('حالة القيود', 'Journal Status', lang)}</Label>
+              <Label className="text-xs">{t('حالة القيود', 'Entry Status', lang)}</Label>
               <Select value={entryStatus} onValueChange={setEntryStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="posted">{t('القيود المرحّلة فقط', 'Posted only', lang)}</SelectItem>
-                  <SelectItem value="draft">{t('غير المرحّلة', 'Unposted', lang)}</SelectItem>
-                  <SelectItem value="all">{t('كل القيود', 'All entries', lang)}</SelectItem>
+                  <SelectItem value="posted">{t('مرحّل فقط', 'Posted only', lang)}</SelectItem>
+                  <SelectItem value="all">{t('الكل', 'All', lang)}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" onClick={() => { setFrom(''); setTo(''); setInvoiceStatus('all'); setEntryStatus('posted'); }}>
+            <Button variant="outline" onClick={() => { setFrom(''); setTo(''); setEntryStatus('posted'); }}>
               {t('مسح الفلاتر', 'Clear Filters', lang)}
             </Button>
           </div>
@@ -258,11 +244,11 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                         <TableCell className="text-end text-rose-700">{formatCurrency(totalCosts, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="ps-8 text-muted-foreground">{t('← المصروفات التشغيلية', '← Operational Expenses', lang)}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(totalExpenses, lang)}</TableCell>
+                        <TableCell className="ps-8 text-muted-foreground">{t('← المصروفات (من القيود المرحّلة)', '← Expenses (from posted entries)', lang)}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(totalCosts - totalPayroll, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="ps-8 text-muted-foreground">{t('← الرواتب المدفوعة', '← Paid Payroll', lang)}</TableCell>
+                        <TableCell className="ps-8 text-muted-foreground">{t('← الرواتب (من القيود المرحّلة)', '← Payroll (from posted entries)', lang)}</TableCell>
                         <TableCell className="text-end">{formatCurrency(totalPayroll, lang)}</TableCell>
                       </TableRow>
                       <TableRow className={`font-bold text-base ${netProfit >= 0 ? 'bg-teal-50' : 'bg-amber-50'}`}>
@@ -416,15 +402,15 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                     </TableHeader>
                     <TableBody>
                       <TableRow>
-                        <TableCell className="font-medium">{t('فواتير المبيعات والتأجير', 'Sales & Rental Invoices', lang)}</TableCell>
-                        <TableCell>{reportInvoices.length + reportRentalInvoices.length}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(reportInvoices.reduce((s, i) => s + (i.subtotal || 0), 0) + reportRentalInvoices.reduce((s, i) => s + ((i.baseAmount || 0) + (i.extraCharges || 0) + (i.deliveryAmount || 0)), 0), lang)}</TableCell>
+                        <TableCell className="font-medium">{t('ضريبة محصّلة (من القيود المرحّلة)', 'VAT Collected (from posted entries)', lang)}</TableCell>
+                        <TableCell>{vatData.collectedLines.length}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(vatCollected / 0.15, lang)}</TableCell>
                         <TableCell className="text-end text-emerald-600">{formatCurrency(vatCollected, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="font-medium">{t('المصروفات', 'Expenses', lang)}</TableCell>
-                        <TableCell>{reportExpenses.length}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(reportExpenses.reduce((s, e) => s + (e.amount || 0), 0), lang)}</TableCell>
+                        <TableCell className="font-medium">{t('ضريبة مدفوعة (من القيود المرحّلة)', 'VAT Paid (from posted entries)', lang)}</TableCell>
+                        <TableCell>{vatData.paidLines.length}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(vatPaid / 0.15, lang)}</TableCell>
                         <TableCell className="text-end text-rose-600">{formatCurrency(vatPaid, lang)}</TableCell>
                       </TableRow>
                     </TableBody>
@@ -480,12 +466,8 @@ export default function Reports({ initialReport = 'income', hideSelector = false
                         <TableCell className="text-end text-rose-700">{formatCurrency(cashflowOutflow, lang)}</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell className="ps-8 text-muted-foreground">{t('مدفوعات الموردين والمصروفات', 'Supplier & Expense Payments', lang)}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(totalExpenses, lang)}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="ps-8 text-muted-foreground">{t('مسيرات الرواتب', 'Payroll', lang)}</TableCell>
-                        <TableCell className="text-end">{formatCurrency(totalPayroll, lang)}</TableCell>
+                        <TableCell className="ps-8 text-muted-foreground">{t('مدفوعات (من القيود المرحّلة)', 'Payments (from posted entries)', lang)}</TableCell>
+                        <TableCell className="text-end">{formatCurrency(cashflowOutflow, lang)}</TableCell>
                       </TableRow>
                       <TableRow className={`font-bold text-base ${netCashflow >= 0 ? 'bg-teal-50' : 'bg-amber-50'}`}>
                         <TableCell>{t('صافي التدفق النقدي', 'Net Cash Flow', lang)}</TableCell>

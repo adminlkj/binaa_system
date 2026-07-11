@@ -83,29 +83,29 @@ const computeTotal = (f) => {
 const STANDARD_MONTHLY_HOURS = 260;
 
 // حساب قيمة الإيجار للشهر حسب نوع سعر العقد:
-//   - HOURLY:  rate × hours
+//   - HOURLY:  rate × hours (السعر ساعي أصلاً)
+//   - MONTHLY: rate هي القيمة الشهرية → سعر الساعة = rate / 260 → المبلغ = سعر الساعة × ساعات الشهر
 //   - DAILY:   rate × أيام الشهر داخل فترة العقد
 //   - WEEKLY:  rate × أسابيع الشهر داخل فترة العقد
-//   - MONTHLY: إذا وُجد totalAmount (قيمة العقد الإجمالية) نحسب سعر الساعة منه
-//              ونضربه في ساعات الشهر الفعلية: (totalAmount / 260) × hours
-//              وإلا نستخدم rate كقيمة شهرية ثابتة.
 const invoiceBaseForContract = (contract, ymKey, hours) => {
   if (!contract) return 0;
   const rate = Number(contract.rate) || 0;
-  const totalAmount = Number(contract.totalAmount) || 0;
   const hrs = Number(hours) || 0;
 
+  // عقد ساعي: السعر بالساعة × عدد الساعات
   if (contract.rateType === 'HOURLY') {
     return +(rate * hrs).toFixed(2);
   }
 
-  // عقد شهري بقيمة إجمالية: سعر الساعة = totalAmount / 260، مبلغ الشهر = سعر الساعة × ساعات الشهر
+  // عقد شهري: rate = القيمة الشهرية الكاملة
+  // سعر الساعة = rate / 260 ساعة قياسية
+  // مبلغ الشهر = سعر الساعة × ساعات الشهر الفعلية
   if (contract.rateType === 'MONTHLY') {
-    if (totalAmount > 0 && hrs > 0) {
-      const hourlyRate = totalAmount / STANDARD_MONTHLY_HOURS;
+    if (rate > 0 && hrs > 0) {
+      const hourlyRate = rate / STANDARD_MONTHLY_HOURS;
       return +(hourlyRate * hrs).toFixed(2);
     }
-    // لا توجد ساعات أو قيمة إجمالية — استخدم rate كقيمة شهرية ثابتة
+    // لا توجد ساعات مسجلة — استخدم القيمة الشهرية كاملة
     return rate;
   }
 
@@ -120,12 +120,14 @@ const invoiceBaseForContract = (contract, ymKey, hours) => {
   return rate;
 };
 
-// سعر الساعة المُشتق من العقد — يُستخدم في عرض بند الفاتورة.
+// سعر الساعة المُشتق من العقد — يُستخدم في عرض بند الفاتورة وصندوق الحساب.
 const hourlyRateFromContract = (contract) => {
   if (!contract) return 0;
-  if (contract.rateType === 'HOURLY') return Number(contract.rate) || 0;
-  if (contract.rateType === 'MONTHLY' && Number(contract.totalAmount) > 0) {
-    return (Number(contract.totalAmount) / STANDARD_MONTHLY_HOURS);
+  const rate = Number(contract.rate) || 0;
+  if (contract.rateType === 'HOURLY') return rate;
+  // عقد شهري: سعر الساعة = القيمة الشهرية / 260
+  if (contract.rateType === 'MONTHLY' && rate > 0) {
+    return rate / STANDARD_MONTHLY_HOURS;
   }
   return 0;
 };
@@ -398,10 +400,10 @@ export default function RentalInvoicesTab({ equipmentId }) {
             {derivedHourlyRate > 0 && Number(form.totalHours) > 0 && (
               <div className="md:col-span-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs space-y-1.5">
                 <div className="font-semibold text-emerald-800 mb-1">{t('حساب قيمة الإيجار', 'Rental Calculation', lang)}</div>
-                {selectedContract?.rateType === 'MONTHLY' && Number(selectedContract?.totalAmount) > 0 && (
+                {selectedContract?.rateType === 'MONTHLY' && Number(selectedContract?.rate) > 0 && (
                   <>
                     <div className="flex justify-between text-emerald-700">
-                      <span>{t('قيمة العقد الشهرية', 'Monthly contract value', lang)}: {formatCurrency(Number(selectedContract.totalAmount), lang)}</span>
+                      <span>{t('قيمة العقد الشهرية', 'Monthly rate', lang)}: {formatCurrency(Number(selectedContract.rate), lang)}</span>
                       <span className="text-muted-foreground">÷ {STANDARD_MONTHLY_HOURS} {t('ساعة', 'hours', lang)}</span>
                     </div>
                     <div className="flex justify-between text-emerald-700">

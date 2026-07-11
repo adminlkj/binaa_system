@@ -217,7 +217,7 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: border }}>
             <span style={{ fontWeight: 700 }}><Money value={vat} /></span>
-            <FieldLabel ar="ضريبة القيمة المضافة (5%)" en="VAT (5%)" color={accent} />
+            <FieldLabel ar={`ضريبة القيمة المضافة (${invoice.vatRate ? Math.round(invoice.vatRate * 100) : 15}%)`} en={`VAT (${invoice.vatRate ? Math.round(invoice.vatRate * 100) : 15}%)`} color={accent} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 14px', background: primary, color: '#fff' }}>
             <span style={{ fontWeight: 800, fontSize: 15 }}><Money value={total} symbolSize="1.25em" /></span>

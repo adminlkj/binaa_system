@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -46,7 +46,7 @@ export default function Employees() {
     return matchSearch && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...empty, code: nextCodeFromList(items, 'EMP', 'code') }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
@@ -181,8 +181,8 @@ export default function Employees() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 py-2">
-            {[['code', t('الكود', 'Code', lang)], ['name', t('الاسم', 'Name', lang)], ['nameAr', t('الاسم بالعربية', 'Name (Arabic)', lang)], ['position', t('المنصب', 'Position', lang)], ['department', t('القسم', 'Department', lang)], ['phone', t('الهاتف', 'Phone', lang)], ['email', t('البريد الإلكتروني', 'Email', lang)], ['nationalId', t('رقم الهوية', 'National ID', lang)], ['nationality', t('الجنسية', 'Nationality', lang)]].map(([field, label]) => (
-              <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} /></div>
+            {[['code', t('الكود', 'Code', lang), true], ['name', t('الاسم', 'Name', lang)], ['nameAr', t('الاسم بالعربية', 'Name (Arabic)', lang)], ['position', t('المنصب', 'Position', lang)], ['department', t('القسم', 'Department', lang)], ['phone', t('الهاتف', 'Phone', lang)], ['email', t('البريد الإلكتروني', 'Email', lang)], ['nationalId', t('رقم الهوية', 'National ID', lang)], ['nationality', t('الجنسية', 'Nationality', lang)]].map(([field, label, ro]) => (
+              <div key={field} className="space-y-1.5"><Label>{label}</Label><Input value={form[field] || ''} readOnly={ro} onChange={ro ? undefined : e => setForm(f => ({ ...f, [field]: e.target.value }))} className={ro ? 'bg-muted font-mono' : ''} /></div>
             ))}
             <div className="space-y-1.5"><Label>{t('تاريخ التعيين', 'Hire Date', lang)}</Label><Input type="date" value={form.hireDate || ''} onChange={e => setForm(f => ({ ...f, hireDate: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>{t('الراتب الأساسي', 'Basic Salary', lang)}</Label><Input type="number" value={form.salary || ''} onChange={e => setForm(f => ({ ...f, salary: e.target.value }))} /></div>

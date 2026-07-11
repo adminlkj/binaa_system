@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency } from '@/lib/utils-binaa';
+import { t, formatCurrency, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -58,7 +58,7 @@ export default function Inventory() {
     return match && (filterCat === 'ALL' || i.category === filterCat);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...empty, code: nextCodeFromList(items, 'ITM', 'code') }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
@@ -183,7 +183,7 @@ export default function Inventory() {
         <DialogContent className="max-w-lg" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <DialogHeader><DialogTitle>{editing ? t('تعديل الصنف', 'Edit Item', lang) : t('صنف جديد', 'New Item', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="space-y-1"><Label>{t('الرمز', 'Code', lang)} *</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>{t('الرمز', 'Code', lang)} *</Label><Input value={form.code} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1">
               <Label>{t('الفئة', 'Category', lang)}</Label>
               <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>

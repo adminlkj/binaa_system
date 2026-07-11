@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, genCode } from '@/lib/utils-binaa';
+import { t, formatCurrency, nextCodeFromList } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const STATUS = {
@@ -22,7 +22,7 @@ export default function SubContractsTab({ subcontractorId, projects = [] }) {
       entityName="SubcontractorContract"
       filter={{ subcontractorId }}
       defaults={(rows) => ({
-        subcontractorId, contractNo: genCode('SUBC', rows.length + 1), title: '', projectId: '', projectName: '',
+        subcontractorId, contractNo: nextCodeFromList(rows, 'SUBC', 'contractNo'), title: '', projectId: '', projectName: '',
         date: new Date().toISOString().slice(0, 10), startDate: '', endDate: '',
         value: 0, retentionPercent: 0, status: 'DRAFT', scope: '', notes: '',
       })}
@@ -57,7 +57,7 @@ export default function SubContractsTab({ subcontractorId, projects = [] }) {
       ]}
       fields={(form, set) => (
         <>
-          <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No', lang)} *</Label><Input value={form.contractNo || ''} onChange={e => set('contractNo', e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No', lang)} *</Label><Input value={form.contractNo || ''} readOnly className="bg-muted font-mono" /></div>
           <div className="space-y-1.5"><Label>{t('العنوان', 'Title', lang)}</Label><Input value={form.title || ''} onChange={e => set('title', e.target.value)} /></div>
           <div className="space-y-1.5 md:col-span-2">
             <Label>{t('المشروع', 'Project', lang)}</Label>

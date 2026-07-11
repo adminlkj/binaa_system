@@ -10,7 +10,7 @@ import { Plus, Pencil, Trash2, FileText, Loader2, CheckCircle2 } from 'lucide-re
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/components/ui/use-toast';
-import { t, formatCurrency, formatDate, genCode, CONTRACT_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList, CONTRACT_STATUS } from '@/lib/utils-binaa';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 
 const emptyContract = (project) => ({
@@ -54,7 +54,7 @@ export default function ProjectContractsTab({ project }) {
 
   const openAdd = () => {
     setEditingId(null);
-    setForm({ ...emptyContract(project), contractNo: genCode('CTR', rows.length + 1) });
+    setForm({ ...emptyContract(project), contractNo: nextCodeFromList(rows, 'CTR', 'contractNo') });
     setDialogOpen(true);
   };
 
@@ -189,7 +189,7 @@ export default function ProjectContractsTab({ project }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label>{t('رقم العقد', 'Contract No', lang)} *</Label>
-              <Input value={form.contractNo || ''} onChange={e => set('contractNo', e.target.value)} />
+              <Input value={form.contractNo || ''} readOnly className="bg-muted font-mono" />
             </div>
             <div className="space-y-1.5">
               <Label>{t('العميل', 'Client', lang)}</Label>

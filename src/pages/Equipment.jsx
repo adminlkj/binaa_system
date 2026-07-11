@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, EQUIPMENT_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, EQUIPMENT_STATUS, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -49,7 +49,7 @@ export default function Equipment() {
     return matchSearch && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...emptyForm, code: nextCodeFromList(items, 'EQP', 'code') }); setDialogOpen(true); };
   const openEdit = (item) => { setEditing(item); setForm({ ...emptyForm, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
@@ -171,10 +171,10 @@ export default function Equipment() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل المعدة', 'Edit Equipment', lang) : t('معدة جديدة', 'New Equipment', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            {[['code', t('الكود', 'Code', lang), 'text'], ['name', t('الاسم', 'Name', lang), 'text'], ['type', t('النوع', 'Type', lang), 'text'], ['brand', t('الماركة', 'Brand', lang), 'text'], ['model', t('الموديل', 'Model', lang), 'text'], ['year', t('السنة', 'Year', lang), 'number'], ['serialNumber', t('الرقم التسلسلي', 'Serial No.', lang), 'text'], ['plateNumber', t('رقم اللوحة', 'Plate No.', lang), 'text'], ['dailyRate', t('السعر اليومي', 'Daily Rate', lang), 'number'], ['monthlyRate', t('السعر الشهري', 'Monthly Rate', lang), 'number'], ['hourlyRate', t('سعر الساعة', 'Hourly Rate', lang), 'number'], ['purchaseCost', t('تكلفة الشراء', 'Purchase Cost', lang), 'number'], ['currentValue', t('القيمة الحالية', 'Current Value', lang), 'number']].map(([field, label, type]) => (
+            {[['code', t('الكود', 'Code', lang), 'text', true], ['name', t('الاسم', 'Name', lang), 'text'], ['type', t('النوع', 'Type', lang), 'text'], ['brand', t('الماركة', 'Brand', lang), 'text'], ['model', t('الموديل', 'Model', lang), 'text'], ['year', t('السنة', 'Year', lang), 'number'], ['serialNumber', t('الرقم التسلسلي', 'Serial No.', lang), 'text'], ['plateNumber', t('رقم اللوحة', 'Plate No.', lang), 'text'], ['dailyRate', t('السعر اليومي', 'Daily Rate', lang), 'number'], ['monthlyRate', t('السعر الشهري', 'Monthly Rate', lang), 'number'], ['hourlyRate', t('سعر الساعة', 'Hourly Rate', lang), 'number'], ['purchaseCost', t('تكلفة الشراء', 'Purchase Cost', lang), 'number'], ['currentValue', t('القيمة الحالية', 'Current Value', lang), 'number']].map(([field, label, type, ro]) => (
               <div key={field} className="space-y-1.5">
                 <Label>{label}</Label>
-                <Input type={type} value={form[field] || ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
+                <Input type={type} value={form[field] || ''} readOnly={ro} onChange={ro ? undefined : e => setForm(f => ({ ...f, [field]: e.target.value }))} className={ro ? 'bg-muted font-mono' : ''} />
               </div>
             ))}
             <div className="space-y-1.5"><Label>{t('تاريخ الشراء', 'Purchase Date', lang)}</Label><Input type="date" value={form.purchaseDate || ''} onChange={e => setForm(f => ({ ...f, purchaseDate: e.target.value }))} /></div>

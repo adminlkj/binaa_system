@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const STATUS = {
@@ -21,7 +21,7 @@ export default function SubChangeOrdersTab({ subcontractorId, contracts = [] }) 
       entityName="SubcontractorChangeOrder"
       filter={{ subcontractorId }}
       defaults={(rows) => ({
-        subcontractorId, subcontractorContractId: '', orderNo: genCode('SCO', rows.length + 1),
+        subcontractorId, subcontractorContractId: '', orderNo: nextCodeFromList(rows, 'SCO', 'orderNo'),
         date: new Date().toISOString().slice(0, 10), changeType: 'ADDITION', description: '', amount: 0, status: 'DRAFT', notes: '',
       })}
       validate={() => null}
@@ -51,7 +51,7 @@ export default function SubChangeOrdersTab({ subcontractorId, contracts = [] }) 
       ]}
       fields={(form, set) => (
         <>
-          <div className="space-y-1.5"><Label>{t('رقم الأمر', 'Order No', lang)}</Label><Input value={form.orderNo || ''} onChange={e => set('orderNo', e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t('رقم الأمر', 'Order No', lang)}</Label><Input value={form.orderNo || ''} readOnly className="bg-muted font-mono" /></div>
           <div className="space-y-1.5">
             <Label>{t('النوع', 'Type', lang)}</Label>
             <Select value={form.changeType || 'ADDITION'} onValueChange={v => set('changeType', v)}>

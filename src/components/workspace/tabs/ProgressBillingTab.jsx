@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,7 @@ const STATUS = {
   PAID: { ar: 'مدفوع', en: 'Paid', color: 'bg-teal-100 text-teal-700' },
   REJECTED: { ar: 'مرفوض', en: 'Rejected', color: 'bg-rose-100 text-rose-700' },
 };
-const empty = { certificateNo: '', date: '', cumulativePercent: 0, grossAmount: 0, retentionAmount: 0, previousAmount: 0, status: 'DRAFT', notes: '' };
+const empty = { certificateNo: nextCodeFromList(rows, 'CRT', 'certificateNo'), date: '', cumulativePercent: 0, grossAmount: 0, retentionAmount: 0, previousAmount: 0, status: 'DRAFT', notes: '' };
 
 export default function ProgressBillingTab({ projectId }) {
   const { lang } = useStore();
@@ -159,7 +159,7 @@ export default function ProgressBillingTab({ projectId }) {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editingId ? t('تعديل مستخلص', 'Edit Certificate', lang) : t('مستخلص جديد', 'New Certificate', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label>{t('رقم المستخلص', 'Certificate No', lang)}</Label><Input value={form.certificateNo} onChange={e => setForm({ ...form, certificateNo: e.target.value })} /></div>
+            <div className="space-y-1"><Label>{t('رقم المستخلص', 'Certificate No', lang)}</Label><Input value={form.certificateNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
             <div className="space-y-1"><Label>{t('الإنجاز التراكمي %', 'Cumulative %', lang)}</Label><Input type="number" value={form.cumulativePercent} onChange={e => setForm({ ...form, cumulativePercent: e.target.value })} /></div>
             <div className="space-y-1"><Label>{t('القيمة الإجمالية', 'Gross Amount', lang)}</Label><Input type="number" value={form.grossAmount} onChange={e => setForm({ ...form, grossAmount: e.target.value })} /></div>

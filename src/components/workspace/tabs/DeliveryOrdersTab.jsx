@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
-import { t, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const ORDER_TYPE = {
@@ -38,7 +38,7 @@ export default function DeliveryOrdersTab({ equipmentId }) {
       filter={{ equipmentId }}
       defaults={(rows) => ({
         equipmentId,
-        orderNo: genCode('DO', rows.length + 1),
+        orderNo: nextCodeFromList(rows, 'DO', 'orderNo'),
         orderType: 'DELIVERY',
         date: new Date().toISOString().slice(0, 10),
         clientName: '',
@@ -95,7 +95,7 @@ export default function DeliveryOrdersTab({ equipmentId }) {
         <>
           <div className="space-y-1.5">
             <Label>{t('رقم الأمر', 'Order No', lang)} *</Label>
-            <Input value={form.orderNo || ''} onChange={e => set('orderNo', e.target.value)} />
+            <Input value={form.orderNo || ''} readOnly className="bg-muted font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label>{t('النوع', 'Type', lang)}</Label>

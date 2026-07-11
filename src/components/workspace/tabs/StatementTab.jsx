@@ -52,23 +52,21 @@ export default function StatementTab({ journalEntries = [], accounts = [] }) {
     return lines.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   }, [journalEntries]);
 
-  // تصنيف كل سطر
+  // تصنيف كل سطر حسب نوع الحساب المحاسبي
   const lines = projectLines.map(l => {
     const acc = accountMap[l.accountCode] || {};
     const type = acc.accountType || '';
     let category = 'other';
+    // الإيرادات: حسابات 4xxx (دائن بطبيعتها)
     if (type === 'REVENUE') category = 'revenue';
+    // المصروفات: حسابات 5xxx (مدين بطبيعتها)
     else if (type === 'EXPENSE') category = 'cost';
-    else if (l.accountCode === '1121' || acc.semanticRole === 'RECEIVABLES') {
-      // ذمم عملاء: مدين = فاتورة (إيراد مستحق)، دائن = تحصيل
-      category = l.credit > 0 ? 'collection' : 'revenue';
-    }
-    else if (l.accountCode === '2110' || acc.semanticRole === 'PAYABLES') {
-      // ذمم مورد: دائن = فاتورة مورد (تكلفة)، مدين = سداد
-      category = l.debit > 0 ? 'payment' : 'cost';
-    }
+    // ذمم العملاء: مدين = فاتورة (إيراد مستحق)، دائن = تحصيل
+    else if (acc.semanticRole === 'RECEIVABLES') category = l.credit > 0 ? 'collection' : 'revenue';
+    // ذمم الموردين/مقاولي الباطن: دائن = فاتورة (تكلفة)، مدين = سداد
+    else if (acc.semanticRole === 'PAYABLES' || acc.semanticRole === 'SUB_PAYABLES') category = l.debit > 0 ? 'payment' : 'cost';
     else if (type === 'ASSET' || type === 'LIABILITY') category = 'balance';
-    return { ...l, category };
+    return { ...l, category, accountType: type, semanticRole: acc.semanticRole || '' };
   });
 
   // الرصيد الجاري = مدين - دائن
@@ -78,9 +76,23 @@ export default function StatementTab({ journalEntries = [], accounts = [] }) {
     return { ...l, balance: running };
   });
 
-  const totalRevenue = lines.filter(l => l.category === 'revenue').reduce((s, l) => s + l.debit, 0);
+  // الإيرادات = دائن في حسابات الإيراد (4xxx) + مدين في ذمم العملاء (فواتير)
+  const totalRevenue = lines
+    .filter(l => l.category === 'revenue')
+    .reduce((s, l) => {
+      if (l.accountType === 'REVENUE') return s + (l.credit - l.debit); // إيراد دائن
+      return s + l.debit; // ذمم عملاء مدينة (فاتورة)
+    }, 0);
+  // التحصيلات = دائن في ذمم العملاء
   const totalCollections = lines.filter(l => l.category === 'collection').reduce((s, l) => s + l.credit, 0);
-  const totalCosts = lines.filter(l => l.category === 'cost').reduce((s, l) => s + l.credit, 0);
+  // التكاليف = مدين في حسابات المصروفات (5xxx) + دائن في ذمم الموردين (فواتير)
+  const totalCosts = lines
+    .filter(l => l.category === 'cost')
+    .reduce((s, l) => {
+      if (l.accountType === 'EXPENSE') return s + (l.debit - l.credit); // مصروف مدين
+      return s + l.credit; // ذمم مورد دائنة (فاتورة)
+    }, 0);
+  // السدادات = مدين في ذمم الموردين
   const totalPayments = lines.filter(l => l.category === 'payment').reduce((s, l) => s + l.debit, 0);
   const netProfit = totalRevenue - totalCosts;
   const outstanding = totalRevenue - totalCollections;

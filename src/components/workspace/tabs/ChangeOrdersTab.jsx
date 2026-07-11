@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ const STATUS = {
   APPROVED: { ar: 'معتمد', en: 'Approved', color: 'bg-emerald-100 text-emerald-700' },
   REJECTED: { ar: 'مرفوض', en: 'Rejected', color: 'bg-rose-100 text-rose-700' },
 };
-const empty = { orderNo: '', type: 'CHANGE_ORDER', date: '', description: '', amount: 0, status: 'DRAFT', notes: '' };
+const empty = { orderNo: nextCodeFromList(rows, 'CO', 'orderNo'), type: 'CHANGE_ORDER', date: '', description: '', amount: 0, status: 'DRAFT', notes: '' };
 
 export default function ChangeOrdersTab({ projectId }) {
   const { lang } = useStore();
@@ -154,7 +154,7 @@ export default function ChangeOrdersTab({ projectId }) {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editingId ? t('تعديل أمر التغيير', 'Edit Change Order', lang) : t('أمر تغيير جديد', 'New Change Order', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label>{t('الرقم', 'No', lang)}</Label><Input value={form.orderNo} onChange={e => setForm({ ...form, orderNo: e.target.value })} /></div>
+            <div className="space-y-1"><Label>{t('الرقم', 'No', lang)}</Label><Input value={form.orderNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1">
               <Label>{t('النوع', 'Type', lang)}</Label>
               <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>

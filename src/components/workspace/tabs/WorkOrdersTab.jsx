@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { useStore } from '@/lib/store';
-import { t, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const WO_STATUS = {
@@ -24,7 +24,7 @@ export default function WorkOrdersTab({ projectId }) {
       filter={{ projectId }}
       defaults={(rows) => ({
         projectId,
-        orderNo: genCode('WO', rows.length + 1),
+        orderNo: nextCodeFromList(rows, 'WO', 'orderNo'),
         title: '',
         date: new Date().toISOString().slice(0, 10),
         assignedTo: '',
@@ -74,7 +74,7 @@ export default function WorkOrdersTab({ projectId }) {
         <>
           <div className="space-y-1.5">
             <Label>{t('رقم أمر العمل', 'Order No', lang)}</Label>
-            <Input value={form.orderNo || ''} onChange={e => set('orderNo', e.target.value)} />
+            <Input value={form.orderNo || ''} readOnly className="bg-muted font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label>{t('عنوان العمل', 'Title', lang)} *</Label>

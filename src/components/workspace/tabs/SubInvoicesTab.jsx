@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/components/ui/use-toast';
-import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import { OperationEngine } from '@/lib/businessEngine';
 import CrudTab from '@/components/workspace/CrudTab';
 import InvoiceAttachmentField from '@/components/shared/InvoiceAttachmentField';
@@ -66,7 +66,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
       canEditRow={(row) => row.status === 'DRAFT'}
       canDeleteRow={(row) => row.status === 'DRAFT'}
       defaults={(rows) => ({
-        subcontractorId, subcontractorContractId: '', invoiceNo: genCode('SINV', rows.length + 1), invoiceType: 'PROGRESS',
+        subcontractorId, subcontractorContractId: '', invoiceNo: nextCodeFromList(rows, 'SINV', 'invoiceNo'), invoiceType: 'PROGRESS',
         date: new Date().toISOString().slice(0, 10), dueDate: '',
         baseAmount: 0, retentionAmount: 0, paidAmount: 0, status: 'DRAFT', description: '', notes: '',
         invoiceAttachmentUrl: '', invoiceAttachmentName: '', invoiceAttachmentType: '',
@@ -115,7 +115,7 @@ export default function SubInvoicesTab({ subcontractorId, subcontractorName, con
         const { net, vat, total } = computeTotal(form);
         return (
           <>
-            <div className="space-y-1.5"><Label>{t('رقم المستخلص', 'Invoice No', lang)} *</Label><Input value={form.invoiceNo || ''} onChange={e => set('invoiceNo', e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم المستخلص', 'Invoice No', lang)} *</Label><Input value={form.invoiceNo || ''} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('النوع', 'Type', lang)}</Label>
               <Select value={form.invoiceType || 'PROGRESS'} onValueChange={v => set('invoiceType', v)}>

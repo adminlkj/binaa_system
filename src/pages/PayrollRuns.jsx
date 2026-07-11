@@ -63,7 +63,7 @@ export default function PayrollRuns() {
 
   const filtered = items.filter(i => !search || i.code?.toLowerCase().includes(search.toLowerCase()));
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => { setEditing(null); setForm({ ...empty, code: `PAY-${new Date().getFullYear()}-${String(items.length + 1).padStart(2, '0')}` }); setDialogOpen(true); };
   const openEdit = (item) => {
     if (item.status !== 'DRAFT') return toast.error(t('لا يمكن تعديل مسير معتمد أو مدفوع', 'Cannot edit an approved or paid payroll run', lang));
     setEditing(item); setForm({ ...empty, ...item, status: 'DRAFT' }); setDialogOpen(true);
@@ -223,7 +223,7 @@ export default function PayrollRuns() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? t('تعديل المسير', 'Edit Payroll', lang) : t('مسير جديد', 'New Payroll Run', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('الكود', 'Code', lang)} *</Label><Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="PAY-2026-07" /></div>
+            <div className="space-y-1.5"><Label>{t('الكود', 'Code', lang)} *</Label><Input value={form.code} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('الشهر', 'Month', lang)} *</Label>
               <Select value={String(form.month)} onValueChange={v => setForm(f => ({ ...f, month: v }))}>

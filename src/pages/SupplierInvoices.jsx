@@ -323,7 +323,7 @@ export default function SupplierInvoices() {
             </div>
             <div className="space-y-1.5"><Label>{t('مبلغ الضريبة', 'VAT Amount', lang)}</Label><Input readOnly value={vatAmount.toFixed(2)} className="bg-muted" /></div>
             <div className="space-y-1.5"><Label>{t('الإجمالي', 'Total Amount', lang)}</Label><Input readOnly value={totalAmount.toFixed(2)} className="bg-muted font-bold" /></div>
-            <div className="space-y-1.5"><Label>{t('المبلغ المسدد', 'Paid Amount', lang)}</Label><Input type="number" value={form.paidAmount} onChange={e => setForm(f => ({ ...f, paidAmount: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('المبلغ المسدد', 'Paid Amount', lang)}</Label><Input type="number" value={form.paidAmount} readOnly className="bg-muted" /></div>
             <div className="space-y-1.5">
               <Label>{t('الحالة', 'Status', lang)}</Label>
               <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />

@@ -388,7 +388,7 @@ export default function RentalInvoicesTab({ equipmentId }) {
             </div>
             <div className="space-y-1.5">
               <Label>{t('المحصّل', 'Paid Amount', lang)}</Label>
-              <Input type="number" value={form.paidAmount ?? 0} onChange={e => set('paidAmount', e.target.value)} />
+              <Input type="number" value={form.paidAmount ?? 0} readOnly className="bg-muted" />
             </div>
 
             {/* === القسم 2: بيانات تلقائية من العقد (للقراءة فقط) === */}

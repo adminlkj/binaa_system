@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import CrudTab from '@/components/workspace/CrudTab';
 
 const PENALTY_STATUS = {
@@ -24,7 +24,7 @@ export default function PenaltiesTab({ projectId }) {
       defaults={(rows) => ({
         projectId,
         itemType: 'PENALTY',
-        reference: genCode('PEN', rows.length + 1),
+        reference: nextCodeFromList(rows, 'PEN', 'reference'),
         date: new Date().toISOString().slice(0, 10),
         description: '',
         amount: 0,
@@ -65,7 +65,7 @@ export default function PenaltiesTab({ projectId }) {
         <>
           <div className="space-y-1.5">
             <Label>{t('رقم الغرامة', 'Reference', lang)} *</Label>
-            <Input value={form.reference || ''} onChange={e => set('reference', e.target.value)} />
+            <Input value={form.reference || ''} readOnly className="bg-muted font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label>{t('قيمة الغرامة', 'Value', lang)}</Label>

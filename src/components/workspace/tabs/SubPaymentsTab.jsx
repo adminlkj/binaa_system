@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, genCode } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import { base44 } from '@/api/base44Client';
 import { OperationEngine } from '@/lib/businessEngine';
 import CrudTab from '@/components/workspace/CrudTab';
@@ -35,7 +35,7 @@ export default function SubPaymentsTab({ subcontractorId, invoices = [], onChang
       canEditRow={() => false}
       canDeleteRow={() => false}
       defaults={(rows) => ({
-        subcontractorId, subcontractorInvoiceId: '', paymentNo: genCode('SPAY', rows.length + 1),
+        subcontractorId, subcontractorInvoiceId: '', paymentNo: nextCodeFromList(rows, 'SPAY', 'paymentNo'),
         date: new Date().toISOString().slice(0, 10), amount: 0, method: 'BANK_TRANSFER', cashAccountCode: '', cashAccountName: '', reference: '', notes: '',
       })}
       validate={(f) => {
@@ -67,7 +67,7 @@ export default function SubPaymentsTab({ subcontractorId, invoices = [], onChang
       ]}
       fields={(form, set) => (
         <>
-          <div className="space-y-1.5"><Label>{t('رقم السند', 'Payment No', lang)}</Label><Input value={form.paymentNo || ''} onChange={e => set('paymentNo', e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>{t('رقم السند', 'Payment No', lang)}</Label><Input value={form.paymentNo || ''} readOnly className="bg-muted font-mono" /></div>
           <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date || ''} onChange={e => set('date', e.target.value)} /></div>
           {invoices.length > 0 && (
             <div className="space-y-1.5 md:col-span-2">

@@ -15,6 +15,50 @@ import { OperationEngine } from '@/lib/businessEngine';
 import InvoicePrintDialog from '@/components/shared/InvoicePrintDialog';
 import { monthBounds, monthLabel, recentMonths, sumHoursForMonth, addDays } from '@/lib/rentalBilling';
 
+// بنود الفاتورة التفصيلية — الإيجار (مع المعدة والساعات وسعر الساعة)، الرسوم الإضافية، الشحن.
+const buildLineItems = (r, lang) => {
+  const items = [];
+  const base = Number(r.baseAmount) || 0;
+  const extra = Number(r.extraCharges) || 0;
+  const delivery = Number(r.deliveryAmount) || 0;
+  const hours = Number(r.totalHours) || 0;
+  const equipmentName = r.equipmentName || '';
+
+  if (base > 0) {
+    // بند الإيجار: يعرض اسم المعدة، عدد الساعات، وسعر الساعة كوحدة
+    const hourlyRate = hours > 0 ? base / hours : base;
+    const desc = equipmentName
+      ? t('إيجار', 'Rental', lang) + ' ' + equipmentName
+      : t('قيمة الإيجار', 'Rental value', lang);
+    items.push({
+      description: desc,
+      descriptionEn: equipmentName ? `Rental: ${equipmentName}` : 'Rental value',
+      qty: hours || 1,
+      unitPrice: +hourlyRate.toFixed(2),
+      total: base,
+    });
+  }
+  if (extra > 0) {
+    items.push({
+      description: t('رسوم إضافية', 'Extra charges', lang),
+      descriptionEn: 'Extra charges',
+      qty: 1,
+      unitPrice: extra,
+      total: extra,
+    });
+  }
+  if (delivery > 0) {
+    items.push({
+      description: t('شحن وتوصيل', 'Shipping & Delivery', lang),
+      descriptionEn: 'Shipping & Delivery',
+      qty: 1,
+      unitPrice: delivery,
+      total: delivery,
+    });
+  }
+  return items;
+};
+
 // تحويل سجل فاتورة التأجير إلى الشكل الذي يتوقعه مستند الفاتورة الموحّد.
 const toInvoiceDoc = (r, lang) => ({
   ...r,
@@ -35,30 +79,58 @@ const computeTotal = (f) => {
   return { net, vat, total: net + vat };
 };
 
+// Standard working hours per month — used to derive hourly rate from monthly contracts.
+const STANDARD_MONTHLY_HOURS = 260;
+
+// حساب قيمة الإيجار للشهر حسب نوع سعر العقد:
+//   - HOURLY:  rate × hours
+//   - DAILY:   rate × أيام الشهر داخل فترة العقد
+//   - WEEKLY:  rate × أسابيع الشهر داخل فترة العقد
+//   - MONTHLY: إذا وُجد totalAmount (قيمة العقد الإجمالية) نحسب سعر الساعة منه
+//              ونضربه في ساعات الشهر الفعلية: (totalAmount / 260) × hours
+//              وإلا نستخدم rate كقيمة شهرية ثابتة.
 const invoiceBaseForContract = (contract, ymKey, hours) => {
-  const rate = Number(contract?.rate) || 0;
-  if (!contract || !ymKey) return rate;
+  if (!contract) return 0;
+  const rate = Number(contract.rate) || 0;
+  const totalAmount = Number(contract.totalAmount) || 0;
+  const hrs = Number(hours) || 0;
+
+  if (contract.rateType === 'HOURLY') {
+    return +(rate * hrs).toFixed(2);
+  }
+
+  // عقد شهري بقيمة إجمالية: سعر الساعة = totalAmount / 260، مبلغ الشهر = سعر الساعة × ساعات الشهر
+  if (contract.rateType === 'MONTHLY') {
+    if (totalAmount > 0 && hrs > 0) {
+      const hourlyRate = totalAmount / STANDARD_MONTHLY_HOURS;
+      return +(hourlyRate * hrs).toFixed(2);
+    }
+    // لا توجد ساعات أو قيمة إجمالية — استخدم rate كقيمة شهرية ثابتة
+    return rate;
+  }
+
+  if (!ymKey) return rate;
   const { from, to } = monthBounds(ymKey);
   const start = contract.startDate && contract.startDate > from ? contract.startDate : from;
   const end = contract.endDate && contract.endDate < to ? contract.endDate : to;
   const days = start && end && end >= start ? Math.floor((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1 : 0;
-  if (contract.rateType === 'HOURLY') return +(rate * (Number(hours) || 0)).toFixed(2);
+
   if (contract.rateType === 'DAILY') return +(rate * days).toFixed(2);
   if (contract.rateType === 'WEEKLY') return +(rate * Math.ceil(days / 7)).toFixed(2);
   return rate;
 };
 
-// بنود الفاتورة التفصيلية — الإيجار، الرسوم الإضافية، ثم الشحن والتوصيل كبند مستقل.
-const buildLineItems = (r, lang) => {
-  const items = [];
-  const base = Number(r.baseAmount) || 0;
-  const extra = Number(r.extraCharges) || 0;
-  const delivery = Number(r.deliveryAmount) || 0;
-  if (base > 0) items.push({ description: t('قيمة الإيجار', 'Rental value', lang), qty: 1, unitPrice: base, total: base });
-  if (extra > 0) items.push({ description: t('رسوم إضافية', 'Extra charges', lang), qty: 1, unitPrice: extra, total: extra });
-  if (delivery > 0) items.push({ description: t('شحن وتوصيل', 'Shipping & Delivery', lang), qty: 1, unitPrice: delivery, total: delivery });
-  return items;
+// سعر الساعة المُشتق من العقد — يُستخدم في عرض بند الفاتورة.
+const hourlyRateFromContract = (contract) => {
+  if (!contract) return 0;
+  if (contract.rateType === 'HOURLY') return Number(contract.rate) || 0;
+  if (contract.rateType === 'MONTHLY' && Number(contract.totalAmount) > 0) {
+    return (Number(contract.totalAmount) / STANDARD_MONTHLY_HOURS);
+  }
+  return 0;
 };
+
+// بنود الفاتورة التفصيلية معروضة في buildLineItems أعلاه (مع المعدة والساعات وسعر الساعة).
 
 export default function RentalInvoicesTab({ equipmentId }) {
   const { lang } = useStore();
@@ -214,7 +286,11 @@ export default function RentalInvoicesTab({ equipmentId }) {
       fields={(form, set) => {
         const { net, vat, total } = computeTotal(form);
 
-        // عند اختيار العقد: جلب رقمه واسم المعدة والعميل وشروط الدفع، وربط أول أمر توصيل لعميله.
+        // العقد المختار حالياً — يُستخدم لعرض سعر الساعة المُشتق.
+        const selectedContract = contracts.find(x => x.id === form.rentalContractId);
+        const derivedHourlyRate = hourlyRateFromContract(selectedContract);
+
+        // عند اختيار العقد: جلب رقمه واسم المعدة والعميل وشروط الدفع، وإعادة حساب الإيجار.
         const onContract = (v) => {
           if (v === 'none') { set('rentalContractId', ''); set('contractNo', ''); set('clientId', ''); set('paymentTermDays', 30); return; }
           const c = contracts.find(x => x.id === v);
@@ -224,8 +300,8 @@ export default function RentalInvoicesTab({ equipmentId }) {
           set('clientId', c?.clientId || '');
           set('paymentTermDays', c?.paymentTermDays || 30);
           if (c?.clientName) set('clientName', c.clientName);
-          if (c?.rate) set('baseAmount', invoiceBaseForContract(c, form.billingMonth, form.totalHours));
-          // إعادة حساب الاستحقاق إن كان هناك شهر مختار
+          // أعد حساب قيمة الإيجار بناءً على العقد والشهر والساعات
+          set('baseAmount', invoiceBaseForContract(c, form.billingMonth, form.totalHours));
           if (form.date) set('dueDate', addDays(form.date, c?.paymentTermDays || 30));
         };
 
@@ -239,7 +315,8 @@ export default function RentalInvoicesTab({ equipmentId }) {
           set('periodFrom', from);
           set('periodTo', to);
           set('totalHours', hours);
-          if (c?.rate) set('baseAmount', invoiceBaseForContract(c, v, hours));
+          // أعد حساب قيمة الإيجار بناءً على الشهر وساعاته
+          set('baseAmount', invoiceBaseForContract(c, v, hours));
         };
 
         const contractDeliveries = deliveryOrders; // كل أوامر التوصيل لهذه المعدة
@@ -288,12 +365,21 @@ export default function RentalInvoicesTab({ equipmentId }) {
               </Select>
             </div>
             <div className="space-y-1.5">
+              <Label>{t('المعدة', 'Equipment', lang)}</Label>
+              <Input value={form.equipmentName || ''} readOnly className="bg-muted" placeholder={t('يُملأ تلقائياً من العقد', 'Auto-filled from contract', lang)} />
+            </div>
+            <div className="space-y-1.5">
               <Label>{t('العميل', 'Client', lang)}</Label>
-              <Input value={form.clientName || ''} onChange={e => set('clientName', e.target.value)} />
+              <Input value={form.clientName || ''} readOnly className="bg-muted" placeholder={t('يُملأ تلقائياً من العقد', 'Auto-filled from contract', lang)} />
             </div>
             <div className="space-y-1.5">
               <Label>{t('عدد ساعات الشهر', 'Monthly Hours', lang)}</Label>
-              <Input type="number" value={form.totalHours ?? 0} onChange={e => set('totalHours', e.target.value)} />
+              <Input type="number" value={form.totalHours ?? 0} onChange={e => {
+                set('totalHours', e.target.value);
+                // إعادة حساب قيمة الإيجار عند تغيير الساعات يدوياً
+                const c = contracts.find(x => x.id === form.rentalContractId);
+                if (c) set('baseAmount', invoiceBaseForContract(c, form.billingMonth, e.target.value));
+              }} />
             </div>
             <div className="space-y-1.5">
               <Label>{t('تاريخ الفاتورة', 'Invoice Date', lang)}</Label>
@@ -308,6 +394,38 @@ export default function RentalInvoicesTab({ equipmentId }) {
               <Label>{t('الحالة', 'Status', lang)}</Label>
               <Input readOnly value={t('مسودة (تُعتمد لاحقاً)', 'Draft (approve later)', lang)} className="bg-muted text-muted-foreground" />
             </div>
+            {/* صندوق حساب سعر الساعة وقيمة الإيجار — يُظهر للمستخدم كيف حُسب المبلغ */}
+            {derivedHourlyRate > 0 && Number(form.totalHours) > 0 && (
+              <div className="md:col-span-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs space-y-1.5">
+                <div className="font-semibold text-emerald-800 mb-1">{t('حساب قيمة الإيجار', 'Rental Calculation', lang)}</div>
+                {selectedContract?.rateType === 'MONTHLY' && Number(selectedContract?.totalAmount) > 0 && (
+                  <>
+                    <div className="flex justify-between text-emerald-700">
+                      <span>{t('قيمة العقد الشهرية', 'Monthly contract value', lang)}: {formatCurrency(Number(selectedContract.totalAmount), lang)}</span>
+                      <span className="text-muted-foreground">÷ {STANDARD_MONTHLY_HOURS} {t('ساعة', 'hours', lang)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700">
+                      <span>{t('سعر الساعة', 'Hourly rate', lang)}</span>
+                      <span className="tabular-nums font-medium">{formatCurrency(derivedHourlyRate, lang)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700">
+                      <span>{t('ساعات الشهر', 'Monthly hours', lang)}</span>
+                      <span className="tabular-nums font-medium">× {Number(form.totalHours)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-900 pt-1 border-t border-emerald-300">
+                      <span>{t('قيمة الإيجار', 'Rental amount', lang)}</span>
+                      <span className="tabular-nums">{formatCurrency(Number(form.baseAmount), lang)}</span>
+                    </div>
+                  </>
+                )}
+                {selectedContract?.rateType === 'HOURLY' && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>{t('سعر الساعة (من العقد)', 'Hourly rate (from contract)', lang)}</span>
+                    <span className="tabular-nums font-medium">{formatCurrency(derivedHourlyRate, lang)} × {Number(form.totalHours)} = {formatCurrency(Number(form.baseAmount), lang)}</span>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>{t('قيمة الإيجار', 'Base Amount', lang)}</Label>
               <Input type="number" value={form.baseAmount ?? 0} onChange={e => set('baseAmount', e.target.value)} />

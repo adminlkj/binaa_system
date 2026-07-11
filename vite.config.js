@@ -7,9 +7,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: true,
+    host: '0.0.0.0',
+    hmr: {
+      clientPort: 443,
+      protocol: 'wss',
+    },
   },
   preview: {
     allowedHosts: true,
+    host: '0.0.0.0',
   },
   resolve: {
     alias: {

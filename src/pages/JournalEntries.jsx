@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -55,7 +55,11 @@ export default function JournalEntries() {
     return match && matchPosted;
   });
 
-  const openNew = () => { setEditing(null); setForm({ ...empty, lines: [{ ...emptyLine }, { ...emptyLine }] }); setDialogOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setForm({ ...empty, entryNo: nextCodeFromList(items, 'JE', 'entryNo'), lines: [{ ...emptyLine }, { ...emptyLine }] });
+    setDialogOpen(true);
+  };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item, lines: item.lines?.length ? item.lines : [{ ...emptyLine }, { ...emptyLine }] }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
@@ -238,7 +242,7 @@ export default function JournalEntries() {
           <DialogHeader><DialogTitle>{editing ? t('تعديل القيد', 'Edit Entry', lang) : t('قيد جديد', 'New Journal Entry', lang)}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5"><Label>{t('رقم القيد', 'Entry No.', lang)} *</Label><Input value={form.entryNo} onChange={e => setForm(f => ({ ...f, entryNo: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>{t('رقم القيد', 'Entry No.', lang)} *</Label><Input value={form.entryNo} readOnly className="bg-muted font-mono" /></div>
               <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)} *</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>{t('المصدر', 'Source', lang)}</Label><Input value={form.sourceType} onChange={e => setForm(f => ({ ...f, sourceType: e.target.value }))} /></div>
               <div className="col-span-3 space-y-1.5"><Label>{t('الوصف', 'Description', lang)}</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>

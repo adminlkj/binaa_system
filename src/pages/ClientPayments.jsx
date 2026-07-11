@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatDate, formatCurrency } from '@/lib/utils-binaa';
+import { t, formatDate, formatCurrency, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
 import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
@@ -66,7 +66,11 @@ export default function ClientPayments() {
     return match && (filterMethod === 'ALL' || i.method === filterMethod);
   });
 
-  const openNew = () => { setEditing(null); setForm({ ...empty, date: new Date().toISOString().slice(0, 10) }); setDialogOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setForm({ ...empty, date: new Date().toISOString().slice(0, 10), paymentNo: nextCodeFromList(items, 'RCV', 'paymentNo') });
+    setDialogOpen(true);
+  };
   const openEdit = () => toast.error(t('لا يمكن تعديل سند قبض مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot edit a posted receipt — use a reversing entry to correct it', lang));
   const askDelete = () => toast.error(t('لا يمكن حذف سند قبض مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot delete a posted receipt — use a reversing entry to correct it', lang));
 
@@ -184,7 +188,7 @@ export default function ClientPayments() {
         <DialogContent className="max-w-lg" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           <DialogHeader><DialogTitle>{editing ? t('تعديل السند', 'Edit Receipt', lang) : t('سند قبض جديد', 'New Receipt', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="space-y-1"><Label>{t('رقم السند', 'Receipt No', lang)}</Label><Input value={form.paymentNo} onChange={e => setForm(f => ({ ...f, paymentNo: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>{t('رقم السند', 'Receipt No', lang)}</Label><Input value={form.paymentNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1"><Label>{t('التاريخ', 'Date', lang)} *</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1 col-span-2">
               <Label>{t('العميل', 'Client', lang)} *</Label>

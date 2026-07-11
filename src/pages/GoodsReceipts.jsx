@@ -200,7 +200,7 @@ export default function GoodsReceipts() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{t('تأكيد استلام بضاعة', 'Confirm Goods Receipt', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم السند', 'Receipt No.', lang)}</Label><Input value={receiptNo} onChange={e => setReceiptNo(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم السند', 'Receipt No.', lang)}</Label><Input value={receiptNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
             <div className="col-span-2 space-y-1.5">
               <Label>{t('أمر الشراء', 'Purchase Order', lang)} *</Label>

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, CONTRACT_STATUS } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, CONTRACT_STATUS, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -48,7 +48,11 @@ export default function Contracts() {
     return matchSearch && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setForm({ ...empty, contractNo: nextCodeFromList(items, 'CON', 'contractNo') });
+    setDialogOpen(true);
+  };
   const openEdit = (item) => { setEditing(item); setForm({ ...empty, ...item }); setDialogOpen(true); };
   const askDelete = (id) => { setDeleteId(id); setConfirmOpen(true); };
 
@@ -156,7 +160,7 @@ export default function Contracts() {
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل العقد', 'Edit Contract', lang) : t('عقد جديد', 'New Contract', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No.', lang)} *</Label><Input value={form.contractNo} onChange={e => setForm(f => ({ ...f, contractNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No.', lang)} *</Label><Input value={form.contractNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('المشروع', 'Project', lang)} *</Label>
               <Select value={form.projectId} onValueChange={v => { const p = projects.find(p => p.id === v); setForm(f => ({ ...f, projectId: v, projectName: p?.name || '', clientId: p?.clientId || f.clientId, clientName: p?.clientName || f.clientName })); }}>

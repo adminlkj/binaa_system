@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate, STATUS_TONE } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, STATUS_TONE, genInvoiceNo } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
@@ -75,7 +75,11 @@ export default function SupplierInvoices() {
     return match && (filterStatus === 'ALL' || i.status === filterStatus);
   });
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setForm({ ...empty, invoiceNo: genInvoiceNo('SUP-INV', new Date().getFullYear(), items.length + 1) });
+    setDialogOpen(true);
+  };
   const openEdit = (item) => {
     if (item.status !== 'DRAFT') return toast.error(t('لا يمكن تعديل فاتورة معتمدة — قيدها مُرحّل', 'Cannot edit an approved invoice — its entry is posted', lang));
     setEditing(item);
@@ -272,7 +276,7 @@ export default function SupplierInvoices() {
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل الفاتورة', 'Edit Invoice', lang) : t('فاتورة جديدة', 'New Invoice', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم الفاتورة', 'Invoice No.', lang)} *</Label><Input value={form.invoiceNo} onChange={e => setForm(f => ({ ...f, invoiceNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم الفاتورة', 'Invoice No.', lang)} *</Label><Input value={form.invoiceNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('سند الاستلام (إلزامي — السلسلة)', 'Goods Receipt (required — chain)')} *</Label>
               {pendingReceipts.length === 0 ? (

@@ -242,7 +242,7 @@ export default function StockMovements() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div className="space-y-1"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => set('date', e.target.value)} /></div>
-            <div className="space-y-1"><Label>{t('رقم الحركة', 'Movement No.', lang)}</Label><Input value={form.movementNo || ''} onChange={e => set('movementNo', e.target.value)} /></div>
+            <div className="space-y-1"><Label>{t('رقم الحركة', 'Movement No.', lang)}</Label><Input value={form.movementNo || ''} readOnly className="bg-muted font-mono" /></div>
 
             <div className="space-y-1 col-span-2">
               <Label>{t('الصنف', 'Item', lang)} *</Label>

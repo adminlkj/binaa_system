@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import TableToolbar from '@/components/shared/TableToolbar';
 import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
@@ -69,7 +69,11 @@ export default function SupplierPayments() {
   // السداد مرتبط حصراً بفواتير معتمدة (أو مدفوعة جزئياً) للمورد المختار
   const supplierInvoices = invoices.filter(inv => inv.supplierId === form.supplierId && ['APPROVED', 'PARTIALLY_PAID'].includes(inv.status));
 
-  const openNew = () => { setEditing(null); setForm(empty); setDialogOpen(true); };
+  const openNew = () => {
+    setEditing(null);
+    setForm({ ...empty, paymentNo: nextCodeFromList(items, 'PMT', 'paymentNo') });
+    setDialogOpen(true);
+  };
   const openEdit = () => toast.error(t('لا يمكن تعديل سند صرف مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot edit a posted payment — use a reversing entry to correct it', lang));
   const askDelete = () => toast.error(t('لا يمكن حذف سند صرف مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot delete a posted payment — use a reversing entry to correct it', lang));
 
@@ -172,7 +176,7 @@ export default function SupplierPayments() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing ? t('تعديل سند الصرف', 'Edit Payment', lang) : t('سند صرف جديد', 'New Payment', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم السند', 'Voucher No.', lang)}</Label><Input value={form.paymentNo} onChange={e => setForm(f => ({ ...f, paymentNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم السند', 'Voucher No.', lang)}</Label><Input value={form.paymentNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('المورد', 'Supplier', lang)} *</Label>
               <Select value={form.supplierId} onValueChange={v => { const s = suppliers.find(s => s.id === v); setForm(f => ({ ...f, supplierId: v, supplierName: s?.name || '', supplierInvoiceId: '' })); }}>

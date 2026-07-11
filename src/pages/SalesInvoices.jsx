@@ -259,7 +259,7 @@ export default function SalesInvoices() {
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل الفاتورة', 'Edit Invoice', lang) : t('فاتورة جديدة', 'New Invoice', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم الفاتورة', 'Invoice No.', lang)} *</Label><Input value={form.invoiceNo} onChange={e => setForm(f => ({ ...f, invoiceNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم الفاتورة', 'Invoice No.', lang)} *</Label><Input value={form.invoiceNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('نوع الفاتورة', 'Invoice Type', lang)}</Label>
               <Select value={form.invoiceType} onValueChange={v => setForm(f => ({ ...f, invoiceType: v }))}>

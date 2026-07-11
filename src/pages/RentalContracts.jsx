@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
-import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
+import { t, formatCurrency, formatDate, nextCodeFromList } from '@/lib/utils-binaa';
 import { calcVAT, OperationEngine } from '@/lib/businessEngine';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
@@ -71,6 +71,7 @@ export default function RentalContracts() {
 
   const buildDefaultForm = () => ({
     ...empty,
+    contractNo: nextCodeFromList(items, 'RNT-CON', 'contractNo'),
     clientId:   activeClientId   || '',
     clientName: activeClientName || '',
   });
@@ -224,7 +225,7 @@ export default function RentalContracts() {
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? t('تعديل عقد التأجير', 'Edit Contract', lang) : t('عقد تأجير جديد', 'New Rental Contract', lang)}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No.', lang)} *</Label><Input value={form.contractNo} onChange={e => setForm(f => ({ ...f, contractNo: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>{t('رقم العقد', 'Contract No.', lang)} *</Label><Input value={form.contractNo} readOnly className="bg-muted font-mono" /></div>
             <div className="space-y-1.5">
               <Label>{t('المعدة', 'Equipment', lang)} *</Label>
               <Select value={form.equipmentId} onValueChange={v => { const eq = equipment.find(e => e.id === v); setForm(f => ({ ...f, equipmentId: v, equipmentName: eq?.name || '', rate: eq?.dailyRate || f.rate })); }}>

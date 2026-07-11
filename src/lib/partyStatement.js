@@ -9,20 +9,19 @@
  * للقيود القديمة (قبل إضافة هذه الحقول) نستعين بمطابقة الاسم في وصف السطر/القيد.
  */
 
+import { ACCOUNTS } from './businessEngine.js';
+
 // أدوار حسابات الذمم لكل نوع طرف — يُطابق الشجرة المحاسبية القياسية.
 const AR_ROLE = 'RECEIVABLES';   // ذمم العملاء (مدين بطبيعته)
 const AP_ROLE = 'PAYABLES';      // ذمم الموردين (دائن بطبيعته)
 
-// أكواد افتراضية إن لم تُحلّ الأدوار من الدليل.
-const AR_CODE = '1121';
-const AP_CODE = '2110';
-
 /**
  * يحدّد كود حساب الذمم الخاص بنوع الطرف من الدليل المحاسبي (SSOT) أو الافتراضي.
+ * الأكواد الافتراضية مأخوذة من businessEngine.ACCOUNTS لضمان التوافق التام.
  */
 function receivableAccountCode(accounts, partyType) {
   const role = partyType === 'SUPPLIER' ? AP_ROLE : AR_ROLE;
-  const fallback = partyType === 'SUPPLIER' ? AP_CODE : AR_CODE;
+  const fallback = partyType === 'SUPPLIER' ? ACCOUNTS.PAYABLES.code : ACCOUNTS.RECEIVABLES.code;
   const acc = (accounts || []).find(a => a.semanticRole === role && a.isActive !== false);
   return acc?.code || fallback;
 }

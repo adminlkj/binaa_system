@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 // تحليل مراكز التكلفة: إيراد وتكلفة وهامش لكل مركز (مشروع).
 export default function CostCenters() {
   const { lang } = useStore();
-  const [data, setData] = useState({ projects: [], expenses: [], subInvoices: [], salesInvoices: [] });
+  const [data, setData] = useState({ projects: [], expenses: [], subInvoices: [], salesInvoices: [], supplierInvoices: [] });
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -24,13 +24,14 @@ export default function CostCenters() {
   const load = async () => {
     setLoading(true);
     try {
-      const [projects, expenses, subInvoices, salesInvoices] = await Promise.all([
+      const [projects, expenses, subInvoices, salesInvoices, supplierInvoices] = await Promise.all([
         base44.entities.Project.list('-created_date', 1000),
         base44.entities.Expense.list('-date', 2000),
         base44.entities.SubcontractorInvoice.list('-date', 2000),
         base44.entities.SalesInvoice.list('-date', 2000),
+        base44.entities.SupplierInvoice.list('-date', 2000),
       ]);
-      setData({ projects, expenses, subInvoices, salesInvoices });
+      setData({ projects, expenses, subInvoices, salesInvoices, supplierInvoices });
     } catch (err) {
       toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
     } finally {
@@ -49,6 +50,7 @@ export default function CostCenters() {
     { header: { ar: 'الكود', en: 'Code' }, value: (r) => r.code },
     { header: { ar: 'الإيراد', en: 'Revenue' }, value: (r) => r.revenue },
     { header: { ar: 'مصروفات', en: 'Expenses' }, value: (r) => r.expenseCost },
+    { header: { ar: 'فواتير مورد', en: 'Supplier Invoices' }, value: (r) => r.supplierCost },
     { header: { ar: 'مقاولو الباطن', en: 'Subcontractors' }, value: (r) => r.subCost },
     { header: { ar: 'إجمالي التكلفة', en: 'Total Cost' }, value: (r) => r.cost },
     { header: { ar: 'الهامش', en: 'Margin' }, value: (r) => r.margin },

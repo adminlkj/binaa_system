@@ -118,8 +118,12 @@ export function buildAccountLedger(entries, accountCode, period = {}) {
  *
  * period اختياري { from, to } لتصفية حسب تاريخ المستند.
  */
-export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoices = [], salesInvoices = [] }, period = {}) {
+export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoices = [], salesInvoices = [], supplierInvoices = [] }, period = {}) {
   const inPeriod = (d) => (!period.from || (d && d >= period.from)) && (!period.to || (d && d <= period.to));
+
+  // الحالات المعتمدة محاسبياً — موحّدة في كل التقارير
+  const RECOGNIZED_STATUSES = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+  const SUB_RECOGNIZED_STATUSES = ['APPROVED', 'PARTIALLY_PAID', 'PAID'];
 
   // مركز لكل مشروع + مركز "غير مخصّص" للمصروفات بلا مشروع.
   const centers = {};
@@ -134,6 +138,7 @@ export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoi
         revenue: 0,
         expenseCost: 0,
         subCost: 0,
+        supplierCost: 0,
       };
     }
     return centers[key];
@@ -144,24 +149,39 @@ export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoi
     ensure(p.id, p.nameAr || p.name, p.costCenter || p.code);
   }
 
+  // المصروفات — استخدام totalAmount (الإجمالي شامل الضريبة إن وُجد، وإلا amount)
   for (const e of expenses) {
     if (!inPeriod(e.date)) continue;
     const c = ensure(e.projectId, e.projectName || (e.projectId ? '' : 'غير مخصّص'));
-    const amt = Number(e.amount) || 0;
+    const amt = Number(e.totalAmount || e.amount) || 0;
     c.cost += amt; c.expenseCost += amt;
   }
 
+  // فواتير الموردين المباشرة المعتمدة (بدون سند استلام — تلك تُحسب في المخزون)
+  for (const si of (supplierInvoices || [])) {
+    if (!inPeriod(si.date)) continue;
+    if (!si.projectId || si.goodsReceiptId) continue;
+    if (!RECOGNIZED_STATUSES.includes(si.status)) continue;
+    const c = ensure(si.projectId, si.projectName);
+    const amt = Number(si.totalAmount) || 0;
+    c.cost += amt; c.supplierCost += amt;
+  }
+
+  // مستخلصات مقاولي الباطن المعتمدة — استخدام totalAmount للاتساق
   for (const si of subInvoices) {
     if (!inPeriod(si.date)) continue;
     if (!si.projectId) continue;
+    if (!SUB_RECOGNIZED_STATUSES.includes(si.status)) continue;
     const c = ensure(si.projectId, si.projectName);
-    const amt = Number(si.baseAmount) || 0;
+    const amt = Number(si.totalAmount) || 0;
     c.cost += amt; c.subCost += amt;
   }
 
+  // الإيرادات — صافي المبيعات قبل الضريبة
   for (const inv of salesInvoices) {
     if (!inPeriod(inv.date)) continue;
     if (!inv.projectId) continue;
+    if (!RECOGNIZED_STATUSES.includes(inv.status)) continue;
     const c = ensure(inv.projectId, inv.projectName);
     c.revenue += Number(inv.subtotal) || 0;
   }
@@ -175,6 +195,7 @@ export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoi
         revenue: +c.revenue.toFixed(2),
         expenseCost: +c.expenseCost.toFixed(2),
         subCost: +c.subCost.toFixed(2),
+        supplierCost: +c.supplierCost.toFixed(2),
         margin: +margin.toFixed(2),
         marginPercent: c.revenue > 0 ? +((margin / c.revenue) * 100).toFixed(1) : 0,
       };

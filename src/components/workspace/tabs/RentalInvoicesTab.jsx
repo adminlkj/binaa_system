@@ -407,7 +407,14 @@ export default function RentalInvoicesTab({ equipmentId }) {
             {/* === القسم 3: حساب قيمة الإيجار (تلقائي) === */}
             {form.rentalContractId && form.rentalContractId !== 'none' && form.billingMonth && (
               <div className="md:col-span-2 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs space-y-1.5">
-                <div className="font-semibold text-emerald-800 mb-1">{t('حساب قيمة الإيجار (تلقائي)', 'Rental Calculation (auto)')}</div>
+                <div className="font-semibold text-emerald-800 mb-1">
+                  {t('حساب قيمة الإيجار (تلقائي)', 'Rental Calculation (auto)')}
+                  <span className="ms-2 text-emerald-600 font-normal">
+                    ({t('نوع العقد', 'Contract type')}: {selectedContract?.rateType === 'MONTHLY' ? t('شهري', 'Monthly', lang) : selectedContract?.rateType === 'HOURLY' ? t('ساعي', 'Hourly', lang) : selectedContract?.rateType === 'DAILY' ? t('يومي', 'Daily', lang) : selectedContract?.rateType === 'WEEKLY' ? t('أسبوعي', 'Weekly', lang) : selectedContract?.rateType})
+                  </span>
+                </div>
+
+                {/* MONTHLY: القيمة الشهرية ÷ 260 ساعة = سعر الساعة × ساعات الشهر */}
                 {selectedContract?.rateType === 'MONTHLY' && Number(selectedContract?.rate) > 0 && (
                   <>
                     <div className="flex justify-between text-emerald-700">
@@ -428,6 +435,8 @@ export default function RentalInvoicesTab({ equipmentId }) {
                     </div>
                   </>
                 )}
+
+                {/* HOURLY: سعر الساعة × ساعات الشهر */}
                 {selectedContract?.rateType === 'HOURLY' && (
                   <>
                     <div className="flex justify-between text-emerald-700">
@@ -442,15 +451,47 @@ export default function RentalInvoicesTab({ equipmentId }) {
                       <span>{t('قيمة الإيجار', 'Rental amount', lang)}</span>
                       <span className="tabular-nums">{formatCurrency(Number(form.baseAmount), lang)}</span>
                     </div>
+                    {Number(selectedContract?.rate) > 10000 && (
+                      <p className="text-amber-600 text-[11px] mt-1">
+                        {t('⚠ سعر الساعة مرتفع جداً — تأكد من أن نوع العقد "شهري" وليس "ساعي" إذا كانت 215,000 قيمة شهرية', '⚠ Hourly rate is very high — make sure contract type is "Monthly" not "Hourly" if 215,000 is a monthly value', lang)}
+                      </p>
+                    )}
                   </>
                 )}
-                {(selectedContract?.rateType === 'DAILY' || selectedContract?.rateType === 'WEEKLY') && (
-                  <div className="flex justify-between font-bold text-emerald-900">
-                    <span>{t('قيمة الإيجار', 'Rental amount', lang)} ({selectedContract.rateType})</span>
-                    <span className="tabular-nums">{formatCurrency(Number(form.baseAmount), lang)}</span>
-                  </div>
+
+                {/* DAILY: سعر اليوم × أيام الشهر */}
+                {selectedContract?.rateType === 'DAILY' && (
+                  <>
+                    <div className="flex justify-between text-emerald-700">
+                      <span>{t('سعر اليوم (من العقد)', 'Daily rate (from contract)', lang)}</span>
+                      <span className="tabular-nums font-medium">{formatCurrency(Number(selectedContract.rate), lang)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700">
+                      <span>{t('أيام الشهر في فترة العقد', 'Days in billing period')}</span>
+                      <span className="tabular-nums font-medium">× {Math.ceil((form.totalHours || 0) / 8) || 0}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-900 pt-1 border-t border-emerald-300">
+                      <span>{t('قيمة الإيجار', 'Rental amount', lang)}</span>
+                      <span className="tabular-nums">{formatCurrency(Number(form.baseAmount), lang)}</span>
+                    </div>
+                  </>
                 )}
-                {Number(form.totalHours) === 0 && form.billingMonth && (
+
+                {/* WEEKLY: سعر الأسبوع × أسابيع الشهر */}
+                {selectedContract?.rateType === 'WEEKLY' && (
+                  <>
+                    <div className="flex justify-between text-emerald-700">
+                      <span>{t('سعر الأسبوع (من العقد)', 'Weekly rate (from contract)', lang)}</span>
+                      <span className="tabular-nums font-medium">{formatCurrency(Number(selectedContract.rate), lang)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-emerald-900 pt-1 border-t border-emerald-300">
+                      <span>{t('قيمة الإيجار', 'Rental amount', lang)}</span>
+                      <span className="tabular-nums">{formatCurrency(Number(form.baseAmount), lang)}</span>
+                    </div>
+                  </>
+                )}
+
+                {Number(form.totalHours) === 0 && form.billingMonth && (selectedContract?.rateType === 'MONTHLY' || selectedContract?.rateType === 'HOURLY') && (
                   <p className="text-amber-600 text-[11px] mt-1">{t('⚠ لا توجد ساعات تشغيل مسجلة لهذا الشهر — سجّل ساعات التشغيل أولاً', '⚠ No operating hours recorded for this month — record timesheets first', lang)}</p>
                 )}
               </div>

@@ -75,11 +75,20 @@ export default function ChartAccounts() {
   };
 
   const handleDelete = async () => {
-    await base44.entities.ChartAccount.delete(deleting.id);
-    clearAccountsCache();
-    setDeleting(null);
-    toast({ title: t('تم الحذف', 'Deleted', lang) });
-    await load();
+    try {
+      const jes = await base44.entities.JournalEntry.list('-date', 5000);
+      const hasLines = jes.some(je => (je.lines || []).some(l => l.accountCode === deleting.code));
+      if (hasLines) {
+        toast({ title: t('لا يمكن حذف حساب مستخدم في قيود', 'Cannot delete an account used in journal entries', lang), variant: 'destructive' });
+        setDeleting(null);
+        return;
+      }
+      await base44.entities.ChartAccount.delete(deleting.id);
+      clearAccountsCache();
+      setDeleting(null);
+      toast({ title: t('تم الحذف', 'Deleted', lang) });
+      await load();
+    } catch (e) { toast({ title: t('فشل الحذف', 'Delete failed', lang), variant: 'destructive' }); setDeleting(null); }
   };
 
   const seedStandardChart = async () => {

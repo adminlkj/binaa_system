@@ -63,8 +63,18 @@ export default function Employees() {
   };
 
   const remove = async () => {
-    try { await base44.entities.Employee.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const checks = await Promise.all([
+        base44.entities.PayrollRun.filter({ employeeId: deleteId }),
+        base44.entities.EmployeeAdvance.filter({ employeeId: deleteId }),
+        base44.entities.EmployeeCustody.filter({ employeeId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف موظف له رواتب أو سلف أو عهد', 'Cannot delete an employee with payroll, advances or custody', lang));
+        return;
+      }
+      await base44.entities.Employee.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const uploadPhoto = async (e) => {

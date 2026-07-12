@@ -57,8 +57,17 @@ export default function Subcontractors() {
   };
 
   const remove = async () => {
-    try { await base44.entities.Subcontractor.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const checks = await Promise.all([
+        base44.entities.SubcontractorInvoice.filter({ subcontractorId: deleteId }),
+        base44.entities.SubcontractorPayment.filter({ subcontractorId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف مقاول له فواتير أو دفعات', 'Cannot delete a subcontractor with invoices or payments', lang));
+        return;
+      }
+      await base44.entities.Subcontractor.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const fields = [['code', t('الكود', 'Code', lang)], ['name', t('الاسم', 'Name', lang)], ['specialty', t('التخصص', 'Specialty', lang)], ['phone', t('الهاتف', 'Phone', lang)], ['email', t('البريد', 'Email', lang)], ['taxNumber', t('الرقم الضريبي', 'Tax No.', lang)], ['contactPerson', t('شخص التواصل', 'Contact', lang)]];

@@ -72,8 +72,20 @@ export default function FiscalYears() {
   };
 
   const remove = async () => {
-    try { await base44.entities.FiscalYear.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const fy = items.find(i => i.id === deleteId);
+      if (fy && fy.status === 'CLOSED') {
+        toast.error(t('لا يمكن حذف سنة مالية مغلقة', 'Cannot delete a closed fiscal year', lang));
+        return;
+      }
+      const jes = await base44.entities.JournalEntry.list('-date', 5000);
+      const hasInPeriod = jes.some(je => je.date >= fy?.startDate && je.date <= fy?.endDate);
+      if (hasInPeriod) {
+        toast.error(t('لا يمكن حذف سنة مالية بها قيود', 'Cannot delete a fiscal year with journal entries', lang));
+        return;
+      }
+      await base44.entities.FiscalYear.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const [closingId, setClosingId] = useState(null);

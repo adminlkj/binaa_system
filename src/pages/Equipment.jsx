@@ -66,8 +66,18 @@ export default function Equipment() {
   };
 
   const remove = async () => {
-    try { await base44.entities.Equipment.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const checks = await Promise.all([
+        base44.entities.RentalContract.filter({ equipmentId: deleteId }),
+        base44.entities.RentalInvoice.filter({ equipmentId: deleteId }),
+        base44.entities.OperatingHours.filter({ equipmentId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف معدة لها عقود إيجار أو فواتير أو ساعات تشغيل', 'Cannot delete equipment with rental contracts, invoices or operating hours', lang));
+        return;
+      }
+      await base44.entities.Equipment.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const statusCounts = Object.keys(EQUIPMENT_STATUS).reduce((acc, s) => { acc[s] = items.filter(i => i.status === s).length; return acc; }, {});

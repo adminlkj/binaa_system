@@ -79,8 +79,18 @@ export default function Warehouses() {
   };
 
   const remove = async () => {
-    try { await base44.entities.Warehouse.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const checks = await Promise.all([
+        base44.entities.InventoryItem.filter({ warehouseId: deleteId }),
+        base44.entities.StockMovement.filter({ warehouseId: deleteId }),
+        base44.entities.PurchaseOrder.filter({ warehouseId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف مخزن له أرصدة أو حركات أو أوامر شراء', 'Cannot delete a warehouse with inventory, movements or purchase orders', lang));
+        return;
+      }
+      await base44.entities.Warehouse.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const exportColumns = [

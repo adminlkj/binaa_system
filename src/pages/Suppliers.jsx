@@ -59,8 +59,18 @@ export default function Suppliers() {
   };
 
   const remove = async () => {
-    try { await base44.entities.Supplier.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch (err) { toast.error(errorMessage(err, t('فشل الحذف', 'Delete failed', lang))); }
+    try {
+      const checks = await Promise.all([
+        base44.entities.PurchaseOrder.filter({ supplierId: deleteId }),
+        base44.entities.SupplierInvoice.filter({ supplierId: deleteId }),
+        base44.entities.SupplierPayment.filter({ supplierId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف مورد له أوامر شراء أو فواتير أو مدفوعات', 'Cannot delete a supplier with orders, invoices or payments', lang));
+        return;
+      }
+      await base44.entities.Supplier.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch (err) { toast.error(errorMessage(err, t('فشل الحذف', 'Delete failed', lang))); }
   };
 
   const fields = [

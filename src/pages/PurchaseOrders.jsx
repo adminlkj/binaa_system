@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import OrderLinesEditor from '@/components/purchase/OrderLinesEditor';
+import { canTransition } from '@/lib/workflowEngine';
 import { toast } from 'sonner';
 
 const STATUSES = {
@@ -122,8 +123,23 @@ export default function PurchaseOrders() {
   };
 
   const remove = async () => {
-    try { await base44.entities.PurchaseOrder.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const gr = await base44.entities.GoodsReceipt.filter({ purchaseOrderId: deleteId });
+      if (gr.length > 0) {
+        toast.error(t('لا يمكن حذف أمر شراء له إذونات استلام', 'Cannot delete a purchase order with linked goods receipts', lang));
+        return;
+      }
+      await base44.entities.PurchaseOrder.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+  };
+
+  const setStatus = async (item, newStatus) => {
+    if (!canTransition('PURCHASE_ORDER', item.status, newStatus))
+      return toast.error(t('لا يمكن تغيير الحالة', 'This status change is not allowed', lang));
+    try {
+      await base44.entities.PurchaseOrder.update(item.id, { status: newStatus });
+      toast.success(t('تم تحديث الحالة', 'Status updated', lang)); load();
+    } catch { toast.error(t('فشل التحديث', 'Update failed', lang)); }
   };
 
   const totalValue = filtered.reduce((s, i) => s + (i.totalAmount || 0) + (i.vatAmount || 0), 0);
@@ -197,8 +213,10 @@ export default function PurchaseOrders() {
                         <TableCell><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span></TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-emerald-700" title={t('اعتماد', 'Approve', lang)} onClick={() => setStatus(item, 'APPROVED')}><CheckCircle2 className="size-3.5" /></Button>}
+                            {(item.status === 'DRAFT' || item.status === 'APPROVED' || item.status === 'ORDERED') && <Button variant="ghost" size="icon" className="size-8 text-rose-700" title={t('إلغاء', 'Cancel', lang)} onClick={() => setStatus(item, 'CANCELLED')}><XCircle className="size-3.5" /></Button>}
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
+                            {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>}
                           </div>
                         </TableCell>
                       </TableRow>

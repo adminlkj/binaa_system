@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, Printer } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Printer, RotateCcw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,8 +71,30 @@ export default function ClientPayments() {
     setForm({ ...empty, date: new Date().toISOString().slice(0, 10), paymentNo: nextCodeFromList(items, 'RCV', 'paymentNo') });
     setDialogOpen(true);
   };
-  const openEdit = () => toast.error(t('لا يمكن تعديل سند قبض مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot edit a posted receipt — use a reversing entry to correct it', lang));
-  const askDelete = () => toast.error(t('لا يمكن حذف سند قبض مُرحّل — استخدم قيد عكسي عند التصحيح', 'Cannot delete a posted receipt — use a reversing entry to correct it', lang));
+  const openEdit = () => toast.error(t('لا يمكن تعديل سند قبض مُرحّل — استخدم العكس', 'Cannot edit a posted receipt — use reverse', lang));
+  const askDelete = () => toast.error(t('لا يمكن حذف سند قبض مُرحّل — استخدم العكس', 'Cannot delete a posted receipt — use reverse', lang));
+
+  const [reversingId, setReversingId] = useState(null);
+  const reverse = async (item) => {
+    setReversingId(item.id);
+    try {
+      const jes = await base44.entities.JournalEntry.filter({ sourceDocumentType: 'CLIENT_PAYMENT', sourceDocumentId: item.id, isPosted: true });
+      if (jes.length === 0) throw new Error(t('لا يوجد قيد مرتبط', 'No linked entry', lang));
+      const orig = jes[0];
+      const revLines = (orig.lines || []).map(l => ({ ...l, debit: l.credit || 0, credit: l.debit || 0 }));
+      await base44.entities.JournalEntry.create({
+        entryNo: `${orig.entryNo}-REV-1`,
+        date: new Date().toISOString().slice(0, 10),
+        description: `عكس ${orig.entryNo} — سند قبض ${item.paymentNo}`,
+        lines: revLines, totalDebit: orig.totalCredit, totalCredit: orig.totalDebit,
+        isPosted: true, sourceType: 'REVERSAL',
+      });
+      await base44.entities.ClientPayment.update(item.id, { status: 'CANCELLED' });
+      toast.success(t('تم عكس السند وإنشاء قيد عكسي', 'Receipt reversed & reversal entry created', lang));
+      load();
+    } catch (e) { toast.error(e?.message || t('فشل العكس', 'Reversal failed', lang)); }
+    setReversingId(null);
+  };
 
   const save = async () => {
     if (!form.clientId || !form.date || !form.amount)
@@ -169,6 +191,7 @@ export default function ClientPayments() {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="size-8" title={t('معاينة السند', 'Preview', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8 text-amber-600" title={t('عكس', 'Reverse', lang)} disabled={reversingId === item.id} onClick={() => reverse(item)}><RotateCcw className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
                         </div>

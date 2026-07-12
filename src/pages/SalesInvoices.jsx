@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, Printer, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, Printer, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,6 +98,8 @@ export default function SalesInvoices() {
 
   // اعتماد الفاتورة: يرحّل قيد الإيراد ويحوّلها من مسودة إلى معتمدة.
   const [approvingId, setApprovingId] = useState(null);
+  const [reversingId, setReversingId] = useState(null);
+
   const approve = async (item) => {
     setApprovingId(item.id);
     try {
@@ -106,6 +108,32 @@ export default function SalesInvoices() {
       load();
     } catch (e) { toast.error(e?.message || t('فشل الاعتماد', 'Approval failed', lang)); }
     setApprovingId(null);
+  };
+
+  const reverse = async (item) => {
+    if (item.paidAmount && Number(item.paidAmount) > 0)
+      return toast.error(t('لا يمكن عكس فاتورة عليها مدفوعات — اعكس المدفوعات أولاً', 'Cannot reverse an invoice with payments — reverse payments first', lang));
+    setReversingId(item.id);
+    try {
+      const jes = await base44.entities.JournalEntry.filter({ sourceDocumentType: 'SALES_INVOICE', sourceDocumentId: item.id, isPosted: true });
+      if (jes.length === 0) throw new Error(t('لا يوجد قيد مرتبط بهذه الفاتورة', 'No linked journal entry found', lang));
+      const orig = jes[0];
+      const revNo = `${orig.entryNo}-REV-1`;
+      const revLines = (orig.lines || []).map(l => ({ ...l, debit: l.credit || 0, credit: l.debit || 0 }));
+      await base44.entities.JournalEntry.create({
+        entryNo: revNo,
+        date: new Date().toISOString().slice(0, 10),
+        description: `عكس ${orig.entryNo} — فاتورة ${item.invoiceNo}`,
+        lines: revLines,
+        totalDebit: orig.totalCredit, totalCredit: orig.totalDebit,
+        isPosted: true,
+        sourceType: 'REVERSAL',
+      });
+      await base44.entities.SalesInvoice.update(item.id, { status: 'CANCELLED' });
+      toast.success(t('تم عكس الفاتورة وإنشاء قيد عكسي', 'Invoice reversed & reversal entry created', lang));
+      load();
+    } catch (e) { toast.error(e?.message || t('فشل العكس', 'Reversal failed', lang)); }
+    setReversingId(null);
   };
 
   // الحسابات تأتي من Business Engine — SSOT
@@ -235,6 +263,11 @@ export default function SalesInvoices() {
                             {item.status === 'DRAFT' && (
                               <Button variant="outline" size="sm" className="h-8 gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50" disabled={approvingId === item.id} onClick={() => approve(item)}>
                                 <CheckCircle2 className="size-3.5" />{approvingId === item.id ? t('جارٍ...', '...', lang) : t('اعتماد', 'Approve', lang)}
+                              </Button>
+                            )}
+                            {['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(item.status) && (
+                              <Button variant="ghost" size="icon" className="size-8 text-amber-600" title={t('عكس', 'Reverse', lang)} disabled={reversingId === item.id} onClick={() => reverse(item)}>
+                                <RotateCcw className="size-3.5" />
                               </Button>
                             )}
                             <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => openPrint(item)}><Printer className="size-3.5" /></Button>

@@ -1,0 +1,21 @@
+{
+  "name": "بِنَاء - نظام إدارة المقاولات",
+  "short_name": "بِنَاء",
+  "description": "نظام إدارة المقاولات والمشاريع",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#c8891f",
+  "icons": [
+    {
+      "src": "https://media.base44.com/images/public/6a44ed8818188b4da27cc800/83daa84db_Gemini_Generated_Image_rwzsp3rwzsp3rwzs.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://media.base44.com/images/public/6a44ed8818188b4da27cc800/83daa84db_Gemini_Generated_Image_rwzsp3rwzsp3rwzs.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

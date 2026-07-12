@@ -28,7 +28,7 @@ export default function NotificationCenter() {
     setLoading(true);
     const now = Date.now();
     try {
-      const [invoices, rentalInvoices, rentalContracts, advances, docs, maintenance, supplierInvoices, payrollRuns] = await Promise.all([
+      const [invoices, rentalInvoices, rentalContracts, advances, docs, maintenance, supplierInvoices, payrollRuns, billings, purchaseOrders, changeOrders, contracts] = await Promise.all([
         base44.entities.SalesInvoice.list('-date', 300).catch(() => []),
         base44.entities.RentalInvoice.list('-date', 300).catch(() => []),
         base44.entities.RentalContract.list('-endDate', 300).catch(() => []),
@@ -37,6 +37,10 @@ export default function NotificationCenter() {
         base44.entities.MaintenanceRecord.list('-date', 300).catch(() => []),
         base44.entities.SupplierInvoice.list('-date', 300).catch(() => []),
         base44.entities.PayrollRun.list('-created_date', 300).catch(() => []),
+        base44.entities.ProgressBilling.list('-date', 300).catch(() => []),
+        base44.entities.PurchaseOrder.list('-created_date', 300).catch(() => []),
+        base44.entities.ChangeOrder.list('-date', 300).catch(() => []),
+        base44.entities.Contract.list('-endDate', 300).catch(() => []),
       ]);
       const items = [];
 
@@ -137,8 +141,53 @@ export default function NotificationCenter() {
         });
       });
 
+      // 9. مستخلصات معلقة (SUBMITTED)
+      billings.filter(b => b.status === 'SUBMITTED').forEach(b => {
+        items.push({
+          id: `pb-${b.id}`, Icon: FileClock, tone: 'amber',
+          titleAr: `مستخلص بانتظار الاعتماد: ${b.certificateNo}`, titleEn: `Pending billing: ${b.certificateNo}`,
+          metaAr: `${b.projectName || ''} · ${formatCurrency(b.grossAmount || 0, lang)}`,
+          metaEn: `${b.projectName || ''} · ${formatCurrency(b.grossAmount || 0, lang)}`,
+          go: () => { if (b.projectId) { store.setProjectContext(b.projectId, b.projectName || ''); store.setActiveItem('project-workspace'); } },
+        });
+      });
+
+      // 10. أوامر شراء معلقة (DRAFT/APPROVED بدون استلام)
+      purchaseOrders.filter(po => ['DRAFT', 'APPROVED'].includes(po.status)).forEach(po => {
+        items.push({
+          id: `po-${po.id}`, Icon: FileClock, tone: 'amber',
+          titleAr: `أمر شراء معلق: ${po.orderNo}`, titleEn: `Pending purchase order: ${po.orderNo}`,
+          metaAr: `${po.supplierName || ''} · ${formatCurrency((po.totalAmount || 0) + (po.vatAmount || 0), lang)}`,
+          metaEn: `${po.supplierName || ''} · ${formatCurrency((po.totalAmount || 0) + (po.vatAmount || 0), lang)}`,
+          go: () => store.setActiveItem('purchase-orders'),
+        });
+      });
+
+      // 11. أوامر تغيير معلقة (DRAFT)
+      changeOrders.filter(co => co.status === 'DRAFT').forEach(co => {
+        items.push({
+          id: `co-${co.id}`, Icon: FileWarning, tone: 'amber',
+          titleAr: `أمر تغيير بانتظار الاعتماد: ${co.orderNo}`, titleEn: `Pending change order: ${co.orderNo}`,
+          metaAr: `${co.description || ''} · ${formatCurrency(co.amount || 0, lang)}`,
+          metaEn: `${co.description || ''} · ${formatCurrency(co.amount || 0, lang)}`,
+          go: () => { if (co.projectId) { store.setProjectContext(co.projectId, ''); store.setActiveItem('project-workspace'); } },
+        });
+      });
+
+      // 12. عقود مشاريع منتهية
+      contracts.filter(c => c.status === 'ACTIVE' && c.endDate && new Date(c.endDate).getTime() < now).forEach(c => {
+        items.push({
+          id: `con-${c.id}`, Icon: Clock, tone: 'amber',
+          titleAr: `عقد مشروع منتهي: ${c.contractNo}`, titleEn: `Expired contract: ${c.contractNo}`,
+          metaAr: `${c.projectName || ''} · ${formatDate(c.endDate, lang)}`,
+          metaEn: `${c.projectName || ''} · ${formatDate(c.endDate, lang)}`,
+          go: () => store.setActiveItem('contracts'),
+        });
+      });
+
       setTasks(items);
-    } finally { setLoading(false); }
+    } catch { /* silent — notifications are non-critical */ }
+    finally { setLoading(false); }
   }, [lang, store]);
 
   useEffect(() => { build(); }, [build]);

@@ -19,7 +19,7 @@ const STATUS = {
   PAID: { ar: 'مدفوع', en: 'Paid', color: 'bg-teal-100 text-teal-700' },
   REJECTED: { ar: 'مرفوض', en: 'Rejected', color: 'bg-rose-100 text-rose-700' },
 };
-const empty = { certificateNo: nextCodeFromList(rows, 'CRT', 'certificateNo'), date: '', cumulativePercent: 0, grossAmount: 0, retentionAmount: 0, previousAmount: 0, status: 'DRAFT', notes: '' };
+const empty = { certificateNo: '', date: '', cumulativePercent: 0, grossAmount: 0, retentionAmount: 0, previousAmount: 0, status: 'DRAFT', notes: '' };
 
 export default function ProgressBillingTab({ projectId }) {
   const { lang } = useStore();
@@ -43,7 +43,7 @@ export default function ProgressBillingTab({ projectId }) {
   };
   useEffect(() => { load(); }, [projectId]);
 
-  const openNew = () => { setForm(empty); setEditingId(null); setOpen(true); };
+  const openNew = () => { setForm({ ...empty, certificateNo: nextCodeFromList(rows, 'CRT', 'certificateNo') }); setEditingId(null); setOpen(true); };
   const openEdit = (r) => {
     if (r.status !== 'DRAFT') return;
     setForm({ ...empty, ...r, status: 'DRAFT' }); setEditingId(r.id); setOpen(true);

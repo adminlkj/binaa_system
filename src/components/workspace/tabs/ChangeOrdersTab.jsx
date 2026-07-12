@@ -23,7 +23,7 @@ const STATUS = {
   APPROVED: { ar: 'معتمد', en: 'Approved', color: 'bg-emerald-100 text-emerald-700' },
   REJECTED: { ar: 'مرفوض', en: 'Rejected', color: 'bg-rose-100 text-rose-700' },
 };
-const empty = { orderNo: nextCodeFromList(rows, 'CO', 'orderNo'), type: 'CHANGE_ORDER', date: '', description: '', amount: 0, status: 'DRAFT', notes: '' };
+const empty = { orderNo: '', type: 'CHANGE_ORDER', date: '', description: '', amount: 0, status: 'DRAFT', notes: '' };
 
 export default function ChangeOrdersTab({ projectId }) {
   const { lang } = useStore();
@@ -47,7 +47,7 @@ export default function ChangeOrdersTab({ projectId }) {
   };
   useEffect(() => { load(); }, [projectId]);
 
-  const openNew = () => { setForm(empty); setEditingId(null); setOpen(true); };
+  const openNew = () => { setForm({ ...empty, orderNo: nextCodeFromList(rows, 'CO', 'orderNo') }); setEditingId(null); setOpen(true); };
   const openEdit = (r) => { if (r.status !== 'DRAFT') return; setForm({ ...empty, ...r, status: 'DRAFT' }); setEditingId(r.id); setOpen(true); };
   const approve = async (r) => {
     try {

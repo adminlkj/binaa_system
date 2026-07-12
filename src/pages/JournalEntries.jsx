@@ -24,7 +24,7 @@ export default function JournalEntries() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterPosted, setFilterPosted] = useState('POSTED');
+  const [filterPosted, setFilterPosted] = useState('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
@@ -219,8 +219,8 @@ export default function JournalEntries() {
                     <TableCell className="font-mono text-xs font-medium">{item.entryNo}</TableCell>
                     <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
                     <TableCell className="font-medium">{item.description}</TableCell>
-                    <TableCell className="tabular-nums">{Number(item.totalDebit || 0).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="tabular-nums">{Number(item.totalCredit || 0).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="tabular-nums">{Number(item.totalDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="tabular-nums">{Number(item.totalCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell>
                       <button onClick={() => togglePost(item)}
                         className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${item.isPosted ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -231,17 +231,14 @@ export default function JournalEntries() {
                     <TableCell>
                       <div className="flex gap-1">
                         {item.isPosted ? (
-                          item.sourceType === 'Reversal' ? (
-                            <span className="text-xs text-muted-foreground px-2">{t('قيد عكسي', 'Reversal', lang)}</span>
+                          item.sourceType === 'Reversal' || (item.entryNo || '').includes('-REV') ? (
+                            <span className="text-xs text-amber-600 font-medium px-2 py-1 bg-amber-50 rounded-full">{t('قيد عكسي', 'Reversal Entry', lang)}</span>
+                          ) : items.some(je => je.entryNo?.startsWith(`${item.entryNo}-REV`)) ? (
+                            <span className="text-xs text-rose-600 font-medium px-2 py-1 bg-rose-50 rounded-full">{t('تم عكسه', 'Reversed', lang)}</span>
                           ) : (
-                            <>
-                              {items.some(je => je.entryNo?.startsWith(`${item.entryNo}-REV`)) && (
-                                <span className="text-[10px] text-amber-600 px-1" title={t('سبق عكسه', 'Already reversed', lang)}>⚠</span>
-                              )}
-                              <Button variant="ghost" size="sm" className="h-8 gap-1 text-amber-600 hover:text-amber-700" onClick={() => setReverseTarget(item)}>
-                                <Undo2 className="size-3.5" />{t('عكس', 'Reverse', lang)}
-                              </Button>
-                            </>
+                            <Button variant="ghost" size="sm" className="h-8 gap-1 text-amber-600 hover:text-amber-700" onClick={() => setReverseTarget(item)}>
+                              <Undo2 className="size-3.5" />{t('عكس', 'Reverse', lang)}
+                            </Button>
                           )
                         ) : (
                           <>

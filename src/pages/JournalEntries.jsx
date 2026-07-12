@@ -24,7 +24,7 @@ export default function JournalEntries() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filterPosted, setFilterPosted] = useState('ALL');
+  const [filterPosted, setFilterPosted] = useState('POSTED');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
@@ -51,7 +51,13 @@ export default function JournalEntries() {
 
   const filtered = items.filter(i => {
     const match = !search || i.entryNo?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase());
-    const matchPosted = filterPosted === 'ALL' || (filterPosted === 'POSTED' && i.isPosted) || (filterPosted === 'DRAFT' && !i.isPosted);
+    const isReversed = items.some(je => je.entryNo?.startsWith(`${i.entryNo}-REV`));
+    const isReversal = i.sourceType === 'Reversal' || (i.entryNo || '').includes('-REV');
+    let matchPosted;
+    if (filterPosted === 'ALL') matchPosted = true;
+    else if (filterPosted === 'POSTED') matchPosted = i.isPosted && !isReversal;
+    else if (filterPosted === 'DRAFT') matchPosted = !i.isPosted;
+    else if (filterPosted === 'REVERSED') matchPosted = isReversal || isReversed;
     return match && matchPosted;
   });
 
@@ -181,7 +187,7 @@ export default function JournalEntries() {
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('بحث...', 'Search...', lang)} className="ps-9" />
         </div>
         <div className="flex gap-1">
-          {[['ALL', t('الكل', 'All', lang)], ['DRAFT', t('مسودة', 'Draft', lang)], ['POSTED', t('مرحّل', 'Posted', lang)]].map(([v, l]) => (
+          {[['ALL', t('الكل', 'All', lang)], ['POSTED', t('مرحّلة', 'Posted', lang)], ['DRAFT', t('مسودة', 'Draft', lang)], ['REVERSED', t('معكوسة', 'Reversed', lang)]].map(([v, l]) => (
             <button key={v} onClick={() => setFilterPosted(v)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterPosted === v ? 'bg-teal-600 text-white' : 'bg-muted hover:bg-muted/80'}`}>
               {l}
@@ -213,8 +219,8 @@ export default function JournalEntries() {
                     <TableCell className="font-mono text-xs font-medium">{item.entryNo}</TableCell>
                     <TableCell className="text-xs">{formatDate(item.date, lang)}</TableCell>
                     <TableCell className="font-medium">{item.description}</TableCell>
-                    <TableCell>{formatCurrency(item.totalDebit, lang)}</TableCell>
-                    <TableCell>{formatCurrency(item.totalCredit, lang)}</TableCell>
+                    <TableCell className="tabular-nums">{Number(item.totalDebit || 0).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="tabular-nums">{Number(item.totalCredit || 0).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell>
                       <button onClick={() => togglePost(item)}
                         className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full transition-colors ${item.isPosted ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>

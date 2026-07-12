@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, Paperclip, RotateCcw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, Paperclip, RotateCcw, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,9 @@ import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate, STATUS_TONE, genInvoiceNo } from '@/lib/utils-binaa';
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
+import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
+import SupplierInvoiceDocument from '@/components/shared/SupplierInvoiceDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import TableToolbar from '@/components/shared/TableToolbar';
 import InvoiceAttachmentField from '@/components/shared/InvoiceAttachmentField';
 import FilePreviewDialog from '@/components/shared/FilePreviewDialog';
@@ -38,6 +41,7 @@ const empty = {
 
 export default function SupplierInvoices() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
   const [items, setItems] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -53,6 +57,7 @@ export default function SupplierInvoices() {
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -285,6 +290,7 @@ export default function SupplierInvoices() {
                             {['APPROVED','PARTIALLY_PAID','OVERDUE'].includes(item.status) && (<Button variant="ghost" size="icon" className="size-8 text-amber-600" title={t('عكس', 'Reverse', lang)} disabled={reversingId === item.id} onClick={() => reverse(item)}><RotateCcw className="size-3.5" /></Button>)}
                             {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
                             {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item)}><Trash2 className="size-3.5" /></Button>}
+                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -380,6 +386,10 @@ export default function SupplierInvoices() {
         url={previewFile?.url}
         name={previewFile?.name}
       />
+
+      <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'فاتورة مورد', en: 'Supplier Invoice' }}>
+        {preview && <SupplierInvoiceDocument invoice={preview} settings={settings} lang={lang} />}
+      </DocumentPreviewDialog>
     </ModuleLayout>
   );
 }

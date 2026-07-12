@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, XCircle, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,9 @@ import { t, formatCurrency, formatDate, CONTRACT_STATUS, nextCodeFromList } from
 import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
+import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
+import ContractDocument from '@/components/shared/ContractDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { canTransition } from '@/lib/workflowEngine';
 import { toast } from 'sonner';
 
@@ -21,6 +24,7 @@ const empty = { contractNo: '', projectId: '', projectName: '', clientId: '', cl
 
 export default function Contracts() {
   const { lang } = useStore();
+  const { settings } = useCompanySettings();
   const [items, setItems] = useState([]);
   const [projects, setProjects] = useState([]);
   const [clients, setClients] = useState([]);
@@ -33,6 +37,7 @@ export default function Contracts() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -168,6 +173,7 @@ export default function Contracts() {
                           {(item.status === 'DRAFT' || item.status === 'ACTIVE') && <Button variant="ghost" size="icon" className="size-8 text-rose-700" title={t('إلغاء', 'Cancel', lang)} onClick={() => setStatus(item, 'CANCELLED')}><XCircle className="size-3.5" /></Button>}
                           {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
                           {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>}
+                          <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -221,6 +227,10 @@ export default function Contracts() {
         title={t('حذف العقد', 'Delete Contract', lang)}
         description={t('سيتم حذف العقد نهائياً.', 'This contract will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'عقد مشروع', en: 'Project Contract' }}>
+        {preview && <ContractDocument contract={preview} settings={settings} lang={lang} />}
+      </DocumentPreviewDialog>
     </ModuleLayout>
   );
 }

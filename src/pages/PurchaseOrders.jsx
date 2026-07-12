@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, RefreshCw, CheckCircle2, XCircle, Printer } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,9 @@ import ModuleLayout from '@/components/shared/ModuleLayout';
 import ConfirmDialog from '@/components/shared/ConfirmDialog';
 import TableToolbar from '@/components/shared/TableToolbar';
 import OrderLinesEditor from '@/components/purchase/OrderLinesEditor';
+import DocumentPreviewDialog from '@/components/shared/DocumentPreviewDialog';
+import PurchaseOrderDocument from '@/components/shared/PurchaseOrderDocument';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { canTransition } from '@/lib/workflowEngine';
 import { toast } from 'sonner';
 
@@ -40,6 +43,7 @@ const empty = {
 
 export default function PurchaseOrders() {
   const { lang, activeProjectId, activeProjectName } = useStore();
+  const { settings } = useCompanySettings();
   const [items, setItems]         = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [projects, setProjects]   = useState([]);
@@ -56,6 +60,7 @@ export default function PurchaseOrders() {
   const [editing, setEditing]           = useState(null);
   const [form, setForm]                 = useState(empty);
   const [saving, setSaving]             = useState(false);
+  const [preview, setPreview]           = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -217,6 +222,7 @@ export default function PurchaseOrders() {
                             {(item.status === 'DRAFT' || item.status === 'APPROVED' || item.status === 'ORDERED') && <Button variant="ghost" size="icon" className="size-8 text-rose-700" title={t('إلغاء', 'Cancel', lang)} onClick={() => setStatus(item, 'CANCELLED')}><XCircle className="size-3.5" /></Button>}
                             {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
                             {item.status === 'DRAFT' && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>}
+                            <Button variant="ghost" size="icon" className="size-8" title={t('معاينة وطباعة', 'Preview & Print', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -302,6 +308,10 @@ export default function PurchaseOrders() {
         title={t('حذف أمر الشراء', 'Delete Purchase Order', lang)}
         description={t('سيتم حذف أمر الشراء نهائياً.', 'This purchase order will be permanently deleted.', lang)}
         onConfirm={remove} confirmLabel={t('حذف', 'Delete', lang)} />
+
+      <DocumentPreviewDialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)} title={{ ar: 'أمر شراء', en: 'Purchase Order' }}>
+        {preview && <PurchaseOrderDocument order={preview} settings={settings} lang={lang} />}
+      </DocumentPreviewDialog>
     </ModuleLayout>
   );
 }

@@ -75,7 +75,10 @@ export default function CompanySettingsCard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label={t('اسم البنك', 'Bank Name', lang)}><Input value={form.bankName || ''} onChange={e => set('bankName', e.target.value)} /></Field>
             <Field label={t('اسم صاحب الحساب', 'Account Name', lang)}><Input value={form.bankAccountName || ''} onChange={e => set('bankAccountName', e.target.value)} /></Field>
+            <Field label={t('الفرع', 'Branch', lang)}><Input value={form.bankBranch || ''} onChange={e => set('bankBranch', e.target.value)} /></Field>
+            <Field label={t('رقم الحساب', 'Account No.', lang)}><Input value={form.bankAccountNumber || ''} onChange={e => set('bankAccountNumber', e.target.value)} className="font-mono text-xs" /></Field>
             <Field label={t('الآيبان', 'IBAN', lang)}><Input value={form.iban || ''} onChange={e => set('iban', e.target.value)} className="font-mono text-xs" /></Field>
+            <Field label={t('رمز السويفت', 'SWIFT Code', lang)}><Input value={form.swiftCode || ''} onChange={e => set('swiftCode', e.target.value)} className="font-mono text-xs uppercase" /></Field>
           </div>
         </div>
 

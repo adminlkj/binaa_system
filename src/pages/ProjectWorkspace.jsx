@@ -19,6 +19,7 @@ import PenaltiesTab from '@/components/workspace/tabs/PenaltiesTab';
 import WorkOrdersTab from '@/components/workspace/tabs/WorkOrdersTab';
 import DailyReportsTab from '@/components/workspace/tabs/DailyReportsTab';
 import ProfitabilityTab from '@/components/workspace/tabs/ProfitabilityTab';
+import { computeProjectProfitabilityFromJE } from '@/lib/financialEngine';
 
 export default function ProjectWorkspace() {
   const { lang, activeProjectId, activeProjectName, setActiveItem } = useStore();
@@ -94,16 +95,18 @@ export default function ProjectWorkspace() {
 
   const postedInvoiceStatuses = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
   const postedInvoices = invoices.filter(i => postedInvoiceStatuses.includes(i.status));
-  // الإيراد = صافي المبيعات قبل الضريبة (subtotal)، لا شامل الضريبة.
-  const revenue = postedInvoices.reduce((s, i) => s + (i.subtotal || 0), 0);
-  const stockIssueCost = stockMovements.filter(m => m.type === 'ISSUE').reduce((s, m) => s + (m.totalCost || 0), 0);
-  const directSupplierCost = supplierInvoices
-    .filter(i => !i.goodsReceiptId && ['APPROVED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].includes(i.status))
-    .reduce((s, i) => s + (i.totalAmount || 0), 0);
-  const subcontractorCost = subcontractorInvoices
-    .filter(i => ['APPROVED', 'PARTIALLY_PAID', 'PAID'].includes(i.status))
-    .reduce((s, i) => s + (i.totalAmount || 0), 0);
-  const costs = expenses.reduce((s, e) => s + (e.totalAmount || e.amount || 0), 0) + stockIssueCost + directSupplierCost + subcontractorCost;
+
+  // ════ المصدر الوحيد للحقيقة المالية: قيود اليومية المرحّلة ════
+  // حساب الإيرادات والتكاليف من القيود المرحّلة المرتبطة بالمشروع فقط.
+  // لا نقرأ من الفواتير/المصروفات/السندات مباشرةً — كلها تمر عبر القيود.
+  const jeProfitability = computeProjectProfitabilityFromJE(
+    journalEntries,
+    chartAccounts,
+    project?.name || '',
+    activeProjectId || ''
+  );
+  const revenue = jeProfitability.revenue;
+  const costs = jeProfitability.cost;
 
   const st = PROJECT_STATUS[project.status] || PROJECT_STATUS.PLANNING;
   const badge = <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.color}`}>{lang === 'ar' ? st.ar : st.en}</span>;

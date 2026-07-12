@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, PROJECT_STATUS } from '@/lib/utils-binaa';
+import { buildAccountMap, buildIncomeStatement, totalRevenueFromJournal, totalExpensesFromJournal } from '@/lib/financialEngine';
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
  
@@ -58,7 +59,7 @@ function AlertItem({ icon: Icon, iconColor, label, value, action, onAction, seve
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { lang, setActiveItem, setProjectContext, setClientContext } = useStore();
-  const [data, setData] = useState({ projects: [], equipment: [], employees: [], invoices: [], rentalInvoices: [], expenses: [], purchaseOrders: [], rentalContracts: [] });
+  const [data, setData] = useState({ projects: [], equipment: [], employees: [], invoices: [], rentalInvoices: [], expenses: [], purchaseOrders: [], rentalContracts: [], journalEntries: [], chartAccounts: [] });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -73,6 +74,8 @@ export default function Dashboard() {
       base44.entities.Expense.list('-created_date', 50),
       base44.entities.PurchaseOrder.list('-created_date', 50),
       base44.entities.RentalContract.list('-created_date', 50),
+      base44.entities.JournalEntry.list('-date', 3000),
+      base44.entities.ChartAccount.list('code', 1000),
     ]);
 
     setData({
@@ -84,24 +87,31 @@ export default function Dashboard() {
       expenses: safe(results[5]),
       purchaseOrders: safe(results[6]),
       rentalContracts: safe(results[7]),
+      journalEntries: safe(results[8]),
+      chartAccounts: safe(results[9]),
     });
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
-  const { projects, equipment, employees, invoices, rentalInvoices, expenses, purchaseOrders, rentalContracts } = data;
+  const { projects, equipment, employees, invoices, rentalInvoices, expenses, purchaseOrders, rentalContracts, journalEntries, chartAccounts } = data;
 
   // ─── Derived KPIs ────────────────────────────────────────────────────────
-  const activeProjects    = projects.filter(p => p.status === 'ACTIVE');
-  const totalContractVal  = projects.reduce((s, p) => s + (p.contractValue || 0), 0);
-  // الإيراد = صافي المبيعات قبل الضريبة (subtotal)، لا شامل الضريبة.
-  const collectedRevenue  = invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.subtotal || 0), 0)
-    + rentalInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.subtotal || 0), 0);
-  const pendingRevenue    = invoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0)
-    + rentalInvoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
-  const totalExpenses     = expenses.reduce((s, e) => s + (e.totalAmount || 0), 0);
+  // ════ القاعدة: المصدر الوحيد للحقيقة المالية هو قيود اليومية المرحّلة ════
+  const accountMap = buildAccountMap(chartAccounts);
+  const postedJE = (journalEntries || []).filter(j => j.isPosted);
+  // الإيرادات والمصروفات من القيود المرحّلة فقط (لا من الفواتير/المصروفات)
+  const collectedRevenue  = totalRevenueFromJournal(postedJE, accountMap);
+  const totalExpenses     = totalExpensesFromJournal(postedJE, accountMap);
   const netProfit         = collectedRevenue - totalExpenses;
   const margin            = collectedRevenue > 0 ? Math.round((netProfit / collectedRevenue) * 100) : 0;
+
+  const activeProjects    = projects.filter(p => p.status === 'ACTIVE');
+  const totalContractVal  = projects.reduce((s, p) => s + (p.contractValue || 0), 0);
+  // pendingRevenue (الذمم المدينة) يُحسب من القيود المرحّلة عبر حساب ذمم العملاء
+  // لكن نُبقيه مؤقتاً من الفواتير لأنه يمثل "المستحق غير المحصّل" وهو بيان تشغيلي لا مالي
+  const pendingRevenue    = invoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0)
+    + rentalInvoices.filter(i => ['APPROVED','SENT','PARTIALLY_PAID','OVERDUE'].includes(i.status)).reduce((s, i) => s + ((i.totalAmount || 0) - (i.paidAmount || 0)), 0);
   const availableEquip    = equipment.filter(e => e.status === 'AVAILABLE').length;
   const rentedEquip       = equipment.filter(e => e.status === 'RENTED').length;
   const maintenanceEquip  = equipment.filter(e => e.status === 'MAINTENANCE').length;

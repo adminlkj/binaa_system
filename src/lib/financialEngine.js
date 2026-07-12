@@ -53,6 +53,8 @@ export function flattenPostedLines(journalEntries = []) {
         partyType: l.partyType || '',
         partyId: l.partyId || '',
         partyName: l.partyName || '',
+        costCenter: l.costCenter || '',
+        projectId: l.projectId || '',
       });
     }
   }
@@ -370,4 +372,77 @@ export function payablesBalance(journalEntries = [], accountMap = {}, asOfDate =
     }
   }
   return +(credit - debit).toFixed(2);
+}
+
+/**
+ * يحسب ربحية مشروع من القيود المرحّلة فقط.
+ *
+ * القاعدة: المصدر الوحيد للحقيقة المالية هو قيود اليومية المرحّلة (isPosted=true).
+ * لا نقرأ من سجلات الفواتير أو السندات أو المصروفات مباشرةً.
+ *
+ * الربط بالمشروع يتم عبر:
+ *   1) line.costCenter === projectName  (القناة الرئيسية)
+ *   2) line.projectId === projectId     (إن وُجد)
+ *   3) je.description يحتوي projectName  (احتياطي)
+ *
+ * التصنيف:
+ *   - إيراد: حسابات REVENUE (credit − debit) + ذمم عملاء مدينة (debit)
+ *   - تكلفة: حسابات EXPENSE (debit − credit) + ذمم مورد/مقاولي باطن دائنة (credit)
+ *
+ * @returns { revenue, cost, profit, marginPercent, lineCount }
+ */
+export function computeProjectProfitabilityFromJE(journalEntries = [], accounts = [], projectName = '', projectId = '') {
+  if (!projectName && !projectId) return { revenue: 0, cost: 0, profit: 0, marginPercent: 0, lineCount: 0 };
+
+  // بناء خريطة الحسابات
+  const accountMap = {};
+  (accounts || []).forEach(a => {
+    accountMap[a.code] = a;
+  });
+
+  const lines = flattenPostedLines(journalEntries).filter(l => {
+    // مطابقة المشروع
+    const matchesProject =
+      (projectName && l.costCenter === projectName) ||
+      (projectId && l.projectId === projectId) ||
+      (projectName && (l.description || '').includes(projectName)) ||
+      (projectName && (l.jeDescription || '').includes(projectName));
+    return matchesProject;
+  });
+
+  let revenue = 0;
+  let cost = 0;
+  for (const l of lines) {
+    const acc = accountMap[l.accountCode] || {};
+    const type = acc.accountType || '';
+    const semRole = acc.semanticRole || '';
+
+    if (type === 'REVENUE') {
+      // حسابات الإيراد بطبيعتها دائنة
+      revenue += (l.credit - l.debit);
+    } else if (type === 'EXPENSE') {
+      // حسابات المصروف بطبيعتها مدينة
+      cost += (l.debit - l.credit);
+    } else if (semRole === 'RECEIVABLES') {
+      // ذمم عملاء: مدين = فاتورة مبيعات (إيراد مستحق)
+      if (l.debit > 0) revenue += l.debit;
+      // دائن = تحصيل (لا يُضاف للإيراد)
+    } else if (semRole === 'PAYABLES' || semRole === 'SUB_PAYABLES') {
+      // ذمم مورد/مقاول باطن: دائن = فاتورة (تكلفة)
+      if (l.credit > 0) cost += l.credit;
+      // مدين = سداد (لا يُضاف للتكلفة)
+    }
+    // COGS / Inventory: لا نُضيفها هنا (تُعالج في كشوفات منفصلة)
+  }
+
+  const profit = revenue - cost;
+  const marginPercent = revenue > 0 ? +((profit / revenue) * 100).toFixed(1) : 0;
+
+  return {
+    revenue: +revenue.toFixed(2),
+    cost: +cost.toFixed(2),
+    profit: +profit.toFixed(2),
+    marginPercent,
+    lineCount: lines.length,
+  };
 }

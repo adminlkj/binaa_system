@@ -269,9 +269,8 @@ async function handleUpload(req, res) {
     start = nextStart;
   }
 
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
+  // Store files in the DATABASE as base64 (Render has ephemeral filesystem)
+  // This ensures files survive redeployment.
   let savedFile = null;
   for (const part of parts) {
     const headerEnd = part.indexOf('\r\n\r\n');
@@ -280,17 +279,57 @@ async function handleUpload(req, res) {
     const fileMatch = header.match(/filename="([^"]+)"/);
     if (!fileMatch) continue;
     const originalName = fileMatch[1];
-    const body = part.slice(headerEnd + 4, part.length - 2); // remove trailing \r\n
+    const body = part.slice(headerEnd + 4, part.length - 2);
     const ext = path.extname(originalName).toLowerCase();
     const safeExt = /^[\w.\-]+$/.test(ext) ? ext : '';
-    const fileName = `${crypto.randomUUID()}${safeExt}`;
-    fs.writeFileSync(path.join(uploadsDir, fileName), body);
-    savedFile = `/uploads/${fileName}`;
+    const fileId = crypto.randomUUID();
+    const fileName = `${fileId}${safeExt}`;
+    const base64Data = body.toString('base64');
+    const mimeType = header.match(/content-type:\s*([^\r\n]+)/i)?.[1]?.trim() || 'application/octet-stream';
+
+    // Save to database as a FileRecord entity
+    try {
+      await pool.query(
+        'INSERT INTO entity_records (entity_name, id, created_by_id, data) VALUES ($1, $2, $3, $4::jsonb)',
+        ['FileRecord', fileId, user.id, JSON.stringify({
+          fileName: originalName,
+          storedName: fileName,
+          mimeType,
+          size: body.length,
+          data: base64Data,
+          uploadedAt: new Date().toISOString(),
+        })]
+      );
+      savedFile = `/api/files/${fileId}`;
+    } catch (e) {
+      return sendJson(res, { error: 'Failed to store file: ' + e.message }, 500);
+    }
     break;
   }
 
   if (!savedFile) return sendJson(res, { error: 'No file part found' }, 400);
   return sendJson(res, { file_url: savedFile, url: savedFile });
+}
+
+// Serve files from database
+async function handleFile(req, res, fileId) {
+  try {
+    const { rows } = await pool.query(
+      "SELECT data FROM entity_records WHERE entity_name = 'FileRecord' AND id = $1",
+      [fileId]
+    );
+    if (!rows[0]) return sendJson(res, { error: 'File not found' }, 404);
+    const fileData = rows[0].data;
+    const buffer = Buffer.from(fileData.data, 'base64');
+    res.writeHead(200, {
+      'Content-Type': fileData.mimeType || 'application/octet-stream',
+      'Content-Length': buffer.length,
+      'Cache-Control': 'public, max-age=31536000',
+    });
+    res.end(buffer);
+  } catch (e) {
+    return sendJson(res, { error: 'File not found' }, 404);
+  }
 }
 
 async function handleApi(req, res) {
@@ -300,6 +339,10 @@ async function handleApi(req, res) {
     if (route.startsWith('/api/auth/')) return await handleAuth(req, res, route);
     if (route.startsWith('/api/users/')) return await handleUsers(req, res, route);
     if (route === '/api/upload' && req.method === 'POST') return await handleUpload(req, res);
+    if (route.startsWith('/api/files/') && req.method === 'GET') {
+      const fileId = route.split('/')[3];
+      return await handleFile(req, res, fileId);
+    }
     if (route.startsWith('/api/entities/')) return await handleEntity(req, res, route.split('/'));
     if (route.startsWith('/api/functions/') && req.method === 'POST') {
       const user = await requireUser(req);

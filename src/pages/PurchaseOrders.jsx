@@ -104,8 +104,8 @@ export default function PurchaseOrders() {
       return toast.error(t('المورد مطلوب', 'Supplier required', lang));
     if (!(form.items || []).some(l => (Number(l.orderedQty) || 0) > 0 && l.description))
       return toast.error(t('أضف بنداً واحداً على الأقل بكمية', 'Add at least one item with a quantity', lang));
-    if (!form.warehouseId)
-      return toast.error(t('اختر مخزن الوجهة — يلزم لاستلام المخزون', 'Select a destination warehouse — required for receiving', lang));
+    if (!form.warehouseId && !form.projectId)
+      return toast.error(t('اختر مخزن الوجهة أو مشروع التسليم المباشر', 'Select a destination warehouse or direct-to-project delivery', lang));
     setSaving(true);
     try {
       const data = { ...form, orderNo: form.orderNo || nextCodeFromList(items, 'PO', 'orderNo') };
@@ -233,7 +233,7 @@ export default function PurchaseOrders() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>{t('مخزن الوجهة', 'Destination Warehouse', lang)} *</Label>
+              <Label>{t('مخزن الوجهة (أو مشروع للتسليم المباشر)', 'Destination Warehouse (or project for direct delivery)')}</Label>
               <Select value={form.warehouseId || 'none'} onValueChange={v => { if (v === 'none') { setForm(f => ({ ...f, warehouseId: '', warehouseName: '' })); return; } const w = warehouses.find(w => w.id === v); setForm(f => ({ ...f, warehouseId: v, warehouseName: w?.name || '', projectId: w?.projectId || f.projectId, projectName: w?.projectName || f.projectName })); }}>
                 <SelectTrigger><SelectValue placeholder={t('اختر مخزن', 'Select warehouse', lang)} /></SelectTrigger>
                 <SelectContent>

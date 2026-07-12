@@ -60,7 +60,7 @@ export default function GoodsReceipts() {
   useEffect(() => { load(); }, []);
 
   // أوامر الشراء القابلة للاستلام: لها مخزن وجهة وبنود ولم يكتمل استلامها.
-  const receivableOrders = orders.filter(o => o.warehouseId && (o.items || []).length > 0 && o.receiptStatus !== 'RECEIVED' && o.status !== 'CANCELLED');
+  const receivableOrders = orders.filter(o => (o.items || []).length > 0 && o.receiptStatus !== 'RECEIVED' && o.status !== 'CANCELLED');
 
   const filtered = items.filter(i =>
     !search || i.receiptNo?.toLowerCase().includes(search.toLowerCase()) || i.supplierName?.toLowerCase().includes(search.toLowerCase()) || i.orderNo?.toLowerCase().includes(search.toLowerCase())
@@ -211,7 +211,7 @@ export default function GoodsReceipts() {
                   {receivableOrders.map(o => <SelectItem key={o.id} value={o.id}>{o.orderNo} — {o.supplierName || ''} {o.receiptStatus === 'PARTIAL' ? `(${t('جزئي', 'partial', lang)})` : ''}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {receivableOrders.length === 0 && <p className="text-[11px] text-rose-600">{t('لا توجد أوامر شراء قابلة للاستلام (تحتاج مخزن وجهة وبنوداً)', 'No receivable purchase orders (need a warehouse and items)', lang)}</p>}
+              {receivableOrders.length === 0 && <p className="text-[11px] text-rose-600">{t('لا توجد أوامر شراء قابلة للاستلام (تحتاج بنوداً ولم تكتمل)', 'No receivable purchase orders (need items, not fully received)', lang)}</p>}
             </div>
 
             {selectedPO && (

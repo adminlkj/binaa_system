@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, FileWarning, HandCoins, FileClock, Wrench, RefreshCw, CheckCircle2, Truck, Clock } from 'lucide-react';
+import { Bell, FileWarning, HandCoins, FileClock, Wrench, RefreshCw, CheckCircle2, Truck, Clock, CheckCheck, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useStore } from '@/lib/store';
 import { t, formatCurrency, formatDate } from '@/lib/utils-binaa';
@@ -12,6 +12,10 @@ export default function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
+  // قراءة الإشعارات المقروءة من localStorage
+  const [readIds, setReadIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('binaa-read-notifications') || '[]'); } catch { return []; }
+  });
   const boxRef = useRef(null);
 
   useEffect(() => {
@@ -24,17 +28,19 @@ export default function NotificationCenter() {
     setLoading(true);
     const now = Date.now();
     try {
-      const [invoices, rentalInvoices, rentalContracts, advances, docs, maintenance] = await Promise.all([
+      const [invoices, rentalInvoices, rentalContracts, advances, docs, maintenance, supplierInvoices, payrollRuns] = await Promise.all([
         base44.entities.SalesInvoice.list('-date', 300).catch(() => []),
         base44.entities.RentalInvoice.list('-date', 300).catch(() => []),
         base44.entities.RentalContract.list('-endDate', 300).catch(() => []),
         base44.entities.EmployeeAdvance.list('-date', 300).catch(() => []),
         base44.entities.EmployeeDocument.list('-created_date', 300).catch(() => []),
         base44.entities.MaintenanceRecord.list('-date', 300).catch(() => []),
+        base44.entities.SupplierInvoice.list('-date', 300).catch(() => []),
+        base44.entities.PayrollRun.list('-created_date', 300).catch(() => []),
       ]);
       const items = [];
 
-      // Overdue / unpaid invoices past due date
+      // 1. فواتير عملاء متأخرة
       invoices.forEach(inv => {
         const unpaid = (inv.totalAmount || 0) - (inv.paidAmount || 0);
         const overdue = inv.dueDate && new Date(inv.dueDate).getTime() < now;
@@ -49,7 +55,7 @@ export default function NotificationCenter() {
         }
       });
 
-      // Overdue rental invoices
+      // 2. فواتير تأجير متأخرة
       rentalInvoices.forEach(inv => {
         const unpaid = (inv.totalAmount || 0) - (inv.paidAmount || 0);
         const overdue = inv.dueDate && new Date(inv.dueDate).getTime() < now;
@@ -64,7 +70,22 @@ export default function NotificationCenter() {
         }
       });
 
-      // Expired active rental contracts
+      // 3. فواتير موردين مستحقة السداد
+      supplierInvoices.forEach(inv => {
+        const unpaid = (inv.totalAmount || 0) - (inv.paidAmount || 0);
+        const dueSoon = inv.dueDate && new Date(inv.dueDate).getTime() < now + 7 * DAY;
+        if (unpaid > 0.5 && ['APPROVED', 'PARTIALLY_PAID', 'OVERDUE'].includes(inv.status) && dueSoon) {
+          items.push({
+            id: `sup-${inv.id}`, Icon: FileWarning, tone: 'amber',
+            titleAr: `فاتورة مورد مستحقة: ${inv.invoiceNo}`, titleEn: `Supplier invoice due: ${inv.invoiceNo}`,
+            metaAr: `${inv.supplierName || ''} · ${formatCurrency(unpaid, lang)}`,
+            metaEn: `${inv.supplierName || ''} · ${formatCurrency(unpaid, lang)}`,
+            go: () => store.setActiveItem('supplier-invoices'),
+          });
+        }
+      });
+
+      // 4. عقود تأجير منتهية
       rentalContracts.filter(r => r.status === 'ACTIVE' && r.endDate && new Date(r.endDate).getTime() < now).forEach(r => {
         items.push({
           id: `rent-${r.id}`, Icon: Clock, tone: 'amber',
@@ -75,7 +96,7 @@ export default function NotificationCenter() {
         });
       });
 
-      // Open advances not settled
+      // 5. سلف موظفين مفتوحة
       advances.filter(a => a.status !== 'SETTLED').forEach(a => {
         const rem = (a.amount || 0) - (a.deductedAmount || 0);
         if (rem > 0.5) items.push({
@@ -86,7 +107,7 @@ export default function NotificationCenter() {
         });
       });
 
-      // Documents expiring within 30 days
+      // 6. وثائق تنتهي خلال 30 يوم
       docs.filter(d => d.expiryDate && new Date(d.expiryDate).getTime() < now + 30 * DAY).forEach(d => {
         items.push({
           id: `doc-${d.id}`, Icon: FileClock, tone: 'orange',
@@ -96,13 +117,23 @@ export default function NotificationCenter() {
         });
       });
 
-      // Open maintenance work orders
+      // 7. صيانة قيد التنفيذ
       maintenance.filter(m => m.status === 'OPEN' || m.status === 'IN_PROGRESS').forEach(m => {
         items.push({
           id: `mnt-${m.id}`, Icon: Wrench, tone: 'cyan',
           titleAr: 'صيانة قيد التنفيذ', titleEn: 'Maintenance in progress',
           metaAr: m.description || '', metaEn: m.description || '',
           go: () => { store.setEquipmentContext(m.equipmentId, ''); store.setActiveItem('equipment-workspace'); },
+        });
+      });
+
+      // 8. مسيرات رواتب معلقة
+      payrollRuns.filter(p => p.status === 'DRAFT').forEach(p => {
+        items.push({
+          id: `pay-${p.id}`, Icon: FileClock, tone: 'cyan',
+          titleAr: `مسير رواتب معلق: ${p.code}`, titleEn: `Pending payroll: ${p.code}`,
+          metaAr: `${formatCurrency(p.netAmount || 0, lang)}`, metaEn: `${formatCurrency(p.netAmount || 0, lang)}`,
+          go: () => store.setActiveItem('payroll-runs'),
         });
       });
 
@@ -119,10 +150,33 @@ export default function NotificationCenter() {
     cyan: 'bg-cyan-50 text-cyan-600',
   };
 
-  const count = tasks.length;
+  // الإشعارات غير المقروءة فقط
+  const unread = tasks.filter(t => !readIds.includes(t.id));
+  const count = unread.length;
+
+  // وضع علامة مقروء لإشعار واحد
+  const markRead = (id) => {
+    const newRead = [...new Set([...readIds, id])];
+    setReadIds(newRead);
+    localStorage.setItem('binaa-read-notifications', JSON.stringify(newRead));
+  };
+
+  // وضع علامة مقروء للكل
+  const markAllRead = () => {
+    const allIds = tasks.map(t => t.id);
+    const newRead = [...new Set([...readIds, ...allIds])];
+    setReadIds(newRead);
+    localStorage.setItem('binaa-read-notifications', JSON.stringify(newRead));
+  };
+
+  // حذف إشعار (إخفاؤه نهائياً)
+  const dismiss = (id) => {
+    markRead(id);
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
 
   return (
-    <div className="relative font-body" ref={boxRef}>
+    <div className="relative" ref={boxRef}>
       <button onClick={() => setOpen(o => !o)} className="relative size-9 flex items-center justify-center rounded-lg hover:bg-muted transition-colors">
         <Bell className="size-5" />
         {count > 0 && (
@@ -133,41 +187,71 @@ export default function NotificationCenter() {
       </button>
 
       {open && (
-        <div className="absolute top-full end-0 mt-2 w-80 bg-white border border-border rounded-xl shadow-lg z-50 max-h-[70vh] overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-            <span className="text-sm font-bold">{t('المهام والتنبيهات', 'Tasks & Alerts', lang)}</span>
-            <button onClick={build} className="size-7 flex items-center justify-center rounded-md hover:bg-muted">
-              <RefreshCw className={`size-3.5 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
-            </button>
+        <div className="absolute top-full end-0 mt-2 w-96 bg-white border border-border rounded-xl shadow-lg z-50 max-h-[70vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+            <span className="text-sm font-bold text-foreground">{t('الإشعارات', 'Notifications', lang)}</span>
+            <div className="flex items-center gap-1">
+              {count > 0 && (
+                <button onClick={markAllRead} title={t('تحديد الكل كمقروء', 'Mark all read', lang)}
+                  className="size-7 flex items-center justify-center rounded-md hover:bg-muted transition-colors">
+                  <CheckCheck className="size-4 text-muted-foreground" />
+                </button>
+              )}
+              <button onClick={build} title={t('تحديث', 'Refresh', lang)}
+                className="size-7 flex items-center justify-center rounded-md hover:bg-muted transition-colors">
+                <RefreshCw className={`size-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
+
+          {/* Notifications list */}
           <div className="overflow-y-auto">
             {loading ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">{t('جاري التحميل...', 'Loading...', lang)}</div>
+              <div className="p-8 text-center text-sm text-muted-foreground">{t('جاري التحميل...', 'Loading...', lang)}</div>
             ) : count === 0 ? (
-              <div className="p-8 text-center">
-                <CheckCircle2 className="size-10 mx-auto mb-2 text-emerald-500" />
-                <p className="text-sm text-muted-foreground">{t('لا توجد مهام معلقة', 'All caught up!', lang)}</p>
+              <div className="p-10 text-center">
+                <CheckCircle2 className="size-12 mx-auto mb-3 text-emerald-500" />
+                <p className="text-sm text-muted-foreground">{t('لا توجد إشعارات جديدة', 'No new notifications', lang)}</p>
               </div>
             ) : (
-              tasks.map(item => {
+              unread.map(item => {
                 const Icon = item.Icon;
                 return (
-                  <button key={item.id} onClick={() => { item.go(); setOpen(false); }}
-                    className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-muted/60 text-start border-b border-border/50 last:border-0 transition-colors">
-                    <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${tones[item.tone]}`}>
-                      <Icon className="size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium leading-tight">{lang === 'ar' ? item.titleAr : item.titleEn}</div>
-                      {(lang === 'ar' ? item.metaAr : item.metaEn) && (
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">{lang === 'ar' ? item.metaAr : item.metaEn}</div>
-                      )}
-                    </div>
-                  </button>
+                  <div key={item.id}
+                    className="group w-full flex items-start gap-3 px-4 py-3 hover:bg-muted/40 text-start border-b border-border/50 last:border-0 transition-colors">
+                    <button onClick={() => { item.go(); markRead(item.id); setOpen(false); }}
+                      className="flex items-start gap-3 flex-1 min-w-0 text-start">
+                      <div className={`size-9 rounded-lg flex items-center justify-center shrink-0 ${tones[item.tone]}`}>
+                        <Icon className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium leading-tight text-foreground">{lang === 'ar' ? item.titleAr : item.titleEn}</div>
+                        {(lang === 'ar' ? item.metaAr : item.metaEn) && (
+                          <div className="text-xs text-muted-foreground truncate mt-0.5">{lang === 'ar' ? item.metaAr : item.metaEn}</div>
+                        )}
+                      </div>
+                    </button>
+                    {/* زر الحذف يظهر عند hover */}
+                    <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); }}
+                      title={t('حذف', 'Dismiss', lang)}
+                      className="size-7 flex items-center justify-center rounded-md text-muted-foreground/50 hover:text-rose-600 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 );
               })
             )}
           </div>
+
+          {/* Footer */}
+          {count > 0 && (
+            <div className="px-4 py-2 border-t border-border bg-muted/20">
+              <button onClick={markAllRead} className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1 transition-colors">
+                {t('تحديد الكل كمقروء', 'Mark all as read', lang)}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

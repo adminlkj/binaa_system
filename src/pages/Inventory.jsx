@@ -81,8 +81,16 @@ export default function Inventory() {
   };
 
   const remove = async () => {
-    try { await base44.entities.InventoryItem.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const checks = await Promise.all([
+        base44.entities.StockMovement.filter({ itemId: deleteId }),
+      ]);
+      if (checks.some(list => list.length > 0)) {
+        toast.error(t('لا يمكن حذف صنف له حركات مخزون', 'Cannot delete an item with stock movements', lang));
+        return;
+      }
+      await base44.entities.InventoryItem.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const totalValue = filtered.reduce((s, i) => s + (i.quantity || 0) * (i.unitCost || 0), 0);

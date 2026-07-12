@@ -182,8 +182,7 @@ export default function SupplierPayments() {
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" className="size-8" title={t('معاينة السند', 'Preview', lang)} onClick={() => setPreview(item)}><Printer className="size-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="size-8 text-amber-600" title={t('عكس', 'Reverse', lang)} disabled={reversingId === item.id} onClick={() => reverse(item)}><RotateCcw className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            {item.status === 'CANCELLED' && <span className="text-xs text-rose-600 font-medium px-2">{t('ملغي', 'Cancelled', lang)}</span>}
                           </div>
                         </TableCell>
                       </TableRow>

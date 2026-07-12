@@ -84,12 +84,14 @@ export default function Expenses() {
 
   const openNew  = () => { setEditing(null); setForm(buildDefaultForm()); setDialogOpen(true); };
   const openEdit = (item) => {
+    if (item.isPosted || item.status === 'CANCELLED')
+      return toast.error(t('لا يمكن تعديل مصروف مرّحل — استخدم العكس', 'Cannot edit a posted expense — use reverse', lang));
     setEditing(item);
     setForm({ ...empty, ...item, _vatEnabled: (item.vatAmount || 0) > 0 });
     setDialogOpen(true);
   };
   const askDelete = (item) => {
-    if (item.isPosted)
+    if (item.isPosted || item.status === 'CANCELLED')
       return toast.error(t('لا يمكن حذف مصروف مرّحل — استخدم العكس', 'Cannot delete a posted expense — use reverse', lang));
     setDeleteId(item.id); setConfirmOpen(true);
   };
@@ -234,11 +236,12 @@ export default function Expenses() {
                         <TableCell className="font-medium">{formatCurrency(item.totalAmount, lang)}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            {item.isPosted && (
+                            {(item.isPosted || !item.status || item.status === 'APPROVED') && item.status !== 'CANCELLED' && (
                               <Button variant="ghost" size="icon" className="size-8 text-amber-600" title={t('عكس', 'Reverse', lang)} disabled={reversingId === item.id} onClick={() => reverse(item)}><RotateCcw className="size-3.5" /></Button>
                             )}
-                            {!item.isPosted && <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(item)}><Pencil className="size-3.5" /></Button>}
-                            {!item.isPosted && <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item)}><Trash2 className="size-3.5" /></Button>}
+                            {item.status === 'CANCELLED' && (
+                              <span className="text-xs text-rose-600 font-medium px-2">{t('ملغي', 'Cancelled', lang)}</span>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

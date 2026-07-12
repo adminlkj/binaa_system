@@ -83,8 +83,14 @@ export default function FixedAssets() {
   };
 
   const remove = async () => {
-    try { await base44.entities.FixedAsset.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const asset = items.find(i => i.id === deleteId);
+      if (asset && asset.capitalized) {
+        toast.error(t('لا يمكن حذف أصل تم رسملته — اعكس القيد أولاً', 'Cannot delete a capitalized asset — reverse the entry first', lang));
+        return;
+      }
+      await base44.entities.FixedAsset.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load();
+    } catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   // رسملة الأصل → ترحيل قيد الاقتناء.

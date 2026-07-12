@@ -109,6 +109,16 @@
     },
     "notes": {
       "type": "string"
+    },
+    "isPosted": {
+      "type": "boolean",
+      "default": true,
+      "description": "هل تم ترحيل قيد المصروف — true افتراضياً لأن المصروف يُرحّل قيده فور إنشائه"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["APPROVED", "CANCELLED"],
+      "default": "APPROVED"
     }
   },
   "required": [

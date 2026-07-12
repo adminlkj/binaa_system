@@ -81,7 +81,8 @@ export default function SupplierPayments() {
   const reverse = async (item) => {
     setReversingId(item.id);
     try {
-      const jes = await base44.entities.JournalEntry.filter({ sourceType: 'SupplierPayment', sourceDocumentId: item.id, isPosted: true });
+      const allJE = await base44.entities.JournalEntry.filter({ isPosted: true });
+      const jes = allJE.filter(je => je.sourceType === 'SupplierPayment' && (je.entryNo || '').includes(item.paymentNo));
       if (jes.length === 0) throw new Error(t('لا يوجد قيد مرتبط', 'No linked entry', lang));
       const orig = jes[0];
       const revLines = (orig.lines || []).map(l => ({ ...l, debit: l.credit || 0, credit: l.debit || 0 }));

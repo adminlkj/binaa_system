@@ -115,7 +115,7 @@ export default function SalesInvoices() {
       return toast.error(t('لا يمكن عكس فاتورة عليها مدفوعات — اعكس المدفوعات أولاً', 'Cannot reverse an invoice with payments — reverse payments first', lang));
     setReversingId(item.id);
     try {
-      const jes = await base44.entities.JournalEntry.filter({ sourceDocumentType: 'SALES_INVOICE', sourceDocumentId: item.id, isPosted: true });
+      const jes = await base44.entities.JournalEntry.filter({ sourceType: 'SalesInvoice', sourceDocumentId: item.id, isPosted: true });
       if (jes.length === 0) throw new Error(t('لا يوجد قيد مرتبط بهذه الفاتورة', 'No linked journal entry found', lang));
       const orig = jes[0];
       const revNo = `${orig.entryNo}-REV-1`;

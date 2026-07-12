@@ -174,7 +174,7 @@ export default function SupplierInvoices() {
       return toast.error(t('لا يمكن عكس فاتورة عليها مدفوعات — اعكس المدفوعات أولاً', 'Cannot reverse an invoice with payments — reverse payments first', lang));
     setReversingId(item.id);
     try {
-      const jes = await base44.entities.JournalEntry.filter({ sourceDocumentType: 'SUPPLIER_INVOICE', sourceDocumentId: item.id, isPosted: true });
+      const jes = await base44.entities.JournalEntry.filter({ sourceType: 'SupplierInvoice', sourceDocumentId: item.id, isPosted: true });
       if (jes.length === 0) throw new Error(t('لا يوجد قيد مرتبط', 'No linked entry', lang));
       const orig = jes[0];
       const revLines = (orig.lines || []).map(l => ({ ...l, debit: l.credit || 0, credit: l.debit || 0 }));

@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import TableToolbar from '@/components/shared/TableToolbar';
 import { toast } from 'sonner';
 import { buildAccountMap, buildIncomeStatement, buildVATReport, buildCashFlow, buildBalanceSheet } from '@/lib/financialEngine';
+import { buildTrialBalance } from '@/lib/ledgerEngine';
 
 export default function Reports({ initialReport = 'income', hideSelector = false }) {
   const { lang } = useStore();
@@ -69,6 +70,14 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const totalDebit = postedEntries.reduce((s, j) => s + (j.totalDebit || 0), 0);
   const totalCredit = postedEntries.reduce((s, j) => s + (j.totalCredit || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
+  // Build trial balance rows from posted entries + accounts (was previously undefined → page crash)
+  const tbData = buildTrialBalance(journal, accounts, period);
+  const trialBalanceRows = tbData.map(r => ({
+    code: r.accountCode,
+    name: r.accountName,
+    debit: r.totalDebit,
+    credit: r.totalCredit,
+  }));
 
   // VAT — من القيود المرحّلة
   const vatData = buildVATReport(journal, accountMap, period);

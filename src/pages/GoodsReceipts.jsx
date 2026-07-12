@@ -106,8 +106,20 @@ export default function GoodsReceipts() {
   };
 
   const remove = async () => {
-    try { await base44.entities.GoodsReceipt.delete(deleteId); toast.success(t('تم الحذف', 'Deleted', lang)); load(); }
-    catch { toast.error(t('فشل الحذف', 'Delete failed', lang)); }
+    try {
+      const target = items.find(i => i.id === deleteId);
+      if (!target) throw new Error(t('السند غير موجود', 'Receipt not found', lang));
+      if (target.invoicedStatus === 'INVOICED') {
+        throw new Error(t('لا يمكن حذف سند تمت فوترة — اعكس فاتورة المورد أولاً', 'Cannot delete an invoiced receipt — reverse the supplier invoice first', lang));
+      }
+      const linked = await base44.entities.SupplierInvoice.filter({ goodsReceiptId: deleteId });
+      if (linked && linked.length > 0) {
+        throw new Error(t('لا يمكن الحذف — يوجد فاتورة مورد مرتبطة بهذا السند', 'Cannot delete — a supplier invoice is linked to this receipt', lang));
+      }
+      await base44.entities.GoodsReceipt.delete(deleteId);
+      toast.success(t('تم الحذف', 'Deleted', lang));
+      load();
+    } catch (e) { toast.error(e?.message || t('فشل الحذف', 'Delete failed', lang)); }
   };
 
   const totalReceived = filtered.reduce((s, i) => s + (i.receivedAmount || 0), 0);
@@ -184,7 +196,9 @@ export default function GoodsReceipts() {
                         <TableCell>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" className="size-8" title={t('معاينة السند', 'Preview', lang)} onClick={() => openPreview(item)}><Printer className="size-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="size-8 text-destructive" onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            {item.invoicedStatus !== 'INVOICED' && (
+                              <Button variant="ghost" size="icon" className="size-8 text-destructive" title={t('حذف', 'Delete', lang)} onClick={() => askDelete(item.id)}><Trash2 className="size-3.5" /></Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

@@ -183,11 +183,18 @@ export default function Advances() {
             </div>
             <div className="space-y-1"><Label>{t('التاريخ', 'Date', lang)}</Label><Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
             <div className="space-y-1">
-              <Label>{t('الحالة', 'Status', lang)}</Label>
-              <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(STATUSES).map(([k, v]) => <SelectItem key={k} value={k}>{lang === 'ar' ? v.ar : v.en}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label>{t('الحالة (تلقائي)', 'Status (auto)', lang)}</Label>
+              <Input
+                readOnly
+                className="bg-muted font-medium"
+                value={(() => {
+                  const amt = Number(form.amount) || 0;
+                  const ded = Number(form.deductedAmount) || 0;
+                  const s = ded >= amt && amt > 0 ? 'SETTLED' : ded > 0 ? 'PARTIALLY_DEDUCTED' : 'OPEN';
+                  const st = STATUSES[s];
+                  return lang === 'ar' ? st.ar : st.en;
+                })()}
+              />
             </div>
             <div className="space-y-1"><Label>{t('المبلغ', 'Amount', lang)} *</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
             <div className="space-y-1"><Label>{t('المستقطع', 'Deducted', lang)}</Label><Input type="number" value={form.deductedAmount} onChange={e => setForm(f => ({ ...f, deductedAmount: e.target.value }))} /></div>

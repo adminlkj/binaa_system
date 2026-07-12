@@ -194,7 +194,7 @@ export default function ProjectWorkspace() {
       {tab === 'daily-reports' && <DailyReportsTab projectId={activeProjectId} />}
       {tab === 'billing' && <ProgressBillingTab projectId={activeProjectId} />}
       {tab === 'profitability' && <ProfitabilityTab revenue={revenue} costs={costs} contractValue={project.contractValue || 0} />}
-      {tab === 'statement' && <StatementTab journalEntries={journalEntries} accounts={chartAccounts} />}
+      {tab === 'statement' && <StatementTab journalEntries={journalEntries} accounts={chartAccounts} projectName={project?.name} />}
       {tab === 'documents' && <DocumentsTab projectId={activeProjectId} />}
     </div>
   );

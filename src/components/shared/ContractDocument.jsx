@@ -26,6 +26,7 @@ export default function ContractDocument({ contract, settings, lang, innerRef })
           {infoRow(t('العميل', 'Client', lang), contract.clientName)}
           {infoRow(t('تاريخ البدء', 'Start Date', lang), formatDate(contract.startDate, lang))}
           {infoRow(t('تاريخ الانتهاء', 'End Date', lang), formatDate(contract.endDate, lang))}
+          {contract.status && infoRow(t('الحالة', 'Status', lang), contract.status)}
         </tbody>
       </table>
 

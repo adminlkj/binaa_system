@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  *   - تحصيل: سطور بحساب ذمم عملاء (1121) دائنة مرتبطة بالمشروع
  *   - صرف: سطور بحساب ذمم مورد (2110) مدينة مرتبطة بالمشروع
  */
-export default function StatementTab({ journalEntries = [], accounts = [] }) {
+export default function StatementTab({ journalEntries = [], accounts = [], projectName }) {
   const { lang } = useStore();
 
   // بناء خريطة الحسابات لمعرفة النوع
@@ -29,13 +29,24 @@ export default function StatementTab({ journalEntries = [], accounts = [] }) {
   }, [accounts]);
 
   // استخراج سطور القيود المرحّلة المرتبطة بالمشروع
+  // القيود تُربط بالمشروع عبر:
+  //   1) line.costCenter === projectName
+  //   2) je.description يحتوي على projectName
+  //   3) line.projectId (إن وُجد)
+  //   4) je.sourceDocumentType يشير لمستند مرتبط بالمشروع
   const projectLines = React.useMemo(() => {
+    if (!projectName) return [];
     const posted = (journalEntries || []).filter(je => je.isPosted);
     const lines = [];
     posted.forEach(je => {
+      const jeMatches = (je.description || '').includes(projectName);
       (je.lines || []).forEach(line => {
-        // السطر مرتبط بالمشروع إذا كان projectId موجوداً فيه أو في القيد نفسه
-        if (line.projectId || je.projectId) {
+        const lineMatches =
+          line.costCenter === projectName ||
+          line.projectId ||
+          jeMatches ||
+          (line.description || '').includes(projectName);
+        if (lineMatches) {
           lines.push({
             date: je.date,
             entryNo: je.entryNo,
@@ -50,7 +61,7 @@ export default function StatementTab({ journalEntries = [], accounts = [] }) {
       });
     });
     return lines.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  }, [journalEntries]);
+  }, [journalEntries, projectName]);
 
   // تصنيف كل سطر حسب نوع الحساب المحاسبي
   const lines = projectLines.map(l => {

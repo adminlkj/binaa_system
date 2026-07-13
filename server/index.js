@@ -446,9 +446,16 @@ async function handleApi(req, res) {
           const result = await runStandaloneFunction(functionName, payload, user);
           return sendJson(res, result);
         } catch (error) {
-          console.error(`✗ [${new Date().toISOString()}] /api/functions/${functionName} FAILED: ${error.message}`);
-          if (error.stack) console.error('  ' + error.stack.split('\n').slice(0, 5).join('\n  '));
-          return sendJson(res, { success: false, error: error.message || 'فشل تنفيذ العملية' }, 400);
+          // ميّز بين أخطاء التحقق (4xx) والأخطاء الحقيقية (500)
+          const fnStatus = error.status || 500;
+          if (fnStatus >= 500) {
+            console.error(`✗ [${new Date().toISOString()}] /api/functions/${functionName} FAILED (${fnStatus}): ${error.message}`);
+            if (error.stack) console.error('  ' + error.stack.split('\n').slice(0, 5).join('\n  '));
+          } else {
+            // خطأ تحقق متوقع — فقط رسالة قصيرة بدون stack trace
+            console.log(`  └─ ${functionName} ${fnStatus}: ${error.message}`);
+          }
+          return sendJson(res, { success: false, error: error.message || 'فشل تنفيذ العملية' }, fnStatus < 500 ? fnStatus : 400);
         }
       } catch (authError) {
         return sendJson(res, { error: 'Unauthorized' }, 401);
@@ -456,9 +463,26 @@ async function handleApi(req, res) {
     }
     return sendJson(res, { error: 'Not found' }, 404);
   } catch (error) {
-    console.error(`✗ [${new Date().toISOString()}] ${req.method} ${route} UNHANDLED: ${error.message}`);
-    if (error.stack) console.error('  ' + error.stack.split('\n').slice(0, 5).join('\n  '));
-    return sendJson(res, { error: error.message || 'Server error' }, error.status || 500);
+    // ميّز بين الأخطاء المتوقعة (4xx لها error.status) والأخطاء غير المتوقعة (500)
+    // الأخطاء المتوقعة: 400 validation, 401 unauthorized, 403 forbidden, 404 not found, 409 conflict
+    // هذه لا تُطبع stack trace لأنها سلوك متوقع، فقط رسالة قصيرة
+    // الأخطاء غير المتوقعة: 500 أو بدون status — هذه تُطبع stack trace كامل لاكتشاف الأخطاء
+    const status = error.status || 500;
+    if (status >= 500) {
+      // خطأ حقيقي — اطبع stack trace كامل
+      console.error(`✗ [${new Date().toISOString()}] ${req.method} ${route} UNHANDLED (${status}): ${error.message}`);
+      if (error.stack) console.error('  ' + error.stack.split('\n').slice(0, 5).join('\n  '));
+    } else {
+      // خطأ متوقع (4xx) — لا تطبع stack trace، فقط رسالة قصيرة
+      // الـ res.end wrapper سيطبع السطر العادي بالفعل
+      // فقط اطبع تفاصيل إضافية للـ 4xx إذا كانت مفيدة
+      if (status === 400) {
+        // أخطاء التحقق — مفيدة للتشخيص
+        console.log(`  └─ 400 validation: ${error.message}`);
+      }
+      // 401/403/404/409 — لا تطبع شيئاً إضافياً، السطر العادي كافٍ
+    }
+    return sendJson(res, { error: error.message || 'Server error' }, status);
   }
 }
 

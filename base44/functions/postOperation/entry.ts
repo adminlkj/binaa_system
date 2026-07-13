@@ -251,6 +251,7 @@ function buildSalesInvoiceJE({ invoiceNo, date, clientId, clientName, subtotal, 
   const rev = invoiceType === 'RENTAL' ? ACCOUNTS.REVENUE_RENTAL : invoiceType === 'SERVICE' ? ACCOUNTS.REVENUE_SERVICE : ACCOUNTS.REVENUE_CONSTRUCTION;
   // مركز التكلفة = اسم المشروع لربط القيد بالمشروع في تقارير الربحية ومراكز التكلفة
   const costCenter = projectName || '';
+  console.log(`[buildSalesInvoiceJE] invoiceNo=${invoiceNo} projectName="${projectName}" costCenter="${costCenter}"`);
   return {
     entryNo: `JE-SINV-${invoiceNo}`, date, description: `فاتورة مبيعات ${invoiceNo} — ${clientName}${projectName ? ` — ${projectName}` : ''}`, sourceType: 'SalesInvoice', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,

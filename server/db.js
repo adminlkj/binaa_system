@@ -116,6 +116,20 @@ export async function initDb() {
   `);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_registration_requests_pending_email ON registration_requests (email) WHERE status = 'PENDING';`);
 
+  // جدول رموز استعادة كلمة المرور — يخزّن الرمز مع تاريخ انتهاء (ساعة واحدة)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id uuid PRIMARY KEY,
+      user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      email text NOT NULL,
+      token text NOT NULL UNIQUE,
+      used boolean NOT NULL DEFAULT false,
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens (token) WHERE used = false;`);
+
   await pool.query(`UPDATE app_users SET app_role = 'OWNER' WHERE role = 'admin' AND app_role = 'VIEWER';`);
 
   const ownerPasswordHash = hashPassword(SYSTEM_OWNER_PASSWORD);

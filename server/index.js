@@ -105,8 +105,54 @@ async function handleAuth(req, res, route) {
     return sendJson(res, rows[0]);
   }
 
-  if (route === '/api/auth/reset-request' && req.method === 'POST') return sendJson(res, { success: true });
-  if (route === '/api/auth/reset' && req.method === 'POST') return sendJson(res, { success: true });
+  if (route === '/api/auth/reset-request' && req.method === 'POST') {
+    const email = String(body.email || '').toLowerCase().trim();
+    if (!email) return sendJson(res, { error: 'البريد الإلكتروني مطلوب' }, 400);
+    // ابحث عن المستخدم — لا تكشف للمستخدم ما إذا كان البريد موجوداً أم لا (أمن)
+    const { rows } = await pool.query('SELECT id, email, full_name FROM app_users WHERE email = $1 AND is_active = true LIMIT 1', [email]);
+    const userRow = rows[0];
+    if (userRow) {
+      // أنشئ رمزاً عشوائياً آمناً (32 بايت = 64 hex)
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // ساعة واحدة
+      await pool.query(
+        'INSERT INTO password_reset_tokens (id, user_id, email, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
+        [crypto.randomUUID(), userRow.id, userRow.email, token, expiresAt]
+      );
+      // بما لا نملك خدمة بريد إلكتروني، نُسلّم الرمز للمالك فقط عبر endpoint خاص
+      // والروابط تظهر في شاشة "طلبات استعادة كلمة المرور" للمدير
+      console.log(`📩 Password reset token generated for ${userRow.email}: ${token.substring(0, 16)}... (expires ${expiresAt.toISOString()})`);
+    }
+    // دائماً نرجع success حتى لا نكشف ما إذا كان البريد مسجلاً
+    return sendJson(res, { success: true });
+  }
+
+  if (route === '/api/auth/reset' && req.method === 'POST') {
+    const { resetToken, newPassword } = body;
+    if (!resetToken || !newPassword) return sendJson(res, { error: 'الرمز وكلمة المرور الجديدة مطلوبة' }, 400);
+    if (String(newPassword).length < 6) return sendJson(res, { error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' }, 400);
+    // ابحث عن الرمز — صالح وغير مستخدم وغير منتهي
+    const { rows } = await pool.query(
+      `SELECT t.*, u.id AS user_id, u.email, u.token_version
+       FROM password_reset_tokens t
+       JOIN app_users u ON u.id = t.user_id
+       WHERE t.token = $1 AND t.used = false AND t.expires_at > now()
+       LIMIT 1`,
+      [resetToken]
+    );
+    const tokenRow = rows[0];
+    if (!tokenRow) return sendJson(res, { error: 'رمز الاستعادة غير صالح أو منتهي الصلاحية' }, 400);
+    // حدّث كلمة المرور
+    const newHash = hashPassword(String(newPassword));
+    await pool.query(
+      'UPDATE app_users SET password_hash = $2, token_version = token_version + 1, updated_date = now() WHERE id = $1',
+      [tokenRow.user_id, newHash]
+    );
+    // علّم الرمز كمستخدم
+    await pool.query('UPDATE password_reset_tokens SET used = true WHERE id = $1', [tokenRow.id]);
+    console.log(`✓ Password reset successful for ${tokenRow.email}`);
+    return sendJson(res, { success: true });
+  }
   if (route === '/api/auth/resend-otp' && req.method === 'POST') return sendJson(res, { success: true });
 
   return sendJson(res, { error: 'Not found' }, 404);
@@ -139,6 +185,29 @@ async function handleUsers(req, res, route) {
   if (route === '/api/users/registration-requests/list' && req.method === 'POST') {
     const { rows } = await pool.query(`SELECT id, email, full_name AS "fullName", status, requested_date AS "requestedDate" FROM registration_requests WHERE status = 'PENDING' ORDER BY requested_date ASC`);
     return sendJson(res, rows);
+  }
+
+  // قائمة رموز استعادة كلمة المرور — للمدير لمراجعتها وإرسال الرابط يدوياً
+  if (route === '/api/users/password-reset-tokens/list' && req.method === 'POST') {
+    const { rows } = await pool.query(`
+      SELECT t.id, t.email, t.token, t.used, t.expires_at, t.created_at, u.full_name
+      FROM password_reset_tokens t
+      LEFT JOIN app_users u ON u.id = t.user_id
+      WHERE t.used = false AND t.expires_at > now()
+      ORDER BY t.created_at DESC
+      LIMIT 50
+    `);
+    return sendJson(res, rows.map(r => ({
+      id: r.id,
+      email: r.email,
+      fullName: r.full_name,
+      // نُرجع الرمز كاملاً ليتمكن المدير من بناء رابط الاستعادة يدوياً
+      // (لأننا لا نملك خدمة بريد إلكتروني)
+      resetToken: r.token,
+      expiresAt: r.expires_at,
+      createdAt: r.created_at,
+      used: r.used,
+    })));
   }
 
   if (route === '/api/users/registration-requests/approve' && req.method === 'POST') {

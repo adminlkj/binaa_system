@@ -13,13 +13,14 @@ import SmartEntityCard from '@/components/shared/SmartEntityCard';
 import InviteUserDialog from '@/components/users/InviteUserDialog';
 import EditUserDialog from '@/components/users/EditUserDialog';
 import ApproveRegistrationDialog from '@/components/users/ApproveRegistrationDialog';
-import { UserPlus, Search, Pencil, ShieldAlert, Users as UsersIcon, Crown, Ban, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { UserPlus, Search, Pencil, ShieldAlert, Users as UsersIcon, Crown, Ban, CheckCircle2, Clock, XCircle, KeyRound, Copy } from 'lucide-react';
 
 export default function Users() {
   const { lang } = useStore();
   const { toast } = useToast();
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [resetTokens, setResetTokens] = useState([]);
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -31,18 +32,38 @@ export default function Users() {
     setLoading(true);
     try {
       const current = await base44.auth.me();
-      const [list, pendingRequests] = await Promise.all([
+      const [list, pendingRequests, pendingResets] = await Promise.all([
         base44.entities.User.list('-created_date', 200),
         current.role === 'admin' ? base44.users.listRegistrationRequests() : Promise.resolve([]),
+        current.role === 'admin' ? listResetTokens() : Promise.resolve([]),
       ]);
       setUsers(list);
       setRequests(pendingRequests);
+      setResetTokens(pendingResets);
       setMe(current);
     } catch (e) {
       toast({ title: t('تعذر تحميل المستخدمين', 'Failed to load users', lang), description: e.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
+  };
+
+  // جلب رموز استعادة كلمة المرور المعطّلة (للإدارة اليدوية — لا خدمة بريد)
+  const listResetTokens = async () => {
+    try {
+      const r = await fetch('/api/users/password-reset-tokens/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('binaa-auth-token')}` },
+      });
+      const d = await r.json();
+      return Array.isArray(d) ? d : [];
+    } catch { return []; }
+  };
+
+  const copyResetLink = (token) => {
+    const link = `${window.location.origin}/reset-password?token=${token}`;
+    navigator.clipboard.writeText(link);
+    toast({ title: t('تم نسخ الرابط', 'Link copied', lang), description: link });
   };
 
   useEffect(() => { load(); }, []);
@@ -173,6 +194,49 @@ export default function Users() {
           </div>
         </CardContent>
       </Card>
+
+      {/* طلبات استعادة كلمة المرور — للمدير لمراجعتها وإرسال الرابط يدوياً */}
+      {isAdmin && resetTokens.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="size-4 text-violet-600" />
+              <h2 className="font-semibold text-sm">{t('طلبات استعادة كلمة المرور', 'Password Reset Requests', lang)}</h2>
+              <span className="text-xs text-muted-foreground">({t('لا خدمة بريد — انسخ الرابط وأرسله للمستخدم', 'No email service — copy link and send to user', lang)})</span>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('البريد', 'Email', lang)}</TableHead>
+                    <TableHead>{t('الاسم', 'Name', lang)}</TableHead>
+                    <TableHead>{t('تاريخ الطلب', 'Requested at', lang)}</TableHead>
+                    <TableHead>{t('تنتهي في', 'Expires at', lang)}</TableHead>
+                    <TableHead className="text-end">{t('إجراءات', 'Actions', lang)}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {resetTokens.map(rt => (
+                    <TableRow key={rt.id}>
+                      <TableCell dir="ltr" className="text-sm font-medium">{rt.email}</TableCell>
+                      <TableCell className="text-sm">{rt.fullName || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{rt.createdAt ? new Date(rt.createdAt).toLocaleString('ar-SA') : '—'}</TableCell>
+                      <TableCell className="text-sm text-amber-600">{rt.expiresAt ? new Date(rt.expiresAt).toLocaleString('ar-SA') : '—'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => copyResetLink(rt.resetToken)} className="gap-1">
+                            <Copy className="size-3.5" />{t('نسخ رابط الاستعادة', 'Copy reset link', lang)}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-4">

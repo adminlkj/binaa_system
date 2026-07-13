@@ -16,7 +16,11 @@ function entityApi(entityName, user) {
     filter: (query = {}, sort = '-created_date', limit = 500) => listEntity(entityName, { query, sort, limit }),
     get: (id) => getEntity(entityName, id),
     create: (data) => createEntity(entityName, data, user),
-    update: (id, data) => updateEntity(entityName, id, data),
+    // postOperation calls .update(id, {status:...}) internally to change status.
+    // We pass {internal:true} so updateEntity skips assertNoDirectStatusChange.
+    // External API PATCH (from frontend) goes through server/index.js handleEntity
+    // which calls updateEntity WITHOUT options, so the status-change guard applies.
+    update: (id, data) => updateEntity(entityName, id, data, { internal: true }),
     delete: (id) => deleteEntity(entityName, id),
     bulkCreate: (items) => bulkCreateEntity(entityName, items, user),
     bulkUpdate: (items) => bulkUpdateEntity(entityName, items),

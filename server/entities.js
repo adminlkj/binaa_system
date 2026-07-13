@@ -118,14 +118,18 @@ export async function createEntity(entityName, data, user) {
   return publicRecord(rows[0]);
 }
 
-export async function updateEntity(entityName, id, data) {
+export async function updateEntity(entityName, id, data, options = {}) {
   const current = await getEntity(entityName, id);
   if (!current) throw validationError('السجل غير موجود');
   // CRITICAL: block PATCH on posted/approved documents
   await assertNotImmutable(entityName, current, data);
-  // CRITICAL: block direct status transitions (only postOperation should change status)
-  // This prevents PATCH {status:'APPROVED'} from bypassing JE creation
-  await assertNoDirectStatusChange(entityName, current, data);
+  // CRITICAL: block direct status transitions EXCEPT when called by postOperation
+  // (postOperation uses 'internal: true' option to bypass this check)
+  // postOperation is the ONLY legitimate way to change status because it
+  // also creates/reverses JEs and updates related accounts.
+  if (!options.internal) {
+    await assertNoDirectStatusChange(entityName, current, data);
+  }
   await assertOpenFiscalYear(entityName, { ...(current || {}), ...(data || {}) });
   await validateEntityData(entityName, { ...current, ...data }, current);
   const cleanData = { ...data };

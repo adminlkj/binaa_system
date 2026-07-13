@@ -2,6 +2,7 @@ import React from 'react';
 import { Phone, Mail, Globe, MapPin } from 'lucide-react';
 import { t, formatNumber, formatDate, RIYAL_SYMBOL } from '@/lib/utils-binaa';
 import { buildZatcaQrPayload, zatcaQrImageUrl } from '@/lib/zatcaQr';
+import CompanyHeader from '@/components/shared/CompanyHeader';
 
 // عرض مبلغ مع رمز الريال مكبّراً قليلاً عن الرقم. دائماً LTR ليبقى الرقم والرمز
 // بترتيب صحيح ومحاذاة ثابتة داخل الجداول والملخّص المالي.
@@ -105,38 +106,25 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
         textAlign: lang === 'ar' ? 'right' : 'left',
       }}
     >
-      {/* صورة هيدر مخصّصة إن رُفعت */}
-      {settings.headerImageUrl && (
+      {/* الهيدر: إن رفع المستخدم headerImageUrl تُستخدم صورته فقط،
+          وإلا يُعرض هيدر افتراضي مبني من بيانات الشركة،
+          وإن لم تُدخل بيانات الشركة فلا يُعرض أي هيدر. */}
+      {settings.headerImageUrl ? (
         <img src={settings.headerImageUrl} alt="header" style={{ width: '100%', display: 'block', marginBottom: 16 }} />
+      ) : (
+        <CompanyHeader
+          settings={settings}
+          lang={lang}
+          docTitle={t('فاتورة ضريبية', 'Tax Invoice', lang)}
+          docSubtitle={settings.vatNumber ? `${t('الرقم الضريبي', 'VAT No.', lang)}: ${settings.vatNumber}` : null}
+        />
       )}
 
-      {/* رأس الفاتورة — الشعار واسم الشركة يمين، شارة "فاتورة ضريبية" يسار */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, paddingBottom: 14 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {settings.logoUrl && (
-            <img src={settings.logoUrl} alt="logo" style={{ height: 64, width: 64, objectFit: 'contain' }} />
-          )}
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2, color: accent }} dir="rtl">{settings.companyName}</div>
-            {settings.companyNameEn && <div dir="ltr" style={{ fontSize: 12, fontWeight: 600, letterSpacing: 0.5, color: '#6b7280' }}>{settings.companyNameEn}</div>}
-          </div>
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ background: primary, color: '#fff', borderRadius: 10, padding: '10px 22px', fontSize: 15, fontWeight: 800 }}>
-            {'فاتورة ضريبية'}
-            <span style={{ display: 'block', fontSize: 11, fontWeight: 600, opacity: 0.9, letterSpacing: 1 }}>TAX INVOICE</span>
-          </div>
-          {settings.vatNumber && (
-            <div style={{ fontSize: 9.5, color: labelColor, marginTop: 4 }}>
-              {'الرقم الضريبي / VAT No.'}
-              <span dir="ltr" style={{ display: 'block', fontWeight: 700, color: accent }}>{settings.vatNumber}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* خط ذهبي فاصل تحت الهيدر */}
-      <div style={{ height: 3, background: primary, borderRadius: 2, marginBottom: 16 }} />
+      {/* إن رُفع headerImageUrl لا حاجة لشريط "فاتورة ضريبية" المنفصل
+          (الصورة تخدم الغرض). إن لم يُرفع، CompanyHeader عرض العنوان. */}
+      {!settings.headerImageUrl && (
+        <div style={{ height: 3, background: primary, borderRadius: 2, marginBottom: 16, marginTop: -13 }} />
+      )}
 
       {/* بطاقتا العميل (يمين) وتفاصيل الفاتورة (يسار) */}
       <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>

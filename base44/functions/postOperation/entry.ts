@@ -86,6 +86,7 @@ const RULES = {
     { m: 'وصف المصروف مطلوب', t: (d) => !isBlank(d.description) },
     { m: 'تاريخ المصروف مطلوب', t: (d) => !isBlank(d.date) },
     { m: 'المبلغ يجب أن يكون أكبر من صفر', t: (d) => num(d.amount) > 0 },
+    { m: 'اختيار حساب السداد (نقدي/بنك) مطلوب — لا يمكن ترحيل مصروف بلا حساب', t: (d) => !isBlank(d.paymentAccountCode) },
   ],
   RENTAL_CONTRACT: [
     { m: 'رقم العقد مطلوب', t: (d) => !isBlank(d.contractNo) },

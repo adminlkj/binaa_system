@@ -120,9 +120,12 @@ export async function createEntity(entityName, data, user) {
 
 export async function updateEntity(entityName, id, data) {
   const current = await getEntity(entityName, id);
-  if (!current) throw new Error('السجل غير موجود');
+  if (!current) throw validationError('السجل غير موجود');
   // CRITICAL: block PATCH on posted/approved documents
   await assertNotImmutable(entityName, current, data);
+  // CRITICAL: block direct status transitions (only postOperation should change status)
+  // This prevents PATCH {status:'APPROVED'} from bypassing JE creation
+  await assertNoDirectStatusChange(entityName, current, data);
   await assertOpenFiscalYear(entityName, { ...(current || {}), ...(data || {}) });
   await validateEntityData(entityName, { ...current, ...data }, current);
   const cleanData = { ...data };
@@ -140,6 +143,9 @@ export async function updateEntity(entityName, id, data) {
 export async function deleteEntity(entityName, id) {
   const current = await getEntity(entityName, id);
   if (!current) return { success: true }; // already deleted — idempotent
+  // CRITICAL: block DELETE on posted/approved documents (not just referential children)
+  // This prevents deleting an APPROVED SalesInvoice and leaving orphan JEs
+  await assertNotDeletable(entityName, current);
   // CRITICAL: referential integrity — block delete if children exist
   await assertNoChildren(entityName, current);
   await pool.query('DELETE FROM entity_records WHERE entity_name = $1 AND id = $2', [entityName, id]);
@@ -388,5 +394,78 @@ async function assertNoChildren(entityName, current) {
   }
   if (entityName === 'JournalEntry' && current?.isPosted === true) {
     throw validationError('لا يمكن حذف قيد مرحّل — استخدم العكس (REVERSAL)');
+  }
+}
+
+/**
+ * المستندات المالية التي لا يجوز تغيير حالتها مباشرةً عبر PATCH.
+ * فقط postOperation يسمح بتغيير الحالة (لأنه يُنشئ/يُلغي القيود).
+ */
+const STATUS_CONTROLLED_DOCUMENTS = new Set([
+  'SalesInvoice', 'SupplierInvoice', 'RentalInvoice', 'SubcontractorInvoice',
+  'ClientPayment', 'SupplierPayment', 'SubcontractorPayment',
+  'Expense', 'PayrollRun', 'GoodsReceipt',
+  'StockMovement', 'FixedAsset',
+  'Contract', 'RentalContract', 'PurchaseOrder', 'PurchaseRequest',
+  'ChangeOrder', 'ProgressBilling', 'SubcontractorContract',
+]);
+
+/**
+ * يمنع تغيير حقل status عبر PATCH مباشرةً على المستندات المالية.
+ * فقط postOperation يسمح بتغيير الحالة لأنه:
+ *   - يُنشئ القيد عند الانتقال لـ APPROVED
+ *   - يُنشئ قيد عكسي عند الانتقال لـ CANCELLED
+ *   - يُحدّث ذمم/نقدية عند الانتقال لـ PAID
+ *
+ * بدون هذا المنع، يمكن للمستخدم تجاوز إنشاء القيود بـ:
+ *   PATCH /api/entities/SalesInvoice/update/{id} { status: 'APPROVED' }
+ *   ← ينشئ فاتورة معتمدة بدون قيد محاسبي!
+ */
+async function assertNoDirectStatusChange(entityName, current, newData) {
+  if (!STATUS_CONTROLLED_DOCUMENTS.has(entityName)) return;
+  if (!newData || newData.status === undefined) return;
+  if (newData.status === current?.status) return; // no change — OK
+
+  // Allow only postOperation to change status. Direct PATCH is blocked.
+  // Exception: we already allow status-only PATCH in assertNotImmutable for
+  // the reverse flow (APPROVED → CANCELLED). But that's still via PATCH.
+  // To be safe, we allow status change ONLY if current status is in
+  // IMMUTABLE_STATUSES (i.e., already posted). DRAFT → APPROVED via PATCH
+  // is always blocked.
+  if (current?.status && IMMUTABLE_STATUSES.has(current.status)) {
+    // Allow status change from APPROVED/PAID/... to CANCELLED (reverse)
+    // This is the only allowed status transition via direct PATCH.
+    if (newData.status === 'CANCELLED') return;
+    // Any other status change on an immutable doc is blocked
+    throw validationError(`لا يمكن تغيير حالة مستند "${current.status}" مباشرةً إلى "${newData.status}" — استخدم العكس أو الإلغاء عبر الأزرار المخصصة`);
+  }
+
+  // Block DRAFT → APPROVED/PAID/POSTED via direct PATCH
+  // (this would bypass JE creation in postOperation)
+  if (current?.status === 'DRAFT' || !current?.status) {
+    if (IMMUTABLE_STATUSES.has(newData.status)) {
+      throw validationError(`لا يمكن تغيير حالة المستند من "${current?.status || 'DRAFT'}" إلى "${newData.status}" مباشرةً — استخدم زر الاعتماد`);
+    }
+  }
+}
+
+/**
+ * المستندات التي لا يجوز حذفها إذا كانت مرحّلة/معتمدة.
+ * حتى لو لم يكن لها أبناء مرجعيون، حذفها يترك القيود يتيمة.
+ */
+async function assertNotDeletable(entityName, current) {
+  if (!POSTED_DOCUMENTS.has(entityName)) return;
+
+  // JournalEntry posted → must use REVERSAL
+  if (entityName === 'JournalEntry' && current?.isPosted === true) {
+    throw validationError('لا يمكن حذف قيد مرحّل — استخدم العكس (REVERSAL)');
+  }
+
+  // Other posted documents: block delete if status is in IMMUTABLE_STATUSES
+  // (APPROVED, PAID, POSTED, REVERSED, CANCELLED, CLOSED, RECEIVED)
+  // Only DRAFT documents can be deleted directly.
+  const status = current?.status;
+  if (status && IMMUTABLE_STATUSES.has(status)) {
+    throw validationError(`لا يمكن حذف مستند بحالة "${status}" — اعكسه أولاً ثم احذفه`);
   }
 }

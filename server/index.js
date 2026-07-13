@@ -22,7 +22,14 @@ async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString('utf8');
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    const err = new Error('صيغة JSON غير صالحة في نص الطلب');
+    err.status = 400;
+    throw err;
+  }
 }
 
 function serveStatic(req, res) {
@@ -83,9 +90,11 @@ async function handleAuth(req, res, route) {
 
   if (route === '/api/auth/login' && req.method === 'POST') {
     const email = String(body.email || '').toLowerCase().trim();
+    const password = body.password || '';
+    if (!email || !password) return sendJson(res, { error: 'البريد الإلكتروني وكلمة المرور مطلوبة' }, 400);
     const { rows } = await pool.query('SELECT * FROM app_users WHERE email = $1', [email]);
     const user = rows[0];
-    if (!user || !verifyPassword(body.password || '', user.password_hash)) return sendJson(res, { error: 'Invalid email or password' }, 401);
+    if (!user || !verifyPassword(password, user.password_hash)) return sendJson(res, { error: 'Invalid email or password' }, 401);
     if (user.is_active === false) return sendJson(res, { error: 'Account is inactive' }, 403);
     const { rows: publicRows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [user.id]);
     req._user = publicRows[0];  // for log attribution

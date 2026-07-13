@@ -6,6 +6,7 @@ import { initDb, pool } from './db.js';
 import { hashPassword, verifyPassword, signToken, requireUser, isFirstUser } from './auth.js';
 import { bulkCreateEntity, bulkUpdateEntity, createEntity, deleteEntity, deleteManyEntity, getEntity, listEntity, loadSchema, updateEntity, updateManyEntity } from './entities.js';
 import { runStandaloneFunction } from './functionRunner.js';
+import { sendEmail, buildResetEmailHTML } from './emailService.js';
 
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
@@ -128,9 +129,26 @@ async function handleAuth(req, res, route) {
         'INSERT INTO password_reset_tokens (id, user_id, email, token, expires_at) VALUES ($1, $2, $3, $4, $5)',
         [crypto.randomUUID(), userRow.id, userRow.email, token, expiresAt]
       );
-      // بما لا نملك خدمة بريد إلكتروني، نُسلّم الرمز للمالك فقط عبر endpoint خاص
-      // والروابط تظهر في شاشة "طلبات استعادة كلمة المرور" للمدير
-      console.log(`📩 Password reset token generated for ${userRow.email}: ${token.substring(0, 16)}... (expires ${expiresAt.toISOString()})`);
+      // أرسل بريد استعادة كلمة المرور
+      // اجلب اسم الشركة من الإعدادات للترويسة
+      let companyName = 'بِنَاء ERP';
+      try {
+        const { rows: settingsRows } = await pool.query("SELECT data->>'companyName' AS name FROM entity_records WHERE entity_name='CompanySettings' LIMIT 1");
+        if (settingsRows[0]?.name) companyName = settingsRows[0].name;
+      } catch {}
+      const html = buildResetEmailHTML({ token, userEmail: userRow.email, companyName });
+      const mailResult = await sendEmail({
+        to: userRow.email,
+        subject: 'استعادة كلمة المرور — ' + companyName,
+        html,
+      });
+      if (mailResult.success) {
+        console.log(`📩 Password reset email sent to ${userRow.email} (id=${mailResult.id})`);
+      } else {
+        // فشل الإرسال — سجّل الرمز للمدير ليراه في شاشة المستخدمين
+        console.log(`📩 Password reset token generated for ${userRow.email}: ${token.substring(0, 16)}... (email failed: ${mailResult.error})`);
+        console.log(`   Reset link: ${process.env.APP_BASE_URL || 'https://binaa-system-1.onrender.com'}/reset-password?token=${token}`);
+      }
     }
     // دائماً نرجع success حتى لا نكشف ما إذا كان البريد مسجلاً
     return sendJson(res, { success: true });

@@ -17,11 +17,17 @@ export function flattenPostedLines(entries) {
         entryNo: je.entryNo,
         date: je.date,
         entryDescription: je.description,
+        sourceType: je.sourceType || '',
         accountCode: line.accountCode,
         accountName: line.accountName,
         debit: Number(line.debit) || 0,
         credit: Number(line.credit) || 0,
         description: line.description,
+        costCenter: line.costCenter || '',
+        projectId: line.projectId || '',
+        partyType: line.partyType || '',
+        partyId: line.partyId || '',
+        partyName: line.partyName || '',
       });
     }
   }
@@ -118,72 +124,114 @@ export function buildAccountLedger(entries, accountCode, period = {}) {
  *
  * period اختياري { from, to } لتصفية حسب تاريخ المستند.
  */
-export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoices = [], salesInvoices = [], supplierInvoices = [] }, period = {}) {
+/**
+ * تحليل مراكز التكلفة — من القيود المرحّلة فقط.
+ *
+ * القاعدة: المصدر الوحيد للحقيقة المالية هو قيود اليومية المرحّلة (isPosted=true).
+ * لا نقرأ من سجلات المصروفات/الفواتير/الموردين مباشرةً.
+ *
+ * الربط بالمشروع يتم عبر:
+ *   1) line.costCenter === project.name (القناة الرئيسية)
+ *   2) line.projectId === project.id
+ *
+ * التصنيف:
+ *   - إيراد: حسابات REVENUE (credit − debit)
+ *   - تكلفة: حسابات EXPENSE (debit − credit)
+ *   - ذمم عملاء مدينة: تُحسب إيراداً مستحقاً (RECEIVABLES.debit)
+ *   - ذمم مورد/مقاول باطن دائنة: تُحسب تكلفة (PAYABLES/SUB_PAYABLES.credit)
+ *
+ * @param {{ projects?: any[], journalEntries?: any[], chartAccounts?: any[] }} data
+ * @param {{ from?: string, to?: string }} period
+ */
+export function buildCostCenterAnalysis({ projects = [], journalEntries = [], chartAccounts = [] }, period = {}) {
   const inPeriod = (d) => (!period.from || (d && d >= period.from)) && (!period.to || (d && d <= period.to));
 
-  // الحالات المعتمدة محاسبياً — موحّدة في كل التقارير
-  const RECOGNIZED_STATUSES = ['APPROVED', 'SENT', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
-  const SUB_RECOGNIZED_STATUSES = ['APPROVED', 'PARTIALLY_PAID', 'PAID'];
+  // بناء خريطة الحسابات
+  const accountMap = {};
+  (chartAccounts || []).forEach(a => { accountMap[a.code] = a; });
 
-  // مركز لكل مشروع + مركز "غير مخصّص" للمصروفات بلا مشروع.
+  // تهيئة المراكز من قائمة المشاريع
   const centers = {};
-  const ensure = (projectId, name, code) => {
-    const key = projectId || '__unassigned__';
+  const ensure = (project, fallbackName) => {
+    const key = project?.id || `__${fallbackName || 'unassigned'}__`;
     if (!centers[key]) {
       centers[key] = {
-        projectId: projectId || null,
-        code: code || (projectId ? '' : '—'),
-        name: name || '',
+        projectId: project?.id || null,
+        code: project?.costCenter || project?.code || (project?.id ? '' : '—'),
+        name: project?.name || fallbackName || '',
         cost: 0,
         revenue: 0,
         expenseCost: 0,
         subCost: 0,
         supplierCost: 0,
+        _project: project,
       };
     }
     return centers[key];
   };
 
-  // تهيئة مراكز من قائمة المشاريع (تظهر حتى لو بلا حركة).
+  // تهيئة مركز لكل مشروع معروف
   for (const p of projects) {
-    ensure(p.id, p.nameAr || p.name, p.costCenter || p.code);
+    ensure(p, p.name);
   }
+  // مركز "غير مخصّص" للحركات بلا مركز تكلفة
+  const unassignedProject = { id: null, name: 'غير مخصّص', code: '—' };
 
-  // المصروفات — استخدام totalAmount (الإجمالي شامل الضريبة إن وُجد، وإلا amount)
-  for (const e of expenses) {
-    if (!inPeriod(e.date)) continue;
-    const c = ensure(e.projectId, e.projectName || (e.projectId ? '' : 'غير مخصّص'));
-    const amt = Number(e.totalAmount || e.amount) || 0;
-    c.cost += amt; c.expenseCost += amt;
-  }
+  // المرور على سطور القيود المرحّلة في الفترة
+  const lines = flattenPostedLines(journalEntries).filter(l => inPeriod(l.date));
+  for (const l of lines) {
+    // تحديد المشروع المرتبط بالسطر
+    let project = null;
+    // 1) costCenter === project.name
+    if (l.costCenter) {
+      project = projects.find(p => p.name === l.costCenter || p.costCenter === l.costCenter);
+    }
+    // 2) projectId === project.id
+    if (!project && l.projectId) {
+      project = projects.find(p => p.id === l.projectId);
+    }
+    const c = ensure(project, l.costCenter || (project ? '' : 'غير مخصّص'));
+    if (!project && !l.costCenter) {
+      // ضمّ لمركز "غير مخصّص"
+      c.name = c.name || 'غير مخصّص';
+    }
 
-  // فواتير الموردين المباشرة المعتمدة (بدون سند استلام — تلك تُحسب في المخزون)
-  for (const si of (supplierInvoices || [])) {
-    if (!inPeriod(si.date)) continue;
-    if (!si.projectId || si.goodsReceiptId) continue;
-    if (!RECOGNIZED_STATUSES.includes(si.status)) continue;
-    const c = ensure(si.projectId, si.projectName);
-    const amt = Number(si.totalAmount) || 0;
-    c.cost += amt; c.supplierCost += amt;
-  }
+    const acc = accountMap[l.accountCode] || {};
+    const type = acc.accountType || '';
+    const semRole = acc.semanticRole || '';
+    let lineRevenue = 0;
+    let lineCost = 0;
+    let lineExpenseCost = 0;
+    let lineSubCost = 0;
+    let lineSupplierCost = 0;
 
-  // مستخلصات مقاولي الباطن المعتمدة — استخدام totalAmount للاتساق
-  for (const si of subInvoices) {
-    if (!inPeriod(si.date)) continue;
-    if (!si.projectId) continue;
-    if (!SUB_RECOGNIZED_STATUSES.includes(si.status)) continue;
-    const c = ensure(si.projectId, si.projectName);
-    const amt = Number(si.totalAmount) || 0;
-    c.cost += amt; c.subCost += amt;
-  }
+    if (type === 'REVENUE') {
+      lineRevenue = (l.credit - l.debit);
+    } else if (type === 'EXPENSE') {
+      lineCost = (l.debit - l.credit);
+      lineExpenseCost = lineCost;
+    } else if (semRole === 'RECEIVABLES') {
+      // ذمم عملاء: مدين = فاتورة مبيعات (إيراد مستحق)
+      if (l.debit > 0) lineRevenue += l.debit;
+    } else if (semRole === 'PAYABLES') {
+      // ذمم مورد: دائن = فاتورة (تكلفة)
+      if (l.credit > 0) {
+        lineCost += l.credit;
+        lineSupplierCost += l.credit;
+      }
+    } else if (semRole === 'SUB_PAYABLES') {
+      // ذمم مقاول باطن: دائن = فاتورة (تكلفة)
+      if (l.credit > 0) {
+        lineCost += l.credit;
+        lineSubCost += l.credit;
+      }
+    }
 
-  // الإيرادات — صافي المبيعات قبل الضريبة
-  for (const inv of salesInvoices) {
-    if (!inPeriod(inv.date)) continue;
-    if (!inv.projectId) continue;
-    if (!RECOGNIZED_STATUSES.includes(inv.status)) continue;
-    const c = ensure(inv.projectId, inv.projectName);
-    c.revenue += Number(inv.subtotal) || 0;
+    c.revenue += lineRevenue;
+    c.cost += lineCost;
+    c.expenseCost += lineExpenseCost;
+    c.subCost += lineSubCost;
+    c.supplierCost += lineSupplierCost;
   }
 
   const rows = Object.values(centers)
@@ -200,7 +248,6 @@ export function buildCostCenterAnalysis({ projects = [], expenses = [], subInvoi
         marginPercent: c.revenue > 0 ? +((margin / c.revenue) * 100).toFixed(1) : 0,
       };
     })
-    // إخفاء المراكز الفارغة تماماً (لا تكلفة ولا إيراد)
     .filter((c) => c.cost !== 0 || c.revenue !== 0)
     .sort((a, b) => b.cost - a.cost);
 

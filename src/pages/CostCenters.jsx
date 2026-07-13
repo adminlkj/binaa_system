@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 // تحليل مراكز التكلفة: إيراد وتكلفة وهامش لكل مركز (مشروع).
 export default function CostCenters() {
   const { lang } = useStore();
-  const [data, setData] = useState({ projects: [], expenses: [], subInvoices: [], salesInvoices: [], supplierInvoices: [] });
+  const [data, setData] = useState({ projects: [], journalEntries: [], chartAccounts: [] });
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -24,14 +24,12 @@ export default function CostCenters() {
   const load = async () => {
     setLoading(true);
     try {
-      const [projects, expenses, subInvoices, salesInvoices, supplierInvoices] = await Promise.all([
+      const [projects, journalEntries, chartAccounts] = await Promise.all([
         base44.entities.Project.list('-created_date', 1000),
-        base44.entities.Expense.list('-date', 2000),
-        base44.entities.SubcontractorInvoice.list('-date', 2000),
-        base44.entities.SalesInvoice.list('-date', 2000),
-        base44.entities.SupplierInvoice.list('-date', 2000),
+        base44.entities.JournalEntry.list('-date', 5000),
+        base44.entities.ChartAccount.list('code', 1000),
       ]);
-      setData({ projects, expenses, subInvoices, salesInvoices, supplierInvoices });
+      setData({ projects, journalEntries, chartAccounts });
     } catch (err) {
       toast.error(err?.message || t('فشل تحميل البيانات', 'Failed to load data', lang));
     } finally {

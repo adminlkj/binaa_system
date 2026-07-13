@@ -210,7 +210,7 @@ function validationError(message) {
  */
 async function validateEntityData(entityName, data, current = null) {
   if (entityName === 'JournalEntry') {
-    await validateJournalEntry(data);
+    await validateJournalEntry(data, current);
   }
 }
 
@@ -220,13 +220,11 @@ async function validateEntityData(entityName, data, current = null) {
  * 2. كل أكواد الحسابات موجودة في الدليل المحاسبي
  * 3. لا يقل عدد السطور عن 2
  */
-async function validateJournalEntry(data) {
+async function validateJournalEntry(data, current = null) {
   const lines = Array.isArray(data.lines) ? data.lines : [];
-  if (lines.length === 0 && current?.lines) {
-    // إذا التعديل لا يُمرّر lines، نستخدم lines الحالية
-    return;
-  }
-  if (lines.length > 0 && lines.length < 2) {
+  // إذا التعديل لا يُمرّر lines، نستخدم lines الحالية من current
+  const effectiveLines = lines.length > 0 ? lines : (current?.lines || []);
+  if (effectiveLines.length > 0 && effectiveLines.length < 2) {
     throw validationError('القيد يجب أن يحتوي على سطرين على الأقل');
   }
   // التحقق من الأكواد (إن وُجدت سطور)
@@ -242,7 +240,10 @@ async function validateJournalEntry(data) {
     }
   }
   // التحقق من التوازن فقط للقيود المرحّلة
-  if (data.isPosted === true || (current?.isPosted === true && data.isPosted !== false)) {
+  // الحالة 1: قيد جديد isPosted=true (data.isPosted === true)
+  // الحالة 2: قيد مرحّل سابقاً (current.isPosted === true) ولم يُطلب إلغاء ترحيله
+  const isPostedAfter = data.isPosted === true || (current?.isPosted === true && data.isPosted !== false);
+  if (isPostedAfter && lines.length > 0) {
     const totalDebit = Number(data.totalDebit) || lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
     const totalCredit = Number(data.totalCredit) || lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
     if (Math.abs(totalDebit - totalCredit) > 0.01) {

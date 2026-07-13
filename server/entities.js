@@ -181,6 +181,16 @@ export async function deleteManyEntity(entityName, query) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
+ * إنشاء خطأ تحقق بحالة HTTP صحيحة (400 بدل 500).
+ * أخطاء التحقق يجب أن تكون 400 Bad Request، لا 500 Internal Server Error.
+ */
+function validationError(message) {
+  const err = new Error(message);
+  err.status = 400;
+  return err;
+}
+
+/**
  * يتحقق من سلامة بيانات الكيان قبل الإنشاء/التعديل.
  * - JournalEntry: توازن المدين/الدائن + وجود أكواد الحسابات في الدليل
  * - كيانات أخرى: يمكن إضافة قواعد لاحقاً
@@ -204,7 +214,7 @@ async function validateJournalEntry(data) {
     return;
   }
   if (lines.length > 0 && lines.length < 2) {
-    throw new Error('القيد يجب أن يحتوي على سطرين على الأقل');
+    throw validationError('القيد يجب أن يحتوي على سطرين على الأقل');
   }
   // التحقق من الأكواد (إن وُجدت سطور)
   if (lines.length > 0) {
@@ -214,7 +224,7 @@ async function validateJournalEntry(data) {
       const validCodes = new Set((accounts || []).map(a => a.code));
       const invalid = codes.filter(c => !validCodes.has(c));
       if (invalid.length > 0) {
-        throw new Error(`أكواد حسابات غير موجودة في الدليل المحاسبي: ${invalid.join(', ')}`);
+        throw validationError(`أكواد حسابات غير موجودة في الدليل المحاسبي: ${invalid.join(', ')}`);
       }
     }
   }
@@ -223,16 +233,16 @@ async function validateJournalEntry(data) {
     const totalDebit = Number(data.totalDebit) || lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
     const totalCredit = Number(data.totalCredit) || lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
-      throw new Error(`القيد غير متوازن: مدين=${totalDebit}، دائن=${totalCredit}، الفرق=${Math.abs(totalDebit - totalCredit).toFixed(2)}`);
+      throw validationError(`القيد غير متوازن: مدين=${totalDebit}، دائن=${totalCredit}، الفرق=${Math.abs(totalDebit - totalCredit).toFixed(2)}`);
     }
     // التحقق من تطابق الإجماليات مع مجموع السطور
     const lineDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0);
     const lineCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0);
     if (lines.length > 0 && Math.abs(lineDebit - totalDebit) > 0.01) {
-      throw new Error(`إجمالي المدين (${totalDebit}) لا يطابق مجموع السطور (${lineDebit})`);
+      throw validationError(`إجمالي المدين (${totalDebit}) لا يطابق مجموع السطور (${lineDebit})`);
     }
     if (lines.length > 0 && Math.abs(lineCredit - totalCredit) > 0.01) {
-      throw new Error(`إجمالي الدائن (${totalCredit}) لا يطابق مجموع السطور (${lineCredit})`);
+      throw validationError(`إجمالي الدائن (${totalCredit}) لا يطابق مجموع السطور (${lineCredit})`);
     }
   }
 }
@@ -271,7 +281,7 @@ async function assertNotImmutable(entityName, current, newData) {
       // نسمح فقط بتغيير isPosted من true إلى false (لإلغاء الترحيل) — لكن نمنع تعديل السطور
       const onlyUnpost = Object.keys(newData || {}).every(k => k === 'isPosted' && newData[k] === false);
       if (!onlyUnpost) {
-        throw new Error('لا يمكن تعديل قيد مرحّل — استخدم العكس (REVERSAL) بدلاً من ذلك');
+        throw validationError('لا يمكن تعديل قيد مرحّل — استخدم العكس (REVERSAL) بدلاً من ذلك');
       }
     }
     return;
@@ -283,7 +293,7 @@ async function assertNotImmutable(entityName, current, newData) {
     // نسمح فقط بتغيير الحالة (مثلاً من APPROVED إلى CANCELLED عبر reverse)
     const onlyStatus = Object.keys(newData || {}).every(k => k === 'status');
     if (!onlyStatus) {
-      throw new Error(`لا يمكن تعديل مستند بحالة "${status}" — استخدم العكس أو الإلغاء`);
+      throw validationError(`لا يمكن تعديل مستند بحالة "${status}" — استخدم العكس أو الإلغاء`);
     }
   }
 }
@@ -359,13 +369,13 @@ async function assertNoChildren(entityName, current) {
   for (const { child, field, label } of children) {
     const childRecords = await listEntity(child, { query: { [field]: current.id }, limit: 1 });
     if (childRecords && childRecords.length > 0) {
-      throw new Error(`لا يمكن الحذف — يوجد ${label} مرتبطة بهذا السجل. احذفها أولاً أو اعكسها.`);
+      throw validationError(`لا يمكن الحذف — يوجد ${label} مرتبطة بهذا السجل. احذفها أولاً أو اعكسها.`);
     }
   }
 
   // حالات خاصة
   if (entityName === 'FiscalYear' && current?.status === 'CLOSED') {
-    throw new Error('لا يمكن حذف سنة مالية مغلقة');
+    throw validationError('لا يمكن حذف سنة مالية مغلقة');
   }
   if (entityName === 'ChartAccount') {
     // فحص سطور القيود المرحّلة التي تستخدم هذا الحساب
@@ -373,10 +383,10 @@ async function assertNoChildren(entityName, current) {
     const code = current.code;
     const used = (jes || []).some(je => (je.lines || []).some(l => l.accountCode === code));
     if (used) {
-      throw new Error('لا يمكن حذف حساب مستخدم في قيود مرحّلة');
+      throw validationError('لا يمكن حذف حساب مستخدم في قيود مرحّلة');
     }
   }
   if (entityName === 'JournalEntry' && current?.isPosted === true) {
-    throw new Error('لا يمكن حذف قيد مرحّل — استخدم العكس (REVERSAL)');
+    throw validationError('لا يمكن حذف قيد مرحّل — استخدم العكس (REVERSAL)');
   }
 }

@@ -263,9 +263,10 @@ async function validateJournalEntry(data, current = null) {
 
 /**
  * الحالات التي تمنع تعديل المستند (يصبح "مغلقاً" محاسبياً).
+ * CANCELLED ليست هنا لأن المستند الملغي عُكس بالفعل ويمكن حذفه.
  */
 const IMMUTABLE_STATUSES = new Set([
-  'APPROVED', 'PAID', 'POSTED', 'REVERSED', 'CANCELLED', 'CLOSED', 'RECEIVED',
+  'APPROVED', 'PAID', 'POSTED', 'REVERSED', 'CLOSED', 'RECEIVED',
 ]);
 
 /**

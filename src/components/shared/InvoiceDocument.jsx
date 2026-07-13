@@ -269,16 +269,16 @@ export default function InvoiceDocument({ invoice, settings, client, lang = 'ar'
           <div style={{ display: 'flex', textAlign: 'center' }}>
             {[
               { ar: 'اسم الحساب', en: 'Account Name', value: settings.bankAccountName || settings.companyName },
-              { ar: 'رقم الآيبان', en: 'IBAN', value: settings.iban, ltr: true },
+              { ar: 'رقم الآيبان', en: 'IBAN', value: settings.iban, ltr: true, upper: true },
               { ar: 'الفرع', en: 'Branch', value: settings.bankBranch },
               { ar: 'اسم البنك', en: 'Bank Name', value: settings.bankName },
               { ar: 'رقم الحساب', en: 'Account No.', value: settings.bankAccountNumber, ltr: true },
-              { ar: 'رمز السويفت', en: 'SWIFT Code', value: settings.swiftCode, ltr: true },
+              { ar: 'رمز السويفت', en: 'SWIFT Code', value: settings.swiftCode, ltr: true, upper: true },
             ].map((col, i, arr) => (
               <div key={i} style={{ flex: 1, padding: '10px 8px', borderInlineStart: i > 0 ? border : 'none' }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: accent }}>{col.ar}</div>
                 <div style={{ fontSize: 8.5, color: '#9ca3af', marginBottom: 4 }}>{col.en}</div>
-                <div dir={col.ltr ? 'ltr' : undefined} style={{ fontSize: 11, fontWeight: 600, color: '#374151', wordBreak: 'break-word' }}>{col.value || '—'}</div>
+                <div dir={col.ltr ? 'ltr' : undefined} style={{ fontSize: 11, fontWeight: 600, color: '#374151', wordBreak: 'break-word', textTransform: col.upper ? 'uppercase' : undefined }}>{col.value || '—'}</div>
               </div>
             ))}
           </div>

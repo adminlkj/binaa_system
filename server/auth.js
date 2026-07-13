@@ -70,6 +70,8 @@ export async function requireUser(req) {
     error.status = 401;
     throw error;
   }
+  // Attach user to request for logging purposes
+  req._user = user;
   return user;
 }
 

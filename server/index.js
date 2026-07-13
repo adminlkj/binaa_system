@@ -88,6 +88,7 @@ async function handleAuth(req, res, route) {
     if (!user || !verifyPassword(body.password || '', user.password_hash)) return sendJson(res, { error: 'Invalid email or password' }, 401);
     if (user.is_active === false) return sendJson(res, { error: 'Account is inactive' }, 403);
     const { rows: publicRows } = await pool.query(`SELECT ${USER_PUBLIC_FIELDS} FROM app_users WHERE id = $1`, [user.id]);
+    req._user = publicRows[0];  // for log attribution
     return sendJson(res, { access_token: signToken(publicRows[0]), user: publicRows[0] });
   }
 
@@ -335,6 +336,20 @@ async function handleFile(req, res, fileId) {
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const route = url.pathname;
+  const start = Date.now();
+  // Wrap res.end to log every API request
+  const origEnd = res.end.bind(res);
+  res.end = function (chunk, encoding) {
+    const duration = Date.now() - start;
+    const status = res.statusCode || 200;
+    const method = req.method;
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket.remoteAddress || '';
+    const logRoute = route.length > 80 ? route.slice(0, 77) + '...' : route;
+    const user = req._user ? (req._user.email || req._user.id?.slice(0,8) || 'unknown') : 'anon';
+    const symbol = status >= 500 ? '✗' : status >= 400 ? '⚠' : '→';
+    console.log(`${symbol} [${new Date().toISOString()}] ${method} ${logRoute} → ${status} ${duration}ms user=${user} ip=${ip}`);
+    return origEnd(chunk, encoding);
+  };
   try {
     if (route.startsWith('/api/auth/')) return await handleAuth(req, res, route);
     if (route.startsWith('/api/users/')) return await handleUsers(req, res, route);
@@ -345,17 +360,26 @@ async function handleApi(req, res) {
     }
     if (route.startsWith('/api/entities/')) return await handleEntity(req, res, route.split('/'));
     if (route.startsWith('/api/functions/') && req.method === 'POST') {
-      const user = await requireUser(req);
-      const functionName = route.split('/')[3];
-      const payload = await readBody(req);
       try {
-        return sendJson(res, await runStandaloneFunction(functionName, payload, user));
-      } catch (error) {
-        return sendJson(res, { success: false, error: error.message || 'فشل تنفيذ العملية' });
+        const user = await requireUser(req);
+        const functionName = route.split('/')[3];
+        const payload = await readBody(req);
+        try {
+          const result = await runStandaloneFunction(functionName, payload, user);
+          return sendJson(res, result);
+        } catch (error) {
+          console.error(`✗ [${new Date().toISOString()}] /api/functions/${functionName} FAILED: ${error.message}`);
+          if (error.stack) console.error('  ' + error.stack.split('\n').slice(0, 5).join('\n  '));
+          return sendJson(res, { success: false, error: error.message || 'فشل تنفيذ العملية' }, 400);
+        }
+      } catch (authError) {
+        return sendJson(res, { error: 'Unauthorized' }, 401);
       }
     }
     return sendJson(res, { error: 'Not found' }, 404);
   } catch (error) {
+    console.error(`✗ [${new Date().toISOString()}] ${req.method} ${route} UNHANDLED: ${error.message}`);
+    if (error.stack) console.error('  ' + error.stack.split('\n').slice(0, 5).join('\n  '));
     return sendJson(res, { error: error.message || 'Server error' }, error.status || 500);
   }
 }
@@ -366,5 +390,10 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/api/')) return handleApi(req, res);
   return serveStatic(req, res);
 }).listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`═══════════════════════════════════════════════════════════════`);
+  console.log(`  بِنَاء ERP server running on port ${PORT}`);
+  console.log(`  Started: ${new Date().toISOString()}`);
+  console.log(`  Database: ${process.env.DATABASE_URL ? 'configured' : 'MISSING'}`);
+  console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`═══════════════════════════════════════════════════════════════`);
 });

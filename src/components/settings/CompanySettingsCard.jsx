@@ -78,7 +78,7 @@ export default function CompanySettingsCard() {
             <Field label={t('الفرع', 'Branch', lang)}><Input value={form.bankBranch || ''} onChange={e => set('bankBranch', e.target.value)} /></Field>
             <Field label={t('رقم الحساب', 'Account No.', lang)}><Input value={form.bankAccountNumber || ''} onChange={e => set('bankAccountNumber', e.target.value)} className="font-mono text-xs" /></Field>
             <Field label={t('الآيبان', 'IBAN', lang)}><Input value={form.iban || ''} onChange={e => set('iban', e.target.value)} className="font-mono text-xs" /></Field>
-            <Field label={t('رمز السويفت', 'SWIFT Code', lang)}><Input value={form.swiftCode || ''} onChange={e => set('swiftCode', e.target.value)} className="font-mono text-xs uppercase" /></Field>
+            <Field label={t('رمز السويفت', 'SWIFT Code', lang)}><Input value={form.swiftCode || ''} onChange={e => set('swiftCode', e.target.value.toUpperCase())} className="font-mono text-xs uppercase" /></Field>
           </div>
         </div>
 

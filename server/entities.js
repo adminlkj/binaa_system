@@ -129,6 +129,9 @@ export async function updateEntity(entityName, id, data, options = {}) {
   // also creates/reverses JEs and updates related accounts.
   if (!options.internal) {
     await assertNoDirectStatusChange(entityName, current, data);
+    // CRITICAL: block direct PATCH on financial fields (subtotal, vatAmount, etc.)
+    // These must be changed only via postOperation which recomputes totals + JEs.
+    await assertNoFinancialFieldPatch(entityName, data);
   }
   await assertOpenFiscalYear(entityName, { ...(current || {}), ...(data || {}) });
   await validateEntityData(entityName, { ...current, ...data }, current);
@@ -398,6 +401,41 @@ async function assertNoChildren(entityName, current) {
   }
   if (entityName === 'JournalEntry' && current?.isPosted === true) {
     throw validationError('لا يمكن حذف قيد مرحّل — استخدم العكس (REVERSAL)');
+  }
+}
+
+/**
+ * الحقول المالية الحساسة — لا يجوز تعديلها مباشرةً عبر PATCH حتى على DRAFT.
+ * يجب أن تُعدّل فقط عبر postOperation (التي تُعيد الحساب وتُنشئ القيود).
+ * منع تخريب داخلي مثل: PATCH {subtotal:99999} يُحدث totalAmount دون إعادة حساب.
+ */
+const FINANCIAL_FIELDS = new Set([
+  'subtotal', 'vatAmount', 'totalAmount', 'paidAmount', 'balance',
+  'totalDebit', 'totalCredit', 'lines',
+]);
+
+/**
+ * المستندات المالية التي تُمنع من تعديل حقولها المالية مباشرةً.
+ */
+const FINANCIAL_DOCUMENTS = new Set([
+  'SalesInvoice', 'SupplierInvoice', 'RentalInvoice', 'SubcontractorInvoice',
+  'ClientPayment', 'SupplierPayment', 'SubcontractorPayment',
+  'Expense', 'PayrollRun', 'GoodsReceipt',
+  'JournalEntry',
+]);
+
+/**
+ * يمنع تعديل الحقول المالية مباشرةً على المستندات المالية.
+ * استثناء: الحالة (status) مسموح بها عبر مسارها الخاص (postOperation).
+ */
+async function assertNoFinancialFieldPatch(entityName, newData) {
+  if (!FINANCIAL_DOCUMENTS.has(entityName)) return;
+  const patchedFinancialFields = Object.keys(newData || {}).filter(k => FINANCIAL_FIELDS.has(k));
+  if (patchedFinancialFields.length > 0) {
+    throw validationError(
+      `لا يمكن تعديل الحقول المالية مباشرةً (${patchedFinancialFields.join(', ')}). ` +
+      `استخدم أزرار الاعتماد/الإلغاء/العكس أو أعد إنشاء المستند.`
+    );
   }
 }
 

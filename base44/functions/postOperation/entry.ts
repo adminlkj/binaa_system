@@ -247,15 +247,17 @@ async function buildJE(base44, operationType, meta, amounts, fallbackBuilder, pa
 }
 
 // ─── بناة القيود الثابتة ──────────────────────────────────────────────────────
-function buildSalesInvoiceJE({ invoiceNo, date, clientId, clientName, subtotal, vatAmount, totalAmount, invoiceType }) {
+function buildSalesInvoiceJE({ invoiceNo, date, clientId, clientName, subtotal, vatAmount, totalAmount, invoiceType, projectName }) {
   const rev = invoiceType === 'RENTAL' ? ACCOUNTS.REVENUE_RENTAL : invoiceType === 'SERVICE' ? ACCOUNTS.REVENUE_SERVICE : ACCOUNTS.REVENUE_CONSTRUCTION;
+  // مركز التكلفة = اسم المشروع لربط القيد بالمشروع في تقارير الربحية ومراكز التكلفة
+  const costCenter = projectName || '';
   return {
-    entryNo: `JE-SINV-${invoiceNo}`, date, description: `فاتورة مبيعات ${invoiceNo} — ${clientName}`, sourceType: 'SalesInvoice', isPosted: true,
+    entryNo: `JE-SINV-${invoiceNo}`, date, description: `فاتورة مبيعات ${invoiceNo} — ${clientName}${projectName ? ` — ${projectName}` : ''}`, sourceType: 'SalesInvoice', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,
     lines: [
-      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName },
-      { accountCode: rev.code, accountName: rev.name, debit: 0, credit: subtotal, description: 'الإيراد الأساسي' },
-      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%' }] : []),
+      { accountCode: ACCOUNTS.RECEIVABLES.code, accountName: ACCOUNTS.RECEIVABLES.name, debit: totalAmount, credit: 0, description: `فاتورة ${invoiceNo}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName, costCenter },
+      { accountCode: rev.code, accountName: rev.name, debit: 0, credit: subtotal, description: 'الإيراد الأساسي', costCenter },
+      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_PAYABLE.code, accountName: ACCOUNTS.VAT_PAYABLE.name, debit: 0, credit: vatAmount, description: 'ضريبة القيمة المضافة 15%', costCenter }] : []),
     ],
   };
 }
@@ -344,31 +346,33 @@ function buildRentalJE({ contractNo, date, clientId, clientName, base, vatAmount
 }
 
 // تحصيل من عميل: من ح/ النقدية المختارة (مدين) إلى ح/ ذمم العملاء (دائن)
-function buildClientPaymentJE({ paymentNo, date, clientId, clientName, amount, cashAccountCode, cashAccountName }, accounts) {
+function buildClientPaymentJE({ paymentNo, date, clientId, clientName, amount, cashAccountCode, cashAccountName, projectName }, accounts) {
   const receivables = resolveAccount('RECEIVABLES', accounts);
   const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
   const ref = paymentNo || `${date}-${clientName || ''}`;
+  const costCenter = projectName || '';
   return {
-    entryNo: `JE-RCPT-${ref}`, date, description: `تحصيل من ${clientName || 'عميل'}`, sourceType: 'ClientPayment', isPosted: true,
+    entryNo: `JE-RCPT-${ref}`, date, description: `تحصيل من ${clientName || 'عميل'}${projectName ? ` — ${projectName}` : ''}`, sourceType: 'ClientPayment', isPosted: true,
     totalDebit: amount, totalCredit: amount,
     lines: [
-      { accountCode: cash.code, accountName: cash.name, debit: amount, credit: 0, description: `تحصيل في ${cash.name}` },
-      { accountCode: receivables.code, accountName: receivables.name, debit: 0, credit: amount, description: `سداد ذمة ${clientName || ''}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName },
+      { accountCode: cash.code, accountName: cash.name, debit: amount, credit: 0, description: `تحصيل في ${cash.name}`, costCenter },
+      { accountCode: receivables.code, accountName: receivables.name, debit: 0, credit: amount, description: `سداد ذمة ${clientName || ''}`, partyType: 'CLIENT', partyId: clientId, partyName: clientName, costCenter },
     ],
   };
 }
 
 // سداد لمورد: من ح/ ذمم الموردين (مدين) إلى ح/ النقدية المختارة (دائن)
-function buildSupplierPaymentJE({ paymentNo, date, supplierId, supplierName, amount, cashAccountCode, cashAccountName }, accounts) {
+function buildSupplierPaymentJE({ paymentNo, date, supplierId, supplierName, amount, cashAccountCode, cashAccountName, projectName }, accounts) {
   const payables = resolveAccount('PAYABLES', accounts);
   const cash = { code: cashAccountCode, name: cashAccountName || 'النقدية' };
   const ref = paymentNo || `${date}-${supplierName || ''}`;
+  const costCenter = projectName || '';
   return {
-    entryNo: `JE-PMT-${ref}`, date, description: `سداد إلى ${supplierName || 'مورد'}`, sourceType: 'SupplierPayment', isPosted: true,
+    entryNo: `JE-PMT-${ref}`, date, description: `سداد إلى ${supplierName || 'مورد'}${projectName ? ` — ${projectName}` : ''}`, sourceType: 'SupplierPayment', isPosted: true,
     totalDebit: amount, totalCredit: amount,
     lines: [
-      { accountCode: payables.code, accountName: payables.name, debit: amount, credit: 0, description: `سداد ذمة ${supplierName || ''}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName },
-      { accountCode: cash.code, accountName: cash.name, debit: 0, credit: amount, description: `دفع من ${cash.name}` },
+      { accountCode: payables.code, accountName: payables.name, debit: amount, credit: 0, description: `سداد ذمة ${supplierName || ''}`, partyType: 'SUPPLIER', partyId: supplierId, partyName: supplierName, costCenter },
+      { accountCode: cash.code, accountName: cash.name, debit: 0, credit: amount, description: `دفع من ${cash.name}`, costCenter },
     ],
   };
 }

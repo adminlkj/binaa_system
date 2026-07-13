@@ -71,8 +71,9 @@ export default function Reports({ initialReport = 'income', hideSelector = false
   const totalCredit = postedEntries.reduce((s, j) => s + (j.totalCredit || 0), 0);
   const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01;
   // Build trial balance rows from posted entries + accounts (was previously undefined → page crash)
-  const tbData = buildTrialBalance(journal, accounts, period);
-  const trialBalanceRows = tbData.map(r => ({
+  // buildTrialBalance returns { rows, totals, balanced } — must extract .rows
+  const tbResult = buildTrialBalance(journal, accounts, period);
+  const trialBalanceRows = (tbResult.rows || []).map(r => ({
     code: r.accountCode,
     name: r.accountName,
     debit: r.totalDebit,

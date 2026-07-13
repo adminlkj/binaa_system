@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
-import GoogleIcon from "@/components/GoogleIcon";
 import BinaaLogo from "@/components/shared/BinaaLogo";
-import { toast } from "sonner";
 
 const BG_IMAGE =
   "https://media.base44.com/images/public/6a44ed8818188b4da27cc800/c4fc4ea30_Gemini_Generated_Image_xeuiioxeuiioxeui.png";
@@ -33,14 +31,6 @@ export default function Login() {
     }
   };
 
-  const handleGoogle = () => {
-    try {
-      base44.auth.loginWithProvider("google", "/");
-    } catch (err) {
-      toast.error(err?.message || "المتابعة عبر Google غير متاحة حالياً");
-    }
-  };
-
   return (
     <div dir="rtl" className="relative min-h-screen w-full overflow-hidden flex items-center justify-center p-4">
       {/* Animated construction background */}
@@ -59,24 +49,6 @@ export default function Login() {
             <BinaaLogo className="w-16 h-16 shadow-lg mb-4" rounded="rounded-2xl" />
             <h1 className="text-2xl font-bold text-white">مرحباً بعودتك</h1>
             <p className="text-sm text-white/70 mt-1">سجّل الدخول إلى حسابك</p>
-          </div>
-
-          <Button
-            variant="outline"
-            className="w-full h-12 text-sm font-medium mb-6 bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white"
-            onClick={handleGoogle}
-          >
-            <GoogleIcon className="w-5 h-5 ml-2" />
-            المتابعة عبر Google
-          </Button>
-
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-transparent px-3 text-white/60">أو</span>
-            </div>
           </div>
 
           {error && (

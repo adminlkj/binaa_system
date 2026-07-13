@@ -271,18 +271,20 @@ function buildPurchaseOrderJE({ orderNo, date, supplierId, supplierName, baseAmo
   };
 }
 
-function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, reference, accountRole, expenseAccount, paymentAccount }) {
+function buildExpenseJE({ date, description, amount, vatAmount, totalAmount, reference, accountRole, expenseAccount, paymentAccount, projectName }) {
   // أولوية الحساب الذي اختاره المستخدم من الدليل، ثم الحساب الافتراضي حسب النوع.
   const debitAccount = expenseAccount || EXPENSE_TYPE_ACCOUNTS[accountRole] || ACCOUNTS.EXPENSE_GENERAL;
   // طرف السداد: الحساب النقدي المختار (صندوق/بنك/عهد)، وإلا البنك افتراضياً.
   const creditAccount = paymentAccount || ACCOUNTS.BANK;
+  // مركز التكلفة: اسم المشروع إن وُجد، ليظهر في تحليل مراكز التكلفة
+  const costCenter = projectName || '';
   return {
     entryNo: `JE-EXP-${reference || Date.now()}`, date, description: `مصروف: ${description}`, sourceType: 'Expense', isPosted: true,
     totalDebit: totalAmount, totalCredit: totalAmount,
     lines: [
-      { accountCode: debitAccount.code, accountName: debitAccount.name, debit: amount, credit: 0, description },
-      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_RECEIVABLE.code, accountName: ACCOUNTS.VAT_RECEIVABLE.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة' }] : []),
-      { accountCode: creditAccount.code, accountName: creditAccount.name, debit: 0, credit: totalAmount, description: 'سداد المصروف' },
+      { accountCode: debitAccount.code, accountName: debitAccount.name, debit: amount, credit: 0, description, costCenter },
+      ...(vatAmount > 0 ? [{ accountCode: ACCOUNTS.VAT_RECEIVABLE.code, accountName: ACCOUNTS.VAT_RECEIVABLE.name, debit: vatAmount, credit: 0, description: 'ضريبة مدفوعة', costCenter }] : []),
+      { accountCode: creditAccount.code, accountName: creditAccount.name, debit: 0, credit: totalAmount, description: 'سداد المصروف', costCenter },
     ],
   };
 }
@@ -944,11 +946,11 @@ async function createExpense(base44, data) {
     // بناء القيد مباشرةً من الحسابات المختارة حين يحدد المستخدم حساباً — اختياره الصريح
     // يتجاوز القالب. وإلا نرجع للقالب ثم للبناء الافتراضي حسب نوع المصروف.
     const je = (expenseAccount || paymentAccount)
-      ? buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole, expenseAccount, paymentAccount })
+      ? buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole, expenseAccount, paymentAccount, projectName: payload.projectName })
       : await buildJE(base44, 'EXPENSE',
           { entryNo: `JE-EXP-${ref}`, date: payload.date, description: `مصروف: ${payload.description}`, sourceType: 'Expense' },
           { base: amt, vat: vatAmount, total: totalAmount },
-          () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole }));
+          () => buildExpenseJE({ date: payload.date, description: payload.description, amount: amt, vatAmount, totalAmount, reference: ref, accountRole, projectName: payload.projectName }));
     await autoPostJE(base44, je);
   } catch (e) {
     await rollback(base44, 'Expense', expense.id);

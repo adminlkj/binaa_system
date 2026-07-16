@@ -32,3 +32,4 @@ dist-ssr
 
 # Uploaded files (user-generated content)
 /uploads
+base44/.app.jsonc
